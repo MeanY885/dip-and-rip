@@ -1277,7 +1277,8 @@ def get_historical_price_data(hours_back=24):
         logger.error(f"Error fetching historical data: {e}")
         return {'success': False, 'error': str(e)}
 
-# Routes@app.route('/')
+# Routes
+@app.route('/')
 def index():
     return render_template('index.html')
 
