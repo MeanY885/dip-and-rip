@@ -21,14 +21,7 @@ import re
 import csv
 import io
 from werkzeug.utils import secure_filename
-try:
-    import pdfplumber  # pdfplumber for PDF parsing
-    PDF_SUPPORT = True
-except ImportError:
-    PDF_SUPPORT = False
-    logger.warning("pdfplumber not installed. PDF parsing will be disabled.")
-import xlrd
-import openpyxl
+# Removed PDF and Excel imports - now using TXT parsing only
 from difflib import SequenceMatcher
 
 # Set up logging
@@ -40,7 +33,7 @@ app = Flask(__name__)
 # File upload configuration
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['UPLOAD_FOLDER'] = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_EXTENSIONS = {'txt'}
 
 # Database configuration
 database_url = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///finance_tracker.db')
@@ -190,6 +183,12 @@ class FinanceTransaction(db.Model):
     
     __table_args__ = (db.Index('idx_date_amount', 'date', 'amount'),
                       db.Index('idx_year_month', 'year', 'month'))
+
+class AccountBalance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    balance = db.Column(db.Float, nullable=False)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    source_file = db.Column(db.String(255), nullable=True)
 
 class FinanceCategoryLearning(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -985,175 +984,75 @@ def parse_csv_file(file_content):
     
     return transactions
 
-def parse_santander_statement(lines):
-    """Parse Santander statement using balance-based Money In/Out detection"""
+def parse_txt_statement(content):
+    """Parse .txt statement with clear Date, Description, Amount, Balance format"""
+    transactions = []
+    current_transaction = {}
+    last_balance = None
     
-    # Pre-process lines to handle multi-line transactions and extract all transaction data
-    all_transactions = []
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if not line or len(line) < 10:
-            i += 1
+    for line_num, line in enumerate(content.split('\n'), 1):
+        line = line.strip()
+        if not line:
             continue
             
         # Skip header lines
-        if any(header in line.lower() for header in ['date description', 'money in', 'money out', 'balance', 'transaction date']):
-            i += 1
+        if line.startswith('From:') or line.startswith('Account:') or 'XXXX' in line:
             continue
             
-        # Check if this line starts with a date (transaction line)
-        if re.match(r'\d{1,2}\/\d{1,2}\/\d{4}', line):
-            full_line = line
-            j = i + 1
+        # Parse each field
+        if line.startswith('Date:'):
+            # If we have a complete transaction, save it
+            if current_transaction.get('date') and current_transaction.get('description') and current_transaction.get('amount') is not None:
+                transactions.append(current_transaction)
             
-            # Look ahead for continuation lines
-            while j < len(lines):
-                next_line = lines[j].strip()
-                if not next_line:
-                    j += 1
-                    continue
-                    
-                # Stop if we hit another transaction date
-                if re.match(r'\d{1,2}\/\d{1,2}\/\d{4}', next_line):
-                    break
-                    
-                # Stop if we hit a header line
-                if any(header in next_line.lower() for header in ['date description', 'money in', 'money out', 'balance']):
-                    break
-                    
-                # Add continuation line if it doesn't look like just amounts
-                if not re.match(r'^£\s*[\d,]+\.?\d*\s*$', next_line):
-                    full_line += " " + next_line
-                    logger.debug(f"Added continuation: '{next_line}' to transaction")
+            # Start new transaction
+            date_str = line.replace('Date:', '').strip()
+            try:
+                date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
+                current_transaction = {'date': date_obj}
+            except ValueError:
+                logger.warning(f"Invalid date format: {date_str}")
+                current_transaction = {}
                 
-                j += 1
+        elif line.startswith('Description:'):
+            if current_transaction:
+                description = line.replace('Description:', '').strip()
+                current_transaction['description'] = description
                 
-            # Parse this transaction
-            parsed_tx = parse_single_transaction(i, full_line)
-            if parsed_tx:
-                all_transactions.append(parsed_tx)
-                
-            i = j
-        else:
-            i += 1
+        elif line.startswith('Amount:'):
+            if current_transaction:
+                amount_str = line.replace('Amount:', '').strip()
+                try:
+                    amount = float(amount_str)
+                    current_transaction['amount'] = amount
+                except ValueError:
+                    logger.warning(f"Invalid amount format: {amount_str}")
+                    
+        elif line.startswith('Balance:'):
+            if current_transaction:
+                balance_str = line.replace('Balance:', '').strip()
+                try:
+                    balance = float(balance_str)
+                    current_transaction['balance'] = balance
+                    current_transaction['source_row'] = f"Line {line_num}"
+                    last_balance = balance  # Track the last balance
+                except ValueError:
+                    logger.warning(f"Invalid balance format: {balance_str}")
     
-    # Sort transactions by date to ensure correct order for balance comparison
-    all_transactions.sort(key=lambda tx: tx['date'])
+    # Add the last transaction if complete
+    if current_transaction.get('date') and current_transaction.get('description') and current_transaction.get('amount') is not None:
+        transactions.append(current_transaction)
     
-    # Use balance changes to determine Money In vs Money Out
-    money_out_transactions = []
-    previous_balance = None
-    
-    for tx in all_transactions:
-        current_balance = tx['balance']
-        
-        if previous_balance is not None:
-            balance_change = current_balance - previous_balance
-            
-            # If balance increased, this was Money In - skip it
-            if balance_change > 0:
-                logger.debug(f"Skipping Money In (balance increased by £{balance_change:.2f}): {tx['description'][:30]}...")
-                previous_balance = current_balance
-                continue
-            
-            # If balance decreased, this was Money Out - include it
-            # But still filter out internal transfers
-            if should_exclude_transaction(tx['description']):
-                logger.debug(f"Skipping internal transfer: {tx['description']}")
-                previous_balance = current_balance
-                continue
-            
-            # Additional check: Skip transactions that look like credits/refunds
-            desc_lower = tx['description'].lower()
-            if (desc_lower.startswith('credit from') or
-                desc_lower.startswith('refund from') or
-                desc_lower.startswith('bank giro credit') or
-                desc_lower.startswith('faster payments receipt')):
-                logger.debug(f"Skipping credit/refund: {tx['description']}")
-                previous_balance = current_balance
-                continue
-            
-            # This is a legitimate Money Out transaction
-            money_out_transactions.append({
-                'date': tx['date'],
-                'description': tx['description'],
-                'amount': balance_change,  # Use actual balance change (already negative)
-                'source_row': tx['source_row']
-            })
-            
-        previous_balance = current_balance
-    
-    logger.info(f"Extracted {len(money_out_transactions)} Money Out transactions using balance-based detection")
-    return money_out_transactions
-
-def parse_single_transaction(line_num, line):
-    """Parse a single transaction line and extract date, description, balance"""
-    date_match = re.match(r'(\d{1,2}\/\d{1,2}\/\d{4})', line)
-    if not date_match:
-        return None
-        
-    try:
-        date_str = date_match.group(1)
-        date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
-        
-        # Find all £ amounts in the line
-        pound_matches = []
-        for match in re.finditer(r'£\s*([\d,]+\.?\d*)', line):
-            amount = match.group(1)
-            position = match.start()
-            pound_matches.append((amount, position))
-        
-        if len(pound_matches) < 2:
-            return None
-        
-        # The last amount is always the balance
-        balance_amount = float(pound_matches[-1][0].replace(',', ''))
-        
-        # Extract description
-        date_end = date_match.end()
-        first_amount_pos = pound_matches[0][1]
-        base_description = line[date_end:first_amount_pos].strip()
-        
-        # Check for additional merchant info after the balance
-        if len(pound_matches) >= 2:
-            balance_pos = pound_matches[-1][1]
-            balance_end = line.find(pound_matches[-1][0], balance_pos) + len(pound_matches[-1][0])
-            remaining_text = line[balance_end:].strip()
-            
-            if remaining_text and len(remaining_text) > 3:
-                # Clean up common patterns
-                remaining_text = re.sub(r'^,?\s*', '', remaining_text)
-                remaining_text = re.sub(r'\s*ON\s+\d{1,2}-\d{1,2}-\d{4}.*$', '', remaining_text)
-                if remaining_text:
-                    description = base_description + " " + remaining_text
-                else:
-                    description = base_description
-            else:
-                description = base_description
-        else:
-            description = base_description
-        
-        # Clean description
-        description = re.sub(r'\s+', ' ', description).strip()
-        
-        return {
-            'date': date_obj,
-            'description': description,
-            'balance': balance_amount,
-            'source_row': f"Line {line_num + 1}: {line}"
-        }
-        
-    except (ValueError, IndexError) as e:
-        logger.debug(f"Error parsing line: {line[:50]}... Error: {e}")
-        return None
-
-def should_exclude_transaction(description):
-    """Check if transaction should be excluded (internal transfers)"""
-    return (description == 'TRANSFER TO Shared Account' or 
-            description == 'TRANSFER TO Extra Monthly Savings' or
-            description == 'TRANSFER TO Savings Account' or
-            description.startswith('TRANSFER TO Extra Monthly'))
+    # Sort transactions by date to find the most recent one
+    if transactions:
+        transactions.sort(key=lambda tx: tx['date'])
+        most_recent_balance = transactions[-1].get('balance')  # Get balance from most recent transaction
+        logger.info(f"Parsed {len(transactions)} transactions from .txt file")
+        logger.info(f"Current account balance (from most recent transaction): £{most_recent_balance:.2f}")
+        return transactions, most_recent_balance
+    else:
+        logger.info(f"Parsed {len(transactions)} transactions from .txt file")
+        return transactions, None
 
 def parse_generic_statement(lines):
     """Fallback parser for non-Santander formats"""
@@ -1161,451 +1060,23 @@ def parse_generic_statement(lines):
     # For now, return empty list - can be enhanced later if needed
     return []
 
-def parse_pdf_file(file_content):
-    """Parse PDF file using column-based extraction for Santander statements"""
-    transactions = []
-    
-    if not PDF_SUPPORT:
-        logger.error("PDF support not available. Install pdfplumber to enable PDF parsing.")
-        return transactions
-    
+def parse_txt_file(file_content):
+    """Parse .txt file with clear Date, Description, Amount, Balance format"""
     try:
-        with pdfplumber.open(io.BytesIO(file_content)) as pdf:
-            full_text = ""
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    full_text += page_text + "\n"
-        
-        logger.info(f"PDF text length: {len(full_text)} characters")
-        logger.info(f"PDF text sample: {full_text[:1000]}")
-        
-        lines = full_text.split('\n')
-        logger.info(f"PDF has {len(lines)} lines")
-        
-        # Check if this is a Santander statement with Money In/Money Out columns
-        is_santander_format = any('Money In' in line and 'Money Out' in line for line in lines)
-        
-        if is_santander_format:
-            logger.info("Detected Santander format with Money In/Money Out columns")
-            return parse_santander_statement(lines)
+        # Decode content if it's bytes
+        if isinstance(file_content, bytes):
+            content = file_content.decode('utf-8', errors='ignore')
         else:
-            logger.info("Using fallback parsing method")
-            return parse_generic_statement(lines)
-        patterns = [
-            # Pattern 1: Santander format - Date Description Money Out Balance
-            # Example: "22/06/2025 CARD PAYMENT TO DELIVEROO £ 29.39 £ 17.47"
-            r'(\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+£\s*([\d,]+\.?\d*)\s+£\s*([\d,]+\.?\d*)',
+            content = file_content
             
-            # Pattern 2: Santander with Money In - Date Description Money In Balance  
-            # Example: "20/06/2025 transfer £ 100.00 £ 151.80"
-            r'(\d{1,2}\/\d{1,2}\/\d{4})\s+(.+?)\s+£\s*([\d,]+\.?\d*)\s+£\s*([\d,]+\.?\d*)',
-            
-            # Pattern 3: General UK bank format - DD/MM/YYYY description amount
-            r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(.+?)\s+£?\s*([\d,]+\.?\d*)',
-            
-            # Pattern 4: Transaction spanning multiple lines (description continues)
-            r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(.+)',
-            
-            # Pattern 5: Amount-heavy pattern for statements with clear money columns
-            r'(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}).*?£\s*([\d,]+\.?\d*)',
-        ]
+        transactions, last_balance = parse_txt_statement(content)
+        logger.info(f"Successfully parsed {len(transactions)} transactions from .txt file")
+        return transactions, last_balance
         
-        # Pre-process lines to handle multi-line transactions
-        processed_lines = []
-        in_money_in_section = False  # Track if we're in a Money In column section
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            if not line:
-                i += 1
-                continue
-                
-            # Check if this line starts with a date
-            if re.match(r'\d{1,2}\/\d{1,2}\/\d{4}', line):
-                # This is a transaction line, check if next line is a continuation
-                full_line = line
-                j = i + 1
-                while j < len(lines) and not re.match(r'\d{1,2}\/\d{1,2}\/\d{4}', lines[j].strip()) and lines[j].strip() and 'Date Description' not in lines[j]:
-                    # This line doesn't start with a date and isn't empty, it's probably a continuation
-                    continuation_line = lines[j].strip()
-                    # Skip lines that look like they might be amounts or balances only
-                    if not re.match(r'^£\s*[\d,]+\.?\d*\s*$', continuation_line):
-                        full_line += " " + continuation_line
-                        logger.debug(f"Added continuation: '{continuation_line}' to line starting with '{line[:30]}...'")
-                    j += 1
-                processed_lines.append(full_line)
-                i = j
-            else:
-                i += 1
-        
-        logger.info(f"Processed {len(processed_lines)} transaction lines from {len(lines)} total lines")
-        
-        for line_num, line in enumerate(processed_lines):
-            line = line.strip()
-            if len(line) < 15:  # Skip very short lines
-                continue
-                
-            # Check for Money In column headers and skip transactions in those sections
-            if 'money in' in line.lower():
-                logger.debug(f"Skipping Money In transaction: {line[:50]}...")
-                continue
-                
-            # Skip header lines
-            if any(header in line.lower() for header in ['date description', 'money out', 'balance', 'transaction date']):
-                continue
-                
-            # Try Santander-specific parsing first
-            # New approach: Extract date first, then work backwards from the amounts to get full description
-            date_match = re.match(r'(\d{1,2}\/\d{1,2}\/\d{4})', line)
-            
-            if date_match:
-                try:
-                    date_str = date_match.group(1)
-                    
-                    # Find all £ amounts in the line
-                    pound_matches = re.findall(r'£\s*([\d,]+\.?\d*)', line)
-                    
-                    if len(pound_matches) >= 2:
-                        # Get the last two amounts (Transaction Amount and Balance)
-                        amount_str = pound_matches[-2]  # Second to last is transaction amount
-                        balance_str = pound_matches[-1]  # Last is balance
-                        
-                        # Extract everything between the date and the last two £ symbols as description
-                        # Find position after date
-                        date_end = date_match.end()
-                        
-                        # Find position of the last two £ symbols
-                        temp_line = line
-                        last_pound_pos = temp_line.rfind('£')
-                        temp_line = temp_line[:last_pound_pos]
-                        second_last_pound_pos = temp_line.rfind('£')
-                        
-                        # Extract description between date and second-to-last £
-                        base_description = line[date_end:second_last_pound_pos].strip()
-                        
-                        # Check if there's additional merchant info after the balance
-                        remaining_text = line[last_pound_pos:].strip()
-                        # Remove the balance amount from remaining text and extract merchant name
-                        remaining_text = re.sub(r'^£\s*[\d,]+\.?\d*\s*', '', remaining_text)
-                        
-                        # If we find merchant info after the balance, append it to description
-                        if remaining_text and not remaining_text.startswith('ON '):
-                            # Extract merchant name (everything before "ON date" if present)
-                            merchant_match = re.match(r'^(.+?)\s+ON\s+\d{1,2}-\d{1,2}-\d{4}', remaining_text)
-                            if merchant_match:
-                                merchant_name = merchant_match.group(1).strip()
-                                if merchant_name:
-                                    description = f"{base_description} {merchant_name}"
-                                else:
-                                    description = base_description
-                            else:
-                                # No "ON date" pattern, take everything as merchant name
-                                clean_remaining = re.sub(r'\s+ON\s+\d{1,2}-\d{1,2}-\d{4}.*$', '', remaining_text).strip()
-                                if clean_remaining and len(clean_remaining) > 3:
-                                    description = f"{base_description} {clean_remaining}"
-                                else:
-                                    description = base_description
-                        else:
-                            description = base_description
-                        
-                        # Debug: Log the full extraction process
-                        logger.info(f"PARSING DEBUG - Full line: '{line}'")
-                        logger.info(f"PARSING DEBUG - Base description: '{base_description}'")
-                        logger.info(f"PARSING DEBUG - Remaining text after balance: '{remaining_text}'")
-                        logger.info(f"PARSING DEBUG - Final description: '{description}'")
-                        
-                        # Clean up description - remove extra whitespace but keep content
-                        description = re.sub(r'\s+', ' ', description).strip()
-                        
-                        money_amount = amount_str
-                        balance = balance_str
-                        
-                        logger.debug(f"Parsed line: Date='{date_str}', Description='{description}', Amount='{money_amount}', Balance='{balance}'")
-                        
-                        # Check if this is a Money In transaction that should be discounted
-                        description_lower = description.lower()
-                        
-                        # Skip Money In transactions (these should be discounted/ignored)
-                        if ((description_lower == 'transfer' or (description_lower.startswith('transfer ') and 'to' not in description_lower)) or
-                            description_lower.startswith('deposit') or
-                            description_lower.startswith('salary') or
-                            description_lower.startswith('refund') or
-                            'credit' in description_lower or
-                            'receipt' in description_lower or
-                            description_lower.startswith('bank giro credit')):
-                            logger.debug(f"Skipping Money In transaction: {description[:50]}...")
-                            continue
-                        
-                        # Now determine if it's Money Out based on description
-                        amount_val = float(amount_str.replace(',', ''))
-                        
-                        # Default to Money Out (most transactions are expenses)
-                        amount = -amount_val
-                        
-                        # Classify based on transaction type (check BEFORE cleaning description)
-                        if (description_lower.startswith('card payment to') or 
-                            description_lower.startswith('direct debit payment to') or
-                            description_lower.startswith('direct debit to') or
-                            'payment to' in description_lower or
-                            'transfer to' in description_lower or
-                            any(merchant in description_lower for merchant in ['deliveroo', 'domino', 'tesco', 'gousto', 'mcdonalds', 'google', 'vodafone', 'amazon', 'paypal', 'ebay', 'spotify', 'netflix'])):
-                            # These are clearly expenses/outgoing payments
-                            amount = -amount_val
-                        else:
-                            # For unclear cases, assume it's an expense (most bank transactions are outgoing)
-                            amount = -amount_val
-                            
-                    else:
-                        continue
-                    
-                    # Parse date
-                    try:
-                        date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
-                    except ValueError:
-                        continue
-                    
-                    # Clean description AFTER classification - only normalize spaces, keep full context
-                    description = re.sub(r'\s+', ' ', description).strip()
-                    
-                    if abs(amount) > 0.01 and date_obj and description:  # Valid transaction
-                        transactions.append({
-                            'date': date_obj,
-                            'amount': amount,
-                            'description': description,
-                            'source_row': f"Line {line_num + 1}: {line}"
-                        })
-                        logger.info(f"Found Santander transaction: {date_obj} £{amount} '{description}'")
-                        continue  # Don't try other patterns
-                        
-                except (ValueError, TypeError, AttributeError) as e:
-                    logger.debug(f"Error parsing Santander format {line}: {e}")
-            
-            # If Santander parsing failed, try other patterns
-            for pattern_num, pattern in enumerate(patterns):
-                matches = re.findall(pattern, line)
-                if matches:
-                    for match in matches:
-                        try:
-                            if len(match) >= 2:
-                                date_str = match[0]
-                                
-                                # Handle different pattern structures
-                                if len(match) == 3:
-                                    description = match[1]
-                                    amount_str = match[2]
-                                elif len(match) == 4:
-                                    # Pattern with description, money out, and balance
-                                    description = match[1]
-                                    amount_str = match[2]
-                                else:
-                                    amount_str = match[1] if len(match) > 1 else "0"
-                                    description = match[2] if len(match) > 2 else f"Transaction from line {line_num + 1}"
-                                
-                                # Clean up amount string
-                                amount_str = amount_str.replace('£', '').replace(',', '').strip()
-                                if not amount_str or amount_str in ['', '-', '+']:
-                                    continue
-                                
-                                # Parse date with multiple formats
-                                date_obj = None
-                                date_formats = ['%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%d-%m-%y', 
-                                              '%d %b %Y', '%d %B %Y', '%Y-%m-%d', '%Y/%m/%d']
-                                
-                                for date_format in date_formats:
-                                    try:
-                                        date_obj = datetime.strptime(date_str, date_format).date()
-                                        break
-                                    except ValueError:
-                                        continue
-                                
-                                if not date_obj:
-                                    # Try pandas for more flexible parsing
-                                    try:
-                                        date_obj = pd.to_datetime(date_str, dayfirst=True).date()
-                                    except:
-                                        continue
-                                
-                                # Parse amount
-                                try:
-                                    amount = float(amount_str)
-                                except ValueError:
-                                    continue
-                                
-                                # Clean description
-                                description = description.strip()
-                                if not description or len(description) < 3:
-                                    description = f"Transaction on {date_obj}"
-                                
-                                # Validate transaction makes sense
-                                if abs(amount) > 0.01 and date_obj:  # At least 1 penny
-                                    transactions.append({
-                                        'date': date_obj,
-                                        'amount': amount,
-                                        'description': description,
-                                        'source_row': f"Line {line_num + 1}: {line}"
-                                    })
-                                    logger.info(f"Found transaction: {date_obj} £{amount} {description[:50]}")
-                                    break  # Don't try other patterns for this line
-                                    
-                        except (ValueError, TypeError) as e:
-                            logger.debug(f"Error parsing match {match}: {e}")
-                            continue
-                    
-                    if matches:
-                        break  # Don't try other patterns if we found matches
-        
-        # If no transactions found, try a more aggressive approach
-        if not transactions:
-            logger.info("No transactions found with standard patterns, trying aggressive parsing...")
-            
-            # Look for any line with both a date-like pattern and number
-            for line_num, line in enumerate(lines):
-                line = line.strip()
-                
-                # Find all dates in the line
-                date_matches = re.findall(r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}', line)
-                # Find all currency amounts
-                amount_matches = re.findall(r'£?[\d,]+\.?\d*', line)
-                
-                if date_matches and amount_matches:
-                    try:
-                        date_str = date_matches[0]
-                        amount_str = amount_matches[-1].replace('£', '').replace(',', '')  # Take last amount (often the transaction amount)
-                        
-                        date_obj = pd.to_datetime(date_str, dayfirst=True).date()
-                        amount = float(amount_str)
-                        
-                        if abs(amount) > 0.01:
-                            # Extract description as the text between date and amount
-                            description_part = line
-                            for date_match in date_matches:
-                                description_part = description_part.replace(date_match, '')
-                            for amount_match in amount_matches:
-                                description_part = description_part.replace(amount_match, '')
-                            
-                            description = description_part.strip() or f"Transaction on {date_obj}"
-                            
-                            transactions.append({
-                                'date': date_obj,
-                                'amount': amount,
-                                'description': description,
-                                'source_row': f"Line {line_num + 1}: {line}"
-                            })
-                            logger.info(f"Aggressive parse found: {date_obj} £{amount} {description[:50]}")
-                            
-                    except (ValueError, TypeError):
-                        continue
-        
-        logger.info(f"PDF parsing completed. Found {len(transactions)} transactions")
-        
-        # Debug: log first few lines of PDF for troubleshooting
-        if not transactions:
-            logger.warning("No transactions found. First 10 non-empty lines:")
-            non_empty_lines = [line.strip() for line in lines if line.strip()]
-            for i, line in enumerate(non_empty_lines[:10]):
-                logger.warning(f"Line {i+1}: {line}")
-    
     except Exception as e:
-        logger.error(f"Error parsing PDF: {e}")
-    
-    return transactions
-
-def parse_excel_file(file_content, filename):
-    """Parse Excel file and extract transactions"""
-    transactions = []
-    
-    try:
-        if filename.endswith('.xls'):
-            workbook = xlrd.open_workbook(file_contents=file_content)
-            sheet = workbook.sheet_by_index(0)
-            
-            # Find header row
-            headers = []
-            for row_idx in range(min(5, sheet.nrows)):  # Check first 5 rows for headers
-                row_values = [str(cell.value).lower() for cell in sheet.row(row_idx)]
-                if any('date' in val for val in row_values):
-                    headers = row_values
-                    start_row = row_idx + 1
-                    break
-            
-            if headers:
-                date_col = amount_col = desc_col = None
-                for i, header in enumerate(headers):
-                    if 'date' in header:
-                        date_col = i
-                    elif any(word in header for word in ['amount', 'value', 'debit', 'credit']):
-                        amount_col = i
-                    elif any(word in header for word in ['description', 'memo', 'details']):
-                        desc_col = i
-                
-                if date_col is not None and amount_col is not None and desc_col is not None:
-                    for row_idx in range(start_row, sheet.nrows):
-                        try:
-                            row = sheet.row(row_idx)
-                            date_val = row[date_col].value
-                            amount_val = row[amount_col].value
-                            desc_val = str(row[desc_col].value)
-                            
-                            # Convert Excel date to Python date
-                            if isinstance(date_val, float):
-                                date_obj = xlrd.xldate_as_datetime(date_val, workbook.datemode).date()
-                            else:
-                                date_obj = pd.to_datetime(str(date_val)).date()
-                            
-                            amount = float(amount_val)
-                            
-                            transactions.append({
-                                'date': date_obj,
-                                'amount': amount,
-                                'description': desc_val,
-                                'source_row': str([cell.value for cell in row])
-                            })
-                        except (ValueError, TypeError, xlrd.XLDateError):
-                            continue
-        
-        else:  # .xlsx
-            workbook = openpyxl.load_workbook(io.BytesIO(file_content))
-            sheet = workbook.active
-            
-            # Find headers
-            headers = []
-            for row in sheet.iter_rows(max_row=5, values_only=True):
-                if any(cell and 'date' in str(cell).lower() for cell in row):
-                    headers = [str(cell).lower() if cell else '' for cell in row]
-                    break
-            
-            if headers:
-                date_col = amount_col = desc_col = None
-                for i, header in enumerate(headers):
-                    if 'date' in header:
-                        date_col = i
-                    elif any(word in header for word in ['amount', 'value', 'debit', 'credit']):
-                        amount_col = i
-                    elif any(word in header for word in ['description', 'memo', 'details']):
-                        desc_col = i
-                
-                if date_col is not None and amount_col is not None and desc_col is not None:
-                    for row in sheet.iter_rows(min_row=2, values_only=True):
-                        try:
-                            if row[date_col] and row[amount_col] and row[desc_col]:
-                                date_obj = pd.to_datetime(row[date_col]).date()
-                                amount = float(row[amount_col])
-                                description = str(row[desc_col])
-                                
-                                transactions.append({
-                                    'date': date_obj,
-                                    'amount': amount,
-                                    'description': description,
-                                    'source_row': str(list(row))
-                                })
-                        except (ValueError, TypeError):
-                            continue
-    
-    except Exception as e:
-        logger.error(f"Error parsing Excel file: {e}")
-    
-    return transactions
+        logger.error(f"Error parsing .txt file: {e}")
+        return [], None
+# Removed Excel parsing - now using TXT files only
 
 def get_historical_price_data(hours_back=24):
     """Get historical price data from database"""
@@ -1627,19 +1098,21 @@ def get_historical_price_data(hours_back=24):
                 'timestamp': record.timestamp.isoformat(),
                 'price_gbp': record.price_gbp,
                 'price_usd': record.price_usd,
-                'volume': record.volume
+                'volume': record.volume if hasattr(record, 'volume') else None
             })
         
         return {
             'success': True,
             'data': data_points,
-            'count': len(data_points)
+            'hours_back': hours_back,
+            'total_points': len(data_points)
         }
         
     except Exception as e:
+        logger.error(f"Error fetching historical data: {e}")
         return {'success': False, 'error': str(e)}
 
-@app.route('/')
+# Routes@app.route('/')
 def index():
     return render_template('index.html')
 
@@ -2800,12 +2273,13 @@ def finance_upload():
         filename = secure_filename(file.filename)
         file_content = file.read()
         
-        # Parse PDF file
+        # Parse TXT file
         transactions = []
-        if filename.lower().endswith('.pdf'):
-            transactions = parse_pdf_file(file_content)
+        last_balance = None
+        if filename.lower().endswith('.txt'):
+            transactions, last_balance = parse_txt_file(file_content)
         else:
-            return jsonify({'success': False, 'error': 'Only PDF files are supported'}), 400
+            return jsonify({'success': False, 'error': 'Only TXT files are supported'}), 400
         
         if not transactions:
             return jsonify({'success': False, 'error': 'No valid transactions found in file'}), 400
@@ -2859,12 +2333,34 @@ def finance_upload():
                 'confidence': confidence_score
             })
         
+        # Save current account balance if available
+        if last_balance is not None:
+            # Update or create account balance record
+            balance_record = AccountBalance.query.first()
+            if balance_record:
+                balance_record.balance = last_balance
+                balance_record.last_updated = datetime.utcnow()
+                balance_record.source_file = filename
+            else:
+                balance_record = AccountBalance(
+                    balance=last_balance,
+                    source_file=filename
+                )
+                db.session.add(balance_record)
+        
         db.session.commit()
+        
+        # Count Money In vs Money Out
+        money_in_count = sum(1 for tx in processed_transactions if tx['amount'] > 0)
+        money_out_count = sum(1 for tx in processed_transactions if tx['amount'] < 0)
         
         return jsonify({
             'success': True,
             'imported': len(processed_transactions),
             'duplicates_skipped': duplicates_found,
+            'money_in_count': money_in_count,
+            'money_out_count': money_out_count,
+            'current_balance': last_balance,
             'transactions': processed_transactions[:10]  # Show first 10 for preview
         })
         
