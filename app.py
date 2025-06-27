@@ -1114,7 +1114,8 @@ def parse_santander_statement(lines):
             transaction = {
                 'date': date_obj,
                 'description': description,
-                'amount': amount
+                'amount': amount,
+                'source_row': f"Line {line_num + 1}: {line}"
             }
             
             transactions.append(transaction)
@@ -1130,6 +1131,7 @@ def parse_santander_statement(lines):
 def parse_generic_statement(lines):
     """Fallback parser for non-Santander formats"""
     # This contains the original parsing logic as backup
+    # For now, return empty list - can be enhanced later if needed
     return []
 
 def parse_pdf_file(file_content):
