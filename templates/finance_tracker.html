@@ -199,7 +199,7 @@
             max-width: 200px;
         }
         
-        .data-table td:nth-child(3) {
+        .data-table td:nth-child(4) {
             min-width: 300px;
             white-space: normal;
             word-break: break-word;
@@ -214,6 +214,29 @@
         
         .data-table tbody tr:hover {
             background-color: #f8f9fa;
+        }
+        
+        /* Transaction type tags */
+        .transaction-type {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+            display: inline-block;
+            min-width: 70px;
+        }
+        
+        .money-in {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .money-out {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
         .upload-area {
@@ -1489,6 +1512,7 @@
                     <thead>
                         <tr>
                             <th>Date</th>
+                            <th>Type</th>
                             <th>Amount</th>
                             <th>Description</th>
                             <th>Category</th>
@@ -1507,6 +1531,12 @@
                 // Format amount without +/- signs
                 const formattedAmount = `£${Math.abs(t.amount).toFixed(2)}`;
                 
+                // Determine transaction type and create tag
+                const isMoneyIn = t.amount > 0;
+                const typeTag = isMoneyIn ? 
+                    '<span class="transaction-type money-in">Money In</span>' : 
+                    '<span class="transaction-type money-out">Money Out</span>';
+                
                 // Add color coding based on category
                 let rowStyle = '';
                 if (t.category_id && allCategories) {
@@ -1519,6 +1549,7 @@
                 html += `
                     <tr data-transaction-id="${t.id}" ${rowStyle}>
                         <td class="editable-date" onclick="editField(this, 'date', ${t.id})" title="Click to edit">${new Date(t.date).toLocaleDateString()}</td>
+                        <td>${typeTag}</td>
                         <td class="editable-amount" onclick="editField(this, 'amount', ${t.id})" title="Click to edit">${formattedAmount}</td>
                         <td class="editable-description" onclick="editField(this, 'description', ${t.id})" title="Click to edit">${t.description}</td>
                         <td>
