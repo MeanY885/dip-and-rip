@@ -2860,14 +2860,10 @@ def update_transaction_recurring(transaction_id):
 
 @app.route('/api/finance-tracker/recurring-insights')
 def recurring_insights():
-    """Get recurring transaction insights and alerts"""
+    """Get recurring transaction insights and alerts for manually marked recurring items only"""
     try:
-        # Run detection and missing payment checks
-        detect_recurring_transactions()
-        check_missing_recurring_payments()
-        
-        # Get all tracked recurring transactions
-        trackers = RecurringTracker.query.all()
+        # Get manually marked recurring transactions (is_recurring = True)
+        manually_recurring = FinanceTransaction.query.filter_by(is_recurring=True).all()
         
         insights = {
             'total_recurring': 0,
@@ -2877,37 +2873,62 @@ def recurring_insights():
             'active_count': 0
         }
         
-        for tracker in trackers:
-            if tracker.status == 'active':
-                insights['active_count'] += 1
-                insights['total_recurring'] += abs(tracker.expected_amount)
-            elif tracker.status == 'price_changed':
-                # Get previous amount from history
-                history = json.loads(tracker.amount_history or "[]")
-                if len(history) >= 2:
-                    prev_amount = history[-2]['amount']
-                    change_percent = ((tracker.expected_amount - prev_amount) / abs(prev_amount)) * 100
-                    insights['price_changes'].append({
-                        'description': tracker.description_pattern,
-                        'old_amount': prev_amount,
-                        'new_amount': tracker.expected_amount,
-                        'change_percent': change_percent,
-                        'last_occurrence': tracker.last_occurrence.isoformat()
-                    })
-            elif tracker.status == 'missing':
-                days_overdue = (datetime.now().date() - tracker.last_occurrence).days - tracker.frequency_days
-                insights['missing_payments'].append({
-                    'description': tracker.description_pattern,
-                    'expected_amount': tracker.expected_amount,
-                    'days_overdue': days_overdue,
-                    'last_occurrence': tracker.last_occurrence.isoformat()
-                })
-            elif tracker.status == 'stopped':
-                insights['stopped_payments'].append({
-                    'description': tracker.description_pattern,
-                    'expected_amount': tracker.expected_amount,
-                    'last_occurrence': tracker.last_occurrence.isoformat()
-                })
+        # Group manually marked recurring transactions by description pattern
+        pattern_groups = defaultdict(list)
+        for transaction in manually_recurring:
+            pattern = extract_description_keywords(transaction.description)
+            if pattern:
+                pattern_groups[pattern].append(transaction)
+        
+        # Analyze each group for price changes and missing payments
+        for pattern, transactions in pattern_groups.items():
+            if len(transactions) >= 2:  # Need at least 2 to detect changes
+                transactions.sort(key=lambda t: t.date)
+                latest = transactions[-1]
+                previous = transactions[-2]
+                
+                # Check for price changes (5% threshold)
+                if abs(latest.amount) != abs(previous.amount):
+                    change_percent = ((abs(latest.amount) - abs(previous.amount)) / abs(previous.amount)) * 100
+                    if abs(change_percent) >= 5:  # 5% threshold
+                        insights['price_changes'].append({
+                            'description': latest.description,
+                            'old_amount': previous.amount,
+                            'new_amount': latest.amount,
+                            'change_percent': change_percent,
+                            'last_occurrence': latest.date.isoformat()
+                        })
+                
+                # Check for missing payments (simple frequency check)
+                intervals = []
+                for i in range(1, len(transactions)):
+                    days_diff = (transactions[i].date - transactions[i-1].date).days
+                    intervals.append(days_diff)
+                
+                if intervals:
+                    avg_frequency = sum(intervals) / len(intervals)
+                    days_since_last = (datetime.now().date() - latest.date).days
+                    
+                    # Consider missing if 1.5x the expected frequency has passed
+                    if days_since_last > (avg_frequency * 1.5):
+                        days_overdue = days_since_last - int(avg_frequency)
+                        if days_since_last > (avg_frequency * 3):
+                            insights['stopped_payments'].append({
+                                'description': latest.description,
+                                'expected_amount': latest.amount,
+                                'last_occurrence': latest.date.isoformat()
+                            })
+                        else:
+                            insights['missing_payments'].append({
+                                'description': latest.description,
+                                'expected_amount': latest.amount,
+                                'days_overdue': days_overdue,
+                                'last_occurrence': latest.date.isoformat()
+                            })
+            
+            # Count active recurring (all manually marked ones)
+            insights['active_count'] += 1
+            insights['total_recurring'] += abs(transactions[-1].amount)
         
         return jsonify({
             'success': True,

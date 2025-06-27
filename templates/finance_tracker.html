@@ -1469,9 +1469,9 @@
                 alertsContainer.id = 'recurringAlerts';
                 alertsContainer.style.marginTop = '15px';
                 
-                // Insert after the summary cards
-                const summaryCards = document.querySelector('.summary-cards');
-                summaryCards.parentNode.insertBefore(alertsContainer, summaryCards.nextSibling);
+                // Insert after the charts container
+                const chartsContainer = document.querySelector('.charts-container');
+                chartsContainer.parentNode.insertBefore(alertsContainer, chartsContainer.nextSibling);
             }
             
             let alertsHtml = '';
@@ -1534,8 +1534,8 @@
                     console.log('Successfully updated recurring status, refreshing calculations...');
                     // Refresh recurring spend calculation
                     calculateRecurringSpend();
-                    // Also refresh the transactions to show updated status
-                    loadTransactions();
+                    // Also refresh the transactions to show updated status, stay on current page
+                    loadTransactions(currentTransactionsPage);
                 }
             } catch (error) {
                 console.error('Error updating recurring status:', error);
@@ -1659,20 +1659,18 @@
             
             // Add pagination controls and Delete All button
             html += `
-                <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         ${pagination.pages > 1 ? `
-                            <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="month-nav">
                                 <button onclick="loadTransactions(${pagination.page - 1})" 
-                                        ${pagination.page <= 1 ? 'disabled' : ''} 
-                                        style="padding: 8px 12px; border: 1px solid #ddd; background: ${pagination.page <= 1 ? '#f5f5f5' : '#fff'}; border-radius: 4px; cursor: ${pagination.page <= 1 ? 'not-allowed' : 'pointer'};">
-                                    ← Previous
+                                        ${pagination.page <= 1 ? 'disabled' : ''}>
+                                    ◀ Previous
                                 </button>
-                                <span style="color: #666; margin: 0 10px;">Page ${pagination.page} of ${pagination.pages} (${pagination.total} total)</span>
+                                <h3 style="margin: 0; color: #333;">Page ${pagination.page} of ${pagination.pages} (${pagination.total} total)</h3>
                                 <button onclick="loadTransactions(${pagination.page + 1})" 
-                                        ${pagination.page >= pagination.pages ? 'disabled' : ''} 
-                                        style="padding: 8px 12px; border: 1px solid #ddd; background: ${pagination.page >= pagination.pages ? '#f5f5f5' : '#fff'}; border-radius: 4px; cursor: ${pagination.page >= pagination.pages ? 'not-allowed' : 'pointer'};">
-                                    Next →
+                                        ${pagination.page >= pagination.pages ? 'disabled' : ''}>
+                                    Next ▶
                                 </button>
                             </div>
                         ` : ''}
