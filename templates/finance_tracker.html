@@ -1416,15 +1416,28 @@
             console.log('Calculating recurring spend and insights...');
             
             try {
-                // Get enhanced recurring insights
-                const insightsResponse = await fetch('/api/finance-tracker/recurring-insights');
-                const insightsData = await insightsResponse.json();
+                // Get enhanced recurring insights AND monthly prediction
+                const [insightsResponse, predictionResponse] = await Promise.all([
+                    fetch('/api/finance-tracker/recurring-insights'),
+                    fetch('/api/finance-tracker/recurring-monthly-prediction')
+                ]);
                 
-                if (insightsData.success) {
+                const insightsData = await insightsResponse.json();
+                const predictionData = await predictionResponse.json();
+                
+                if (insightsData.success && predictionData.success) {
                     const insights = insightsData.insights;
+                    const prediction = predictionData;
                     
-                    // Update recurring amount with enhanced display
+                    // Update recurring amount with prediction display
                     let recurringText = `£${insights.total_recurring.toFixed(2)}`;
+                    let predictionText = '';
+                    
+                    if (prediction.next_month_prediction > 0) {
+                        const difference = prediction.next_month_prediction - insights.total_recurring;
+                        const arrow = difference > 0 ? '↗️' : (difference < 0 ? '↘️' : '➡️');
+                        predictionText = `<br><small style="font-size: 11px; opacity: 0.7;">Next month: ${arrow} £${prediction.next_month_prediction.toFixed(2)}</small>`;
+                    }
                     
                     // Add alerts for price changes, missing payments, etc.
                     const alerts = [];
@@ -1438,21 +1451,16 @@
                         alerts.push(`🛑 ${insights.stopped_payments.length} stopped`);
                     }
                     
-                    const recurringElement = document.getElementById('recurringAmount');
-                    if (alerts.length > 0) {
-                        recurringElement.innerHTML = `
-                            ${recurringText}<br>
-                            <small style="font-size: 12px; opacity: 0.8;">${alerts.join(' | ')}</small>
-                        `;
-                    } else {
-                        recurringElement.textContent = recurringText;
-                    }
+                    const recurringElement = document.getElementById('recurringAmount'); 
+                    let alertsText = alerts.length > 0 ? `<br><small style="font-size: 12px; opacity: 0.8;">${alerts.join(' | ')}</small>` : '';
+                    
+                    recurringElement.innerHTML = `${recurringText}${predictionText}${alertsText}`;
                     
                     // Show detailed alerts if any
                     showRecurringAlerts(insights);
                     
                 } else {
-                    console.log('Error getting recurring insights:', insightsData.error);
+                    console.log('Error getting recurring data');
                     document.getElementById('recurringAmount').textContent = '£0.00';
                 }
             } catch (error) {

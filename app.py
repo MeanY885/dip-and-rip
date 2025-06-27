@@ -2798,13 +2798,25 @@ def finance_recurring_transactions():
             FinanceTransaction.is_recurring == True
         ).all()
         
-        # Calculate monthly total from recurring transactions
-        recurring_total = sum(abs(t.amount) for t in recurring_transactions)
+        # Group by description pattern to avoid stacking/duplication
+        pattern_groups = defaultdict(list)
+        for transaction in recurring_transactions:
+            pattern = extract_description_keywords(transaction.description)
+            if pattern:
+                pattern_groups[pattern].append(transaction)
+        
+        # Calculate monthly total using latest amount per pattern (no stacking)
+        recurring_total = 0
+        for pattern, transactions in pattern_groups.items():
+            transactions.sort(key=lambda t: t.date)
+            latest_amount = abs(transactions[-1].amount)  # Take latest amount for this pattern
+            recurring_total += latest_amount
         
         return jsonify({
             'success': True,
             'recurring_total': recurring_total,
-            'count': len(recurring_transactions)
+            'count': len(pattern_groups),  # Count unique patterns, not total transactions
+            'unique_patterns': len(pattern_groups)
         })
         
     except Exception as e:
@@ -2942,6 +2954,89 @@ def recurring_insights():
         
     except Exception as e:
         logger.error(f"Error getting recurring insights: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance-tracker/recurring-monthly-prediction')
+def recurring_monthly_prediction():
+    """Get monthly recurring cost tracking and next month prediction"""
+    try:
+        # Get manually marked recurring transactions
+        recurring_transactions = FinanceTransaction.query.filter_by(is_recurring=True).all()
+        
+        if not recurring_transactions:
+            return jsonify({
+                'success': True,
+                'monthly_tracking': {},
+                'next_month_prediction': 0,
+                'prediction_confidence': 0,
+                'total_recurring_items': 0
+            })
+        
+        # Group by description pattern
+        pattern_groups = defaultdict(list)
+        for transaction in recurring_transactions:
+            pattern = extract_description_keywords(transaction.description)
+            if pattern:
+                pattern_groups[pattern].append(transaction)
+        
+        monthly_tracking = {}
+        total_prediction = 0
+        
+        # Analyze each recurring pattern
+        for pattern, transactions in pattern_groups.items():
+            transactions.sort(key=lambda t: t.date)
+            
+            # Track monthly costs for this pattern
+            monthly_costs = defaultdict(list)
+            for transaction in transactions:
+                month_key = f"{transaction.date.year}-{transaction.date.month:02d}"
+                monthly_costs[month_key].append(abs(transaction.amount))
+            
+            # Calculate monthly averages (in case multiple transactions in same month)
+            monthly_averages = {}
+            for month, amounts in monthly_costs.items():
+                monthly_averages[month] = sum(amounts) / len(amounts)
+            
+            # Get recent trend for prediction
+            recent_months = sorted(monthly_averages.keys())[-3:]  # Last 3 months
+            if recent_months:
+                recent_amounts = [monthly_averages[month] for month in recent_months]
+                predicted_amount = sum(recent_amounts) / len(recent_amounts)  # Average of recent months
+                
+                # Detect trend (increasing/decreasing)
+                if len(recent_amounts) >= 2:
+                    trend = recent_amounts[-1] - recent_amounts[0]
+                    trend_percent = (trend / recent_amounts[0]) * 100 if recent_amounts[0] > 0 else 0
+                else:
+                    trend = 0
+                    trend_percent = 0
+                
+                total_prediction += predicted_amount
+                
+                # Store tracking data for this pattern
+                monthly_tracking[pattern] = {
+                    'description': transactions[-1].description,
+                    'monthly_costs': monthly_averages,
+                    'predicted_next_month': predicted_amount,
+                    'trend': trend,
+                    'trend_percent': trend_percent,
+                    'last_amount': abs(transactions[-1].amount),
+                    'frequency_months': len(recent_months)
+                }
+        
+        # Calculate prediction confidence based on data consistency
+        confidence = min(100, (len(pattern_groups) * 20))  # Higher confidence with more recurring items
+        
+        return jsonify({
+            'success': True,
+            'monthly_tracking': monthly_tracking,
+            'next_month_prediction': round(total_prediction, 2),
+            'prediction_confidence': confidence,
+            'total_recurring_items': len(pattern_groups)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting monthly recurring prediction: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance-tracker/auto-categorize', methods=['POST'])
