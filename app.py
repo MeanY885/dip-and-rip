@@ -2742,6 +2742,10 @@ def finance_summary():
         income = sum(t.amount for t in transactions if t.amount > 0)
         expenses = sum(t.amount for t in transactions if t.amount < 0)
         
+        # Calculate total budget from all categories
+        all_categories = FinanceCategory.query.all()
+        total_budget = sum(cat.budget for cat in all_categories if cat.budget and cat.budget > 0)
+        
         # Category breakdown
         categories = {}
         for t in transactions:
@@ -2776,7 +2780,8 @@ def finance_summary():
                 'total_amount': total_amount,
                 'income': income,
                 'expenses': abs(expenses),
-                'net': income + expenses,
+                'budget': total_budget,
+                'net': total_budget + expenses,  # Budget - Expenses (expenses are negative)
                 'categories': list(categories.values()),
                 'monthly_data': list(monthly_data.values())
             }
