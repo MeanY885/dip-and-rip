@@ -1,0 +1,624 @@
+<!-- templates/data_viewer.html (latest full width version) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC Data Viewer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        body {
+            padding: 15px;
+        }
+        
+        .nav-links {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        .nav-links a {
+            color: #007bff;
+            text-decoration: none;
+            margin-right: 20px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+        }
+        .nav-links a:hover {
+            background-color: #007bff;
+            color: white;
+        }
+        .nav-links a.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .copy-button {
+            background-color: #28a745;
+        }
+        .copy-button:hover {
+            background-color: #218838;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .data-table th, .data-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .data-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .data-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .data-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+            overflow-x: auto;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .info-box h3 {
+            margin: 0 0 15px 0;
+            font-size: 20px;
+        }
+        
+        .summary {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .summary h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .summary p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .button-row button {
+            margin-right: 0;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 15px;
+            }
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            .data-table {
+                font-size: 12px;
+            }
+            .data-table th, .data-table td {
+                padding: 4px;
+            }
+            .button-row {
+                flex-direction: column;
+            }
+            .button-row button {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="/">🏠 Home</a>
+        <a href="/personal-finance">💼 Personal Finance</a>
+        <a href="/bitcoin-tracker">₿ Bitcoin Tracker</a>
+        <a href="/data-viewer" class="active">📊 Data Viewer</a>
+        <a href="/price-monitor">💰 Price Monitor</a>
+        <a href="/debug">🐛 Debug</a>
+    </div>
+
+    <div class="container">
+        <h1>📊 BTC/GBP Historical Data Viewer</h1>
+        
+        <div class="info-box">
+            <h3>📋 Data Export Tool</h3>
+            <p><strong>View and export historical BTC price data</strong> for your own analysis</p>
+            <p>Filter by date ranges and copy data directly to spreadsheets</p>
+        </div>
+        
+        <form id="dataForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="days">📅 Data Period (Days):</label>
+                    <select id="days">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 3 months</option>
+                        <option value="180">Last 6 months</option>
+                        <option value="365" selected>Last year</option>
+                        <option value="730">Last 2 years</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="dateFilter">📆 Date Filter:</label>
+                    <select id="dateFilter">
+                        <option value="all">All data</option>
+                        <option value="year">Filter by year</option>
+                        <option value="month">Filter by month</option>
+                        <option value="day">Filter by day</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="filterValueGroup" style="display: none;">
+                    <label for="filterValue">Filter Value:</label>
+                    <input type="text" id="filterValue" placeholder="e.g. 2024, 2024-01, 2024-01-15">
+                </div>
+            </div>
+            
+            <div class="button-row">
+                <button type="submit" id="loadData">📥 Load Data</button>
+                <button type="button" id="copyData" class="copy-button" style="display: none;">📋 Copy All Data</button>
+                <button type="button" id="copyFiltered" class="copy-button" style="display: none;">📋 Copy Filtered Data</button>
+                <button type="button" id="exportCSV" class="copy-button" style="display: none;">💾 Export CSV</button>
+            </div>
+        </form>
+        
+        <div id="summary" class="summary" style="display: none;">
+            <h3>📊 Data Summary</h3>
+            <div class="stats-row" id="statsRow"></div>
+            <div id="summaryText"></div>
+        </div>
+        
+        <div id="dataContainer" style="display: none;">
+            <h3>📋 Data Table</h3>
+            <p><strong>Total Records:</strong> <span id="recordCount">0</span> | <strong>Filtered:</strong> <span id="filteredCount">0</span></p>
+            <div class="data-container">
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Open (£)</th>
+                            <th>High (£)</th>
+                            <th>Low (£)</th>
+                            <th>Close (£)</th>
+                            <th>Volume</th>
+                            <th>Daily Change</th>
+                            <th>Daily Change %</th>
+                            <th>Lowest Dip %</th>
+                            <th>Highest Increase %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const dateFilter = document.getElementById('dateFilter');
+            const filterValueGroup = document.getElementById('filterValueGroup');
+            
+            dateFilter.addEventListener('change', function() {
+                if (this.value === 'all') {
+                    filterValueGroup.style.display = 'none';
+                } else {
+                    filterValueGroup.style.display = 'block';
+                    updateFilterPlaceholder();
+                }
+                if (allData.length > 0) {
+                    applyDateFilter();
+                }
+            });
+            
+            document.getElementById('filterValue').addEventListener('input', function() {
+                if (allData.length > 0) {
+                    applyDateFilter();
+                }
+            });
+
+            document.getElementById('dataForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await loadData();
+            });
+
+            document.getElementById('copyData').addEventListener('click', function() {
+                copyToClipboard(allData, 'All data');
+            });
+
+            document.getElementById('copyFiltered').addEventListener('click', function() {
+                copyToClipboard(filteredData, 'Filtered data');
+            });
+
+            document.getElementById('exportCSV').addEventListener('click', function() {
+                exportToCSV(filteredData.length > 0 ? filteredData : allData);
+            });
+        });
+
+        function updateFilterPlaceholder() {
+            const filterType = document.getElementById('dateFilter').value;
+            const filterValue = document.getElementById('filterValue');
+            
+            switch(filterType) {
+                case 'year':
+                    filterValue.placeholder = 'e.g. 2024';
+                    break;
+                case 'month':
+                    filterValue.placeholder = 'e.g. 2024-01';
+                    break;
+                case 'day':
+                    filterValue.placeholder = 'e.g. 2024-01-15';
+                    break;
+            }
+        }
+
+        async function loadData() {
+            const button = document.getElementById('loadData');
+            button.disabled = true;
+            button.textContent = '⏳ Loading...';
+            
+            try {
+                const days = document.getElementById('days').value;
+                
+                const response = await fetch('/api/historical-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ days: parseInt(days) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Add calculated fields
+                    allData = data.data.map((row, index) => {
+                        const dailyChange = row.Close - row.Open;
+                        const dailyChangePercent = ((row.Close - row.Open) / row.Open) * 100;
+                        
+                        // Calculate lowest dip % (Low vs Open)
+                        const lowestDipPercent = ((row.Low - row.Open) / row.Open) * 100;
+                        
+                        // Calculate highest increase % (High vs Open)
+                        const highestIncreasePercent = ((row.High - row.Open) / row.Open) * 100;
+                        
+                        return {
+                            ...row,
+                            DailyChange: dailyChange,
+                            DailyChangePercent: dailyChangePercent,
+                            LowestDipPercent: lowestDipPercent,
+                            HighestIncreasePercent: highestIncreasePercent
+                        };
+                    });
+                    
+                    displaySummary(data);
+                    applyDateFilter();
+                    document.getElementById('error').style.display = 'none';
+                } else {
+                    document.getElementById('error').textContent = data.error || 'Failed to load data';
+                    document.getElementById('error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = 'Network error: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+            
+            button.disabled = false;
+            button.textContent = '📥 Load Data';
+        }
+
+        function displaySummary(data) {
+            const summary = document.getElementById('summary');
+            const statsRow = document.getElementById('statsRow');
+            const summaryText = document.getElementById('summaryText');
+            
+            const prices = allData.map(row => row.Close);
+            const volumes = allData.map(row => row.Volume);
+            const changes = allData.map(row => row.DailyChangePercent);
+            
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+            const latestPrice = prices[prices.length - 1];
+            const firstPrice = prices[0];
+            const priceChange = ((latestPrice - firstPrice) / firstPrice * 100);
+            const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+            const avgDailyChange = changes.reduce((a, b) => a + b, 0) / changes.length;
+            const volatility = Math.sqrt(changes.reduce((a, b) => a + Math.pow(b - avgDailyChange, 2), 0) / changes.length);
+
+            statsRow.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-label">Current Price</div>
+                    <div class="stat-value">£${latestPrice.toLocaleString()}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Period Change</div>
+                    <div class="stat-value" style="color: ${priceChange >= 0 ? '#28a745' : '#dc3545'}">${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}%</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Price Range</div>
+                    <div class="stat-value">£${minPrice.toLocaleString()} - £${maxPrice.toLocaleString()}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Average Price</div>
+                    <div class="stat-value">£${avgPrice.toLocaleString()}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Average Volume</div>
+                    <div class="stat-value">${avgVolume.toLocaleString()}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Daily Volatility</div>
+                    <div class="stat-value">${volatility.toFixed(2)}%</div>
+                </div>
+            `;
+
+            summaryText.innerHTML = `
+                <p><strong>Data Source:</strong> ${data.source}</p>
+                <p><strong>Total Records:</strong> ${data.total_rows}</p>
+                <p><strong>Period:</strong> ${data.data[0].Date} to ${data.data[data.data.length - 1].Date}</p>
+                <p><strong>Average Daily Change:</strong> <span style="color: ${avgDailyChange >= 0 ? '#28a745' : '#dc3545'}">${avgDailyChange > 0 ? '+' : ''}${avgDailyChange.toFixed(2)}%</span></p>
+            `;
+            
+            summary.style.display = 'block';
+        }
+
+        function applyDateFilter() {
+            const filterType = document.getElementById('dateFilter').value;
+            const filterValue = document.getElementById('filterValue').value.toLowerCase();
+            
+            if (filterType === 'all' || !filterValue) {
+                filteredData = [...allData];
+            } else {
+                filteredData = allData.filter(row => {
+                    const date = row.Date.toLowerCase();
+                    switch(filterType) {
+                        case 'year':
+                            return date.startsWith(filterValue);
+                        case 'month':
+                            return date.startsWith(filterValue);
+                        case 'day':
+                            return date === filterValue;
+                        default:
+                            return true;
+                    }
+                });
+            }
+            
+            displayData(filteredData);
+        }
+
+        function displayData(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            
+            tableBody.innerHTML = data.map(row => `
+                <tr>
+                    <td>${row.Date}</td>
+                    <td>£${row.Open.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>£${row.High.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>£${row.Low.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>£${row.Close.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${row.Volume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td style="color: ${row.DailyChange >= 0 ? '#28a745' : '#dc3545'}">
+                        ${row.DailyChange > 0 ? '+' : ''}£${row.DailyChange.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </td>
+                    <td style="color: ${row.DailyChangePercent >= 0 ? '#28a745' : '#dc3545'}">
+                        ${row.DailyChangePercent > 0 ? '+' : ''}${row.DailyChangePercent.toFixed(2)}%
+                    </td>
+                    <td style="color: ${row.LowestDipPercent >= 0 ? '#28a745' : '#dc3545'}">
+                        ${row.LowestDipPercent > 0 ? '+' : ''}${row.LowestDipPercent.toFixed(2)}%
+                    </td>
+                    <td style="color: ${row.HighestIncreasePercent >= 0 ? '#28a745' : '#dc3545'}">
+                        ${row.HighestIncreasePercent > 0 ? '+' : ''}${row.HighestIncreasePercent.toFixed(2)}%
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Update counters
+            document.getElementById('recordCount').textContent = allData.length;
+            document.getElementById('filteredCount').textContent = data.length;
+            
+            document.getElementById('dataContainer').style.display = 'block';
+            document.getElementById('copyData').style.display = 'inline-block';
+            document.getElementById('copyFiltered').style.display = filteredData.length !== allData.length ? 'inline-block' : 'none';
+            document.getElementById('exportCSV').style.display = 'inline-block';
+        }
+
+        async function copyToClipboard(data, description) {
+            try {
+                const headers = 'Date\tOpen\tHigh\tLow\tClose\tVolume\tDaily Change\tDaily Change %\tLowest Dip %\tHighest Increase %';
+                const rows = data.map(row => 
+                    `${row.Date}\t${row.Open}\t${row.High}\t${row.Low}\t${row.Close}\t${row.Volume}\t${row.DailyChange}\t${row.DailyChangePercent.toFixed(2)}%\t${row.LowestDipPercent.toFixed(2)}%\t${row.HighestIncreasePercent.toFixed(2)}%`
+                ).join('\n');
+                
+                const csvContent = headers + '\n' + rows;
+                
+                await navigator.clipboard.writeText(csvContent);
+                
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.backgroundColor = '#28a745';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '';
+                }, 2000);
+                
+            } catch (error) {
+                alert('Failed to copy data to clipboard. Please try selecting the table manually.');
+            }
+        }
+
+        function exportToCSV(data) {
+            const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Daily Change', 'Daily Change %', 'Lowest Dip %', 'Highest Increase %'];
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => [
+                    row.Date,
+                    row.Open,
+                    row.High,
+                    row.Low,
+                    row.Close,
+                    row.Volume,
+                    row.DailyChange,
+                    row.DailyChangePercent.toFixed(2),
+                    row.LowestDipPercent.toFixed(2),
+                    row.HighestIncreasePercent.toFixed(2)
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `btc_data_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>

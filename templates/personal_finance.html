@@ -1,0 +1,2560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <!-- Cache busting: Force browser to reload JavaScript -->
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        body {
+            padding: 15px;
+        }
+        
+        .nav-links {
+            margin-bottom: 20px;
+            width: 100%;
+            position: relative;
+        }
+        .nav-links a {
+            color: #007bff;
+            text-decoration: none;
+            margin-right: 20px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+        }
+        .nav-links a:hover {
+            background-color: #007bff;
+            color: white;
+        }
+        .nav-links a.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        
+        
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .delete-button {
+            background-color: #dc3545;
+        }
+        .delete-button:hover {
+            background-color: #c82333;
+        }
+        
+        .edit-button {
+            background-color: #28a745;
+        }
+        .edit-button:hover {
+            background-color: #218838;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .data-table th, .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .data-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .data-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .summary-cards {
+            margin-bottom: 30px;
+        }
+        
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+        }
+        
+        .summary-card.current-value {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+        }
+        
+        .summary-card.profit {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+        }
+        
+        .summary-card.loss {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+        }
+        
+        .summary-card.best-performer {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+        }
+        
+        .summary-card.worst-performer {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.2);
+        }
+        
+        .summary-card.benchmark-positive {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+        }
+        
+        .summary-card.benchmark-negative {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+        }
+        
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .info-box h3 {
+            margin: 0 0 15px 0;
+            font-size: 20px;
+        }
+        
+        .yearly-tabs {
+            display: flex;
+            border-bottom: 2px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .yearly-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-right: 10px;
+        }
+        .yearly-tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+        }
+        .yearly-tab:hover {
+            color: #007bff;
+        }
+        
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .matrix-table th, .matrix-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        .matrix-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .matrix-table th:first-child {
+            text-align: left;
+        }
+        .matrix-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .cell-delete-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+            line-height: 1;
+            padding: 0;
+        }
+        
+        .editable-cell:hover .cell-delete-btn {
+            display: block;
+        }
+        
+        .cell-delete-btn:hover {
+            background: #c82333;
+        }
+        
+        .editable-investment-cell {
+            position: relative;
+            transition: background-color 0.2s ease;
+        }
+        
+        .editable-investment-cell:hover {
+            background-color: #e9ecef !important;
+            border-radius: 4px;
+        }
+        
+        /* Drag and Drop Styles */
+        .widget-section {
+            transition: all 0.3s ease;
+            cursor: move;
+        }
+        
+        .widget-section:hover {
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .widget-section.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+        }
+        
+        .widget-section.drag-over {
+            border-top: 3px solid #007bff;
+            margin-top: 10px;
+        }
+        
+        .drag-handle {
+            display: inline-block;
+            margin-right: 10px;
+            color: #999;
+            cursor: move;
+        }
+        
+        .drag-handle:hover {
+            color: #007bff;
+        }
+        
+        .data-table tbody tr {
+            cursor: move;
+            transition: all 0.2s ease;
+        }
+        
+        .data-table tbody tr:hover {
+            background-color: #f8f9fa !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .data-table tbody tr.dragging {
+            opacity: 0.5;
+            background-color: #e3f2fd !important;
+        }
+        
+        .data-table tbody tr.drag-over {
+            border-top: 2px solid #007bff;
+        }
+        
+        .data-table tbody tr[draggable="true"] {
+            transition: all 0.3s ease;
+        }
+        
+        .data-table tbody tr[draggable="true"]:hover {
+            background-color: #f8f9fa !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        
+        .data-table tbody tr[draggable="true"].dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+            background-color: #e3f2fd !important;
+        }
+        
+        .data-table tbody tr[draggable="true"].drag-over {
+            border-top: 3px solid #007bff;
+            margin-top: 5px;
+        }
+
+        /* Tab Styles */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            background: #f8f9fa;
+            border: none;
+            padding: 15px 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-right: 1px solid #ddd;
+            transition: all 0.3s ease;
+            flex: 1;
+            text-align: center;
+        }
+
+        .tab:last-child {
+            border-right: none;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 15px;
+            }
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            .data-table {
+                font-size: 12px;
+            }
+            .data-table th, .data-table td {
+                padding: 8px;
+            }
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+            .header-container {
+                flex-direction: column;
+                gap: 15px;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="/">🏠 Home</a>
+        <a href="/personal-finance" class="active">💼 Personal Finance</a>
+        <a href="/finance-tracker">💰 Finance Tracker</a>
+        <a href="/bitcoin-tracker">₿ Bitcoin Tracker</a>
+        <a href="/debug">🐛 Debug</a>
+        
+    </div>
+
+    <div class="container">
+        <h1>💼 Personal Finance Tracker</h1>
+        
+
+        <!-- Tabs Section -->
+        <div class="tabs">
+            <button class="tab active" data-tab="investment">📈 Investment Tracking</button>
+            <button class="tab" data-tab="monthly">📊 Monthly</button>
+            <button class="tab" data-tab="yearly">📅 Yearly</button>
+        </div>
+
+        <!-- Investment Tracking Tab -->
+        <div id="investment-tab" class="tab-content active">
+            <div class="section">
+                <h2>📈 Investment Tracking</h2>
+                <form id="investmentForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="investmentName">📝 Investment Name:</label>
+                            <input type="text" id="investmentName" placeholder="e.g., BTC, ETH, Stocks" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="startDate">📅 Start Date:</label>
+                            <input type="date" id="startDate" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startInvestment">💰 Start Investment (£):</label>
+                            <input type="number" id="startInvestment" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="investmentCurrentValue">💎 Current Value (£):</label>
+                            <input type="number" id="investmentCurrentValue" step="0.01" min="0" required>
+                        </div>
+                    </div>
+                    <button type="submit">➕ Add Investment</button>
+                </form>
+
+                <table class="data-table" id="investmentTable">
+                    <thead>
+                        <tr>
+                            <th>Investment</th>
+                            <th>Start Date</th>
+                            <th>Start Investment</th>
+                            <th>Current Value</th>
+                            <th>Profit/Loss (£)</th>
+                            <th>Profit/Loss (%)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="investmentTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Yearly Tracking Tab -->
+        <div id="yearly-tab" class="tab-content">
+            <div class="section">
+                <h2>📅 Yearly Performance Tracking</h2>
+                <p>Record the value of your investments at the end of each year to track yearly performance.</p>
+                
+                <form id="yearlyTrackingForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="yearlyInvestment">📝 Select Investment:</label>
+                            <select id="yearlyInvestment" required>
+                                <option value="">Choose an investment...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="yearlyYear">📅 Year:</label>
+                            <select id="yearlyYear" required>
+                                <option value="">Select year...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="yearlyValue">💰 Value at Year End (£):</label>
+                            <input type="number" id="yearlyValue" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="yearlyNotes">📝 Notes (Optional):</label>
+                            <input type="text" id="yearlyNotes" placeholder="e.g., End of 2023">
+                        </div>
+                    </div>
+                    <button type="submit">➕ Add Yearly Record</button>
+                </form>
+
+                <div id="yearlyTrackingContainer">
+                    <div id="yearlyTrackingTables"></div>
+                    
+                    <!-- Yearly Performance Graph Section -->
+                    <div id="yearlyGraphSection" style="display: none; margin-top: 30px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #fafafa;">
+                        <h3>📈 Yearly Performance & Forecast</h3>
+                        
+                        <!-- Key Performance Metrics Cards -->
+                        <div id="yearlyKeyMetrics" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                            <!-- Metrics will be populated by JavaScript -->
+                        </div>
+                        
+
+                        
+                        <div class="form-row" style="margin-bottom: 20px;">
+                            <div class="form-group">
+                                <label for="yearlyForecastYears">📅 Forecast Years:</label>
+                                <input type="range" id="yearlyForecastYears" min="1" max="20" value="5" oninput="updateYearlyForecastLabel(); updateYearlyGraph();">
+                                <span id="yearlyForecastLabel" style="font-weight: bold; color: #007bff;">5 years</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="yearlyCustomReturn">📊 Custom Annual Return (%):</label>
+                                <input type="number" id="yearlyCustomReturn" step="0.1" placeholder="Auto (historical avg)" oninput="updateYearlyGraph();">
+                            </div>
+                            <div class="form-group">
+                                <label for="yearlyBulkInvestment">💰 One-off Investment (£):</label>
+                                <input type="number" id="yearlyBulkInvestment" step="100" min="0" value="0" oninput="updateYearlyGraph();">
+                            </div>
+                        </div>
+                        
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Tracking Tab -->
+        <div id="monthly-tab" class="tab-content">
+            <div class="section">
+                <h2>📊 Monthly Performance Tracking</h2>
+                <p>Track monthly investment values starting from 2025 for detailed performance analysis.</p>
+                
+                <form id="monthlyTrackingForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="monthlyInvestment">📝 Select Investment:</label>
+                            <select id="monthlyInvestment" required>
+                                <option value="">Choose an investment...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="monthlyYear">📅 Year:</label>
+                            <select id="monthlyYear" required>
+                                <option value="">Select year...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="monthlyMonth">📅 Month:</label>
+                            <select id="monthlyMonth" required>
+                                <option value="">Select month...</option>
+                                <option value="1">January</option>
+                                <option value="2">February</option>
+                                <option value="3">March</option>
+                                <option value="4">April</option>
+                                <option value="5">May</option>
+                                <option value="6">June</option>
+                                <option value="7">July</option>
+                                <option value="8">August</option>
+                                <option value="9">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12">December</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="monthlyValue">💰 Value at Month End (£):</label>
+                            <input type="number" id="monthlyValue" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="monthlyNotes">📝 Notes (Optional):</label>
+                            <input type="text" id="monthlyNotes" placeholder="e.g., January 2025">
+                        </div>
+                    </div>
+                    <button type="submit">➕ Add Monthly Record</button>
+                </form>
+
+                <div id="monthlyTrackingContainer">
+                    <div id="monthlyTrackingTables"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Updated: 2024-12-27 14:30 - Fixed backup function, removed statusDiv
+        let investmentData = [];
+        let yearlyData = [];
+        let monthlyData = [];
+        let widgetOrder = ["investment", "yearly", "monthly"];
+        let investmentOrder = [];
+
+        // Tab functionality
+        function initializeTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    switchTab(targetTab);
+                });
+            });
+        }
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            const targetContent = document.getElementById(tabName + '-tab');
+            if (targetContent) {
+                targetContent.classList.add('active');
+            }
+            
+            // Add active class to clicked tab
+            const targetTab = document.querySelector(`[data-tab="${tabName}"]`);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        }
+
+        // Global Alarm System (copied from homepage)
+        function initializeGlobalAlarms() {
+            const savedPriceAlarm = localStorage.getItem('priceAlarmValue');
+            const savedPriceEnabled = localStorage.getItem('enablePriceAlarm') === 'true';
+            
+            if (savedPriceEnabled && savedPriceAlarm) {
+                setInterval(checkGlobalPriceAlarm, 60000);
+                console.log('Global price alarm monitoring started on Personal Finance page');
+            }
+        }
+
+        async function checkGlobalPriceAlarm() {
+            try {
+                const savedPriceAlarm = parseFloat(localStorage.getItem('priceAlarmValue'));
+                const savedPriceEnabled = localStorage.getItem('enablePriceAlarm') === 'true';
+                const alarmTriggered = localStorage.getItem('priceAlarmTriggered') === 'true';
+                
+                if (!savedPriceEnabled || !savedPriceAlarm || alarmTriggered) return;
+                
+                const response = await fetch('/api/current-price');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const currentPrice = data.price;
+                    const diff = Math.abs(currentPrice - savedPriceAlarm);
+                    const percentDiff = (diff / savedPriceAlarm) * 100;
+                    
+                    if (percentDiff <= 1) {
+                        localStorage.setItem('priceAlarmTriggered', 'true');
+                        showGlobalAlarmNotification('💰 PRICE ALERT TRIGGERED', `BTC price reached your target!<br>Current: £${currentPrice.toLocaleString()} | Target: £${savedPriceAlarm.toLocaleString()}`);
+                    }
+                }
+            } catch (error) {
+                console.log('Global alarm check failed:', error);
+            }
+        }
+
+        function showGlobalAlarmNotification(title, message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: white;
+                padding: 30px 40px; border-radius: 15px; box-shadow: 0 10px 40px rgba(220, 38, 38, 0.6);
+                z-index: 10000; font-weight: bold; min-width: 400px; max-width: 90vw; text-align: center;
+                border: 3px solid rgba(255, 255, 255, 0.3);
+            `;
+            notification.innerHTML = `
+                <div style="font-size: 24px; margin-bottom: 10px;">${title}</div>
+                <div style="font-size: 18px; margin-bottom: 15px; line-height: 1.4;">${message}</div>
+                <div style="font-size: 14px; opacity: 0.9; font-weight: normal;">
+                    🔊 Click to dismiss | Go to Bitcoin Tracker to manage alarms
+                </div>
+            `;
+            notification.addEventListener('click', () => {
+                if (notification.parentNode) notification.parentNode.removeChild(notification);
+            });
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                if (notification.parentNode) notification.parentNode.removeChild(notification);
+            }, 30000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAllData();
+            initializeTabs();
+            initializeGlobalAlarms();
+
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('startDate').value = today;
+
+            // Investment form submission
+            document.getElementById('investmentForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addInvestment();
+            });
+
+            // Yearly tracking form submission
+            document.getElementById('yearlyTrackingForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addYearlyRecord();
+            });
+
+            // Monthly tracking form submission
+            document.getElementById('monthlyTrackingForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addMonthlyRecord();
+            });
+
+            // Auto-suggest next periods when investments are selected
+            document.getElementById('yearlyInvestment').addEventListener('change', function(e) {
+                suggestNextYear(parseInt(e.target.value));
+            });
+
+            document.getElementById('monthlyInvestment').addEventListener('change', function(e) {
+                suggestNextMonth(parseInt(e.target.value));
+            });
+        });
+
+        async function loadAllData() {
+            try {
+                // Load preferences first
+                const prefsResponse = await fetch('/api/finance/preferences');
+                const prefsData = await prefsResponse.json();
+                
+                if (prefsData.success) {
+                    widgetOrder = prefsData.data.widgetOrder;
+                    investmentOrder = prefsData.data.investmentOrder;
+                }
+
+                // Load investments
+                const invResponse = await fetch('/api/finance/investments');
+                const invData = await invResponse.json();
+                
+                if (invData.success) {
+                    investmentData = invData.data;
+                }
+
+                // Load yearly records
+                const yearlyResponse = await fetch('/api/finance/yearly-records');
+                const yearlyDataResponse = await yearlyResponse.json();
+                
+                if (yearlyDataResponse.success) {
+                    yearlyData = yearlyDataResponse.data;
+                }
+
+                // Load monthly records
+                const monthlyResponse = await fetch('/api/finance/monthly-records');
+                const monthlyDataResponse = await monthlyResponse.json();
+                
+                if (monthlyDataResponse.success) {
+                    monthlyData = monthlyDataResponse.data;
+                }
+
+                // Initialize UI
+                loadInvestmentData();
+                updateSummary();
+                updateInvestmentDropdown();
+                updateYearDropdown();
+                updateMonthlyDropdowns();
+                loadYearlyTrackingData();
+                loadMonthlyTrackingData();
+                // Initialize the calculation display
+                updateYearlyGraph();
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('Failed to load data. Please refresh the page.');
+            }
+        }
+
+        async function addInvestment() {
+            const name = document.getElementById('investmentName').value;
+            const startDate = document.getElementById('startDate').value;
+            const startInvestment = parseFloat(document.getElementById('startInvestment').value);
+            const currentValue = parseFloat(document.getElementById('investmentCurrentValue').value);
+
+            try {
+                const response = await fetch('/api/finance/investments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        startDate: startDate,
+                        startInvestment: startInvestment,
+                        currentValue: currentValue
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    investmentData.push(result.data);
+                    loadInvestmentData();
+                    updateSummary();
+                    updateInvestmentDropdown();
+                    
+                    // Clear form
+                    document.getElementById('investmentForm').reset();
+                    document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+                } else {
+                    alert('Error adding investment: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding investment:', error);
+                alert('Failed to add investment. Please try again.');
+            }
+        }
+
+        async function addYearlyRecord() {
+            const investmentId = parseInt(document.getElementById('yearlyInvestment').value);
+            const year = parseInt(document.getElementById('yearlyYear').value);
+            const value = parseFloat(document.getElementById('yearlyValue').value);
+            const notes = document.getElementById('yearlyNotes').value || '';
+
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) {
+                alert('Please select a valid investment');
+                return;
+            }
+
+            // Check if record already exists for this investment and year
+            const existingRecord = yearlyData.find(r => r.investmentId === investmentId && r.year === year);
+            if (existingRecord) {
+                if (!confirm(`A record for ${investment.name} in ${year} already exists. Replace it?`)) {
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/api/finance/yearly-records', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        investmentId: investmentId,
+                        year: year,
+                        value: value,
+                        notes: notes
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update local data
+                    if (existingRecord) {
+                        const index = yearlyData.findIndex(r => r.id === existingRecord.id);
+                        yearlyData[index] = result.data;
+                    } else {
+                        yearlyData.push(result.data);
+                    }
+                    
+                    loadYearlyTrackingData();
+                    
+                    // Clear form
+                    document.getElementById('yearlyTrackingForm').reset();
+                    document.getElementById('yearlyYear').value = '';
+                } else {
+                    alert('Error adding yearly record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding yearly record:', error);
+                alert('Failed to add yearly record. Please try again.');
+            }
+        }
+
+        async function addMonthlyRecord() {
+            const investmentId = parseInt(document.getElementById('monthlyInvestment').value);
+            const year = parseInt(document.getElementById('monthlyYear').value);
+            const month = parseInt(document.getElementById('monthlyMonth').value);
+            const value = parseFloat(document.getElementById('monthlyValue').value);
+            const notes = document.getElementById('monthlyNotes').value || '';
+
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) {
+                alert('Please select a valid investment');
+                return;
+            }
+
+            // Check if record already exists for this investment, year and month
+            const existingRecord = monthlyData.find(r => r.investmentId === investmentId && r.year === year && r.month === month);
+            if (existingRecord) {
+                const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                if (!confirm(`A record for ${investment.name} in ${monthNames[month]} ${year} already exists. Replace it?`)) {
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/api/finance/monthly-records', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        investmentId: investmentId,
+                        year: year,
+                        month: month,
+                        value: value,
+                        notes: notes
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update local data
+                    if (existingRecord) {
+                        const index = monthlyData.findIndex(r => r.id === existingRecord.id);
+                        monthlyData[index] = result.data;
+                    } else {
+                        monthlyData.push(result.data);
+                    }
+                    
+                    loadMonthlyTrackingData();
+                    
+                    // Clear form
+                    document.getElementById('monthlyTrackingForm').reset();
+                    document.getElementById('monthlyYear').value = '';
+                    document.getElementById('monthlyMonth').value = '';
+                } else {
+                    alert('Error adding monthly record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding monthly record:', error);
+                alert('Failed to add monthly record. Please try again.');
+            }
+        }
+
+        async function deleteInvestment(id) {
+            if (confirm('Are you sure you want to delete this investment entry? This will also delete all yearly and monthly records for this investment.')) {
+                try {
+                    const response = await fetch(`/api/finance/investments/${id}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Remove from local data
+                        investmentData = investmentData.filter(investment => investment.id !== id);
+                        yearlyData = yearlyData.filter(record => record.investmentId !== id);
+                        monthlyData = monthlyData.filter(record => record.investmentId !== id);
+                        
+                        loadInvestmentData();
+                        updateSummary();
+                        updateInvestmentDropdown();
+                        loadYearlyTrackingData();
+                        loadMonthlyTrackingData();
+                    } else {
+                        alert('Error deleting investment: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error deleting investment:', error);
+                    alert('Failed to delete investment. Please try again.');
+                }
+            }
+        }
+
+        async function editInvestmentField(id, fieldName, currentValue) {
+            const investment = investmentData.find(inv => inv.id === id);
+            if (!investment) return;
+            
+            const fieldLabel = fieldName === 'startInvestment' ? 'start investment' : 'current value';
+            const newValue = prompt(`Update ${fieldLabel} for ${investment.name}:`, currentValue);
+            
+            if (newValue === null) return; // User cancelled
+            
+            if (isNaN(parseFloat(newValue))) {
+                alert(`Please enter a valid number for ${fieldLabel}.`);
+                return;
+            }
+            
+            try {
+                const updateData = {};
+                updateData[fieldName] = parseFloat(newValue);
+                
+                const response = await fetch(`/api/finance/investments/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update local data
+                    const index = investmentData.findIndex(inv => inv.id === id);
+                    investmentData[index] = result.data;
+                    
+                    loadInvestmentData();
+                    updateSummary();
+                } else {
+                    alert('Error updating investment: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error updating investment:', error);
+                alert('Failed to update investment. Please try again.');
+            }
+        }
+
+        async function deleteCellValue(recordId) {
+            if (confirm('Are you sure you want to delete this yearly record?')) {
+                try {
+                    const response = await fetch(`/api/finance/yearly-records/${recordId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        yearlyData = yearlyData.filter(record => record.id !== recordId);
+                        loadYearlyTrackingData();
+                    } else {
+                        alert('Error deleting yearly record: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error deleting yearly record:', error);
+                    alert('Failed to delete yearly record. Please try again.');
+                }
+            }
+        }
+
+        async function deleteMonthlyCellValue(recordId) {
+            if (confirm('Are you sure you want to delete this monthly record?')) {
+                try {
+                    const response = await fetch(`/api/finance/monthly-records/${recordId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        monthlyData = monthlyData.filter(record => record.id !== recordId);
+                        loadMonthlyTrackingData();
+                    } else {
+                        alert('Error deleting monthly record: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error deleting monthly record:', error);
+                    alert('Failed to delete monthly record. Please try again.');
+                }
+            }
+        }
+
+        async function saveWidgetOrder() {
+            const container = document.getElementById('widgetsContainer');
+            const widgets = Array.from(container.children);
+            widgetOrder = widgets.map(widget => widget.dataset.widget);
+            
+            try {
+                await fetch('/api/finance/preferences', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        widgetOrder: widgetOrder
+                    })
+                });
+            } catch (error) {
+                console.error('Error saving widget order:', error);
+            }
+        }
+
+        async function saveInvestmentOrder() {
+            const tbody = document.getElementById('investmentTableBody');
+            const rows = Array.from(tbody.children).filter(row => row.dataset.investmentId);
+            
+            investmentOrder = rows.map(row => parseInt(row.dataset.investmentId));
+            
+            try {
+                await fetch('/api/finance/preferences', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        investmentOrder: investmentOrder
+                    })
+                });
+                
+                // Update yearly and monthly data after a delay to reflect new order
+                setTimeout(() => {
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
+                }, 200);
+            } catch (error) {
+                console.error('Error saving investment order:', error);
+            }
+        }
+
+        function updateInvestmentDropdown() {
+            const dropdown = document.getElementById('yearlyInvestment');
+            dropdown.innerHTML = '<option value="">Choose an investment...</option>';
+            
+            investmentData.forEach(investment => {
+                const option = document.createElement('option');
+                option.value = investment.id;
+                option.textContent = investment.name;
+                dropdown.appendChild(option);
+            });
+
+            // Also update monthly dropdown
+            const monthlyDropdown = document.getElementById('monthlyInvestment');
+            monthlyDropdown.innerHTML = '<option value="">Choose an investment...</option>';
+            
+            investmentData.forEach(investment => {
+                const option = document.createElement('option');
+                option.value = investment.id;
+                option.textContent = investment.name;
+                monthlyDropdown.appendChild(option);
+            });
+        }
+
+        function updateYearDropdown() {
+            const dropdown = document.getElementById('yearlyYear');
+            dropdown.innerHTML = '<option value="">Select year...</option>';
+            
+            const currentYear = new Date().getFullYear();
+            // Show years from 10 years ago to 5 years in the future
+            for (let year = currentYear - 10; year <= currentYear + 5; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                dropdown.appendChild(option);
+            }
+        }
+
+        function updateMonthlyDropdowns() {
+            const yearDropdown = document.getElementById('monthlyYear');
+            yearDropdown.innerHTML = '<option value="">Select year...</option>';
+            
+            const currentYear = new Date().getFullYear();
+            // Start from 2025 as per requirements, up to 5 years in the future
+            for (let year = 2025; year <= currentYear + 5; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearDropdown.appendChild(option);
+            }
+        }
+
+        function suggestNextYear(investmentId) {
+            const yearDropdown = document.getElementById('yearlyYear');
+            
+            if (!investmentId) {
+                yearDropdown.value = '';
+                return;
+            }
+
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) return;
+
+            // Get all year records for this investment, sorted by year
+            const existingRecords = yearlyData
+                .filter(record => record.investmentId === investmentId)
+                .sort((a, b) => a.year - b.year);
+
+            const currentYear = new Date().getFullYear();
+            let suggestedYear;
+
+            if (existingRecords.length === 0) {
+                // No yearly data yet - suggest current year or the investment start year, whichever is later
+                const investmentStartYear = new Date(investment.startDate).getFullYear();
+                suggestedYear = Math.max(investmentStartYear, currentYear);
+            } else {
+                // Find the next year after the latest record
+                const latestRecord = existingRecords[existingRecords.length - 1];
+                suggestedYear = latestRecord.year + 1;
+            }
+
+            // Set the suggested year
+            yearDropdown.value = suggestedYear;
+
+            // Add visual hint
+            const selectedOption = yearDropdown.querySelector(`option[value="${suggestedYear}"]`);
+            if (selectedOption) {
+                // Reset all options first
+                Array.from(yearDropdown.options).forEach(opt => {
+                    if (opt.textContent.includes('(suggested)')) {
+                        opt.textContent = opt.textContent.replace(' (suggested)', '');
+                    }
+                });
+
+                // Add suggestion
+                selectedOption.textContent = `${suggestedYear} (suggested)`;
+            }
+        }
+
+        function suggestNextMonth(investmentId) {
+            const yearDropdown = document.getElementById('monthlyYear');
+            const monthDropdown = document.getElementById('monthlyMonth');
+            
+            if (!investmentId) {
+                yearDropdown.value = '';
+                monthDropdown.value = '';
+                return;
+            }
+
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) return;
+
+            // Get all month records for this investment, sorted by date
+            const existingRecords = monthlyData
+                .filter(record => record.investmentId === investmentId)
+                .sort((a, b) => {
+                    if (a.year !== b.year) return a.year - b.year;
+                    return a.month - b.month;
+                });
+
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth() + 1;
+
+            let suggestedYear, suggestedMonth;
+
+            if (existingRecords.length === 0) {
+                // No monthly data yet - suggest starting from 2025 or current month if we're past 2025
+                if (currentYear >= 2025) {
+                    suggestedYear = currentYear;
+                    suggestedMonth = currentMonth;
+                } else {
+                    suggestedYear = 2025;
+                    suggestedMonth = 1;
+                }
+            } else {
+                // Find the next month after the latest record
+                const latestRecord = existingRecords[existingRecords.length - 1];
+                
+                if (latestRecord.month === 12) {
+                    suggestedYear = latestRecord.year + 1;
+                    suggestedMonth = 1;
+                } else {
+                    suggestedYear = latestRecord.year;
+                    suggestedMonth = latestRecord.month + 1;
+                }
+            }
+
+            // Set the suggested values
+            yearDropdown.value = suggestedYear;
+            monthDropdown.value = suggestedMonth;
+
+            // Add visual hints
+            const selectedYearOption = yearDropdown.querySelector(`option[value="${suggestedYear}"]`);
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const selectedMonthOption = monthDropdown.querySelector(`option[value="${suggestedMonth}"]`);
+
+            if (selectedYearOption && selectedMonthOption) {
+                // Reset all options first
+                Array.from(yearDropdown.options).forEach(opt => {
+                    if (opt.textContent.includes('(suggested)')) {
+                        opt.textContent = opt.textContent.replace(' (suggested)', '');
+                    }
+                });
+                Array.from(monthDropdown.options).forEach(opt => {
+                    if (opt.textContent.includes('(suggested)')) {
+                        opt.textContent = opt.textContent.replace(' (suggested)', '');
+                    }
+                });
+
+                // Add suggestions
+                selectedYearOption.textContent = `${suggestedYear} (suggested)`;
+                selectedMonthOption.textContent = `${monthNames[suggestedMonth]} (suggested)`;
+            }
+        }
+
+        function loadInvestmentData() {
+            console.log('loadInvestmentData called - current investmentOrder:', [...investmentOrder]);
+            console.log('Stack trace:', new Error().stack);
+            
+            const tbody = document.getElementById('investmentTableBody');
+            tbody.innerHTML = '';
+
+            // Apply saved investment order if it exists
+            let orderedData = [...investmentData];
+            if (investmentOrder.length > 0) {
+                orderedData.sort((a, b) => {
+                    const aIndex = investmentOrder.indexOf(a.id);
+                    const bIndex = investmentOrder.indexOf(b.id);
+                    if (aIndex === -1 && bIndex === -1) return 0;
+                    if (aIndex === -1) return 1;
+                    if (bIndex === -1) return -1;
+                    return aIndex - bIndex;
+                });
+            } else {
+                // Default sort by date if no order is saved
+                orderedData.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+            }
+
+            let totalStartInvestment = 0;
+            let totalCurrentValue = 0;
+
+            orderedData.forEach(investment => {
+                const profitLoss = investment.currentValue - investment.startInvestment;
+                const profitLossPercent = ((profitLoss / investment.startInvestment) * 100);
+                const profitClass = profitLoss >= 0 ? 'positive' : 'negative';
+
+                totalStartInvestment += investment.startInvestment;
+                totalCurrentValue += investment.currentValue;
+
+                const row = document.createElement('tr');
+                row.draggable = true;
+                row.dataset.investmentId = investment.id;
+                row.innerHTML = `
+                    <td><span class="drag-handle" style="margin-right: 8px; pointer-events: none;">⋮⋮</span>${investment.name}</td>
+                    <td>${formatDate(investment.startDate)}</td>
+                    <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'startInvestment', ${investment.startInvestment})" 
+                        title="Click to edit start investment" style="cursor: pointer;">
+                        £${investment.startInvestment.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </td>
+                    <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'currentValue', ${investment.currentValue})" 
+                        title="Click to edit current value" style="cursor: pointer;">
+                        £${investment.currentValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </td>
+                    <td class="${profitClass}">£${profitLoss.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="${profitClass}">${profitLoss >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%</td>
+                    <td>
+                        <button class="delete-button" onclick="deleteInvestment(${investment.id})">🗑️ Delete</button>
+                    </td>
+                `;
+                console.log('Created row for investment:', investment.name, 'with ID:', investment.id);
+                tbody.appendChild(row);
+            });
+
+            // Add totals row if there are investments
+            if (orderedData.length > 0) {
+                const totalProfitLoss = totalCurrentValue - totalStartInvestment;
+                const totalProfitLossPercent = totalStartInvestment > 0 ? ((totalProfitLoss / totalStartInvestment) * 100) : 0;
+                const totalProfitClass = totalProfitLoss >= 0 ? 'positive' : 'negative';
+
+                const totalsRow = document.createElement('tr');
+                totalsRow.style.borderTop = '2px solid #007bff';
+                totalsRow.style.backgroundColor = '#f8f9fa';
+                totalsRow.style.fontWeight = 'bold';
+                totalsRow.draggable = false; // Make sure totals row is not draggable
+                totalsRow.innerHTML = `
+                    <td><strong>📊 TOTALS</strong></td>
+                    <td>-</td>
+                    <td><strong>£${totalStartInvestment.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                    <td><strong>£${totalCurrentValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                    <td class="${totalProfitClass}"><strong>£${totalProfitLoss.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                    <td class="${totalProfitClass}"><strong>${totalProfitLoss >= 0 ? '+' : ''}${totalProfitLossPercent.toFixed(2)}%</strong></td>
+                    <td>-</td>
+                `;
+                tbody.appendChild(totalsRow);
+            }
+
+            // Initialize drag and drop for the table after DOM is updated
+            setTimeout(() => initializeInvestmentDragAndDrop(), 50);
+
+            // Update investment order if not saved yet
+            if (investmentOrder.length === 0) {
+                saveInvestmentOrder();
+            }
+        }
+
+        function updateSummary() {
+            // Summary widgets have been moved to homepage, so this function can be simplified
+            // Just update additional metrics if needed
+            updateAdditionalMetrics();
+        }
+
+        function updateAdditionalMetrics() {
+            // Summary widgets have been moved to homepage dashboard
+            // This function is no longer needed since all metrics are now displayed there
+            console.log('Summary metrics are now handled by homepage dashboard');
+        }
+        
+        function updatePerformanceRankings() {
+            if (investmentData.length === 0) {
+                document.getElementById('bestPerforming').textContent = '-';
+                document.getElementById('worstPerforming').textContent = '-';
+                document.getElementById('bestPerformingCard').className = 'summary-card';
+                document.getElementById('worstPerformingCard').className = 'summary-card';
+                return;
+            }
+            
+            // Calculate performance for each investment
+            const performances = investmentData.map(investment => {
+                const profitLoss = investment.currentValue - investment.startInvestment;
+                const profitLossPercent = investment.startInvestment > 0 ? ((profitLoss / investment.startInvestment) * 100) : 0;
+                
+                return {
+                    name: investment.name,
+                    percentage: profitLossPercent,
+                    profit: profitLoss
+                };
+            });
+            
+            // Sort by percentage performance
+            performances.sort((a, b) => b.percentage - a.percentage);
+            
+            const bestPerformer = performances[0];
+            const worstPerformer = performances[performances.length - 1];
+            
+            // Update best performer
+            document.getElementById('bestPerforming').textContent = 
+                `${bestPerformer.name}: +${bestPerformer.percentage.toFixed(1)}%`;
+            document.getElementById('bestPerformingCard').className = 'summary-card best-performer';
+            
+            // Update worst performer
+            document.getElementById('worstPerforming').textContent = 
+                `${worstPerformer.name}: ${worstPerformer.percentage.toFixed(1)}%`;
+            document.getElementById('worstPerformingCard').className = 'summary-card worst-performer';
+        }
+        
+        function updateBenchmarkComparison(avgAnnualReturn, investmentPeriodYears) {
+            const benchmarkCard = document.getElementById('benchmarkCard');
+            const benchmarkDisplay = document.getElementById('benchmarkComparison');
+            
+            if (avgAnnualReturn === 0 || investmentPeriodYears === 0 || investmentData.length === 0) {
+                benchmarkDisplay.textContent = '-';
+                benchmarkCard.className = 'summary-card';
+                return;
+            }
+            
+            // Calculate total portfolio return over the investment period
+            const totalInvested = investmentData.reduce((sum, investment) => sum + investment.startInvestment, 0);
+            const totalCurrentValue = investmentData.reduce((sum, investment) => sum + investment.currentValue, 0);
+            const myTotalReturn = totalInvested > 0 ? ((totalCurrentValue - totalInvested) / totalInvested) * 100 : 0;
+            
+            // Calculate S&P 500 total return for the same time period
+            let sp500AnnualRate;
+            if (investmentPeriodYears <= 1) {
+                sp500AnnualRate = 8.5; // Short term average
+            } else if (investmentPeriodYears <= 3) {
+                sp500AnnualRate = 9.2; // Medium term average
+            } else {
+                sp500AnnualRate = 10.0; // Long term average
+            }
+            
+            // Calculate total S&P 500 return over the same period (compound)
+            const sp500TotalReturn = (Math.pow(1 + (sp500AnnualRate / 100), investmentPeriodYears) - 1) * 100;
+            
+            const benchmarkDiff = myTotalReturn - sp500TotalReturn;
+            
+            if (benchmarkDiff >= 0) {
+                benchmarkDisplay.textContent = `${myTotalReturn.toFixed(1)}% vs ${sp500TotalReturn.toFixed(1)}%`;
+                benchmarkCard.className = 'summary-card benchmark-positive';
+            } else {
+                benchmarkDisplay.textContent = `${myTotalReturn.toFixed(1)}% vs ${sp500TotalReturn.toFixed(1)}%`;
+                benchmarkCard.className = 'summary-card benchmark-negative';
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-GB');
+        }
+
+        function loadYearlyTrackingData() {
+            const container = document.getElementById('yearlyTrackingTables');
+            const graphSection = document.getElementById('yearlyGraphSection');
+            container.innerHTML = '';
+
+            if (yearlyData.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">No yearly records yet. Add some yearly snapshots to track performance!</p>';
+                graphSection.style.display = 'none';
+                return;
+            }
+
+            // Show graph section when we have data
+            graphSection.style.display = 'block';
+
+            // Get unique investments and apply saved order
+            let investments = [...new Set(yearlyData.map(record => record.investmentName))];
+            
+            // Apply investment order if available
+            if (investmentOrder.length > 0) {
+                const investmentNameOrder = investmentOrder.map(id => {
+                    const investment = investmentData.find(inv => inv.id === id);
+                    return investment ? investment.name : null;
+                }).filter(name => name !== null);
+                
+                investments.sort((a, b) => {
+                    const aIndex = investmentNameOrder.indexOf(a);
+                    const bIndex = investmentNameOrder.indexOf(b);
+                    if (aIndex === -1 && bIndex === -1) return 0;
+                    if (aIndex === -1) return 1;
+                    if (bIndex === -1) return -1;
+                    return aIndex - bIndex;
+                });
+            } else {
+                investments.sort();
+            }
+            
+            const years = [...new Set(yearlyData.map(record => record.year))].sort((a, b) => a - b);
+
+            if (investments.length === 0 || years.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">No yearly records yet. Add some yearly snapshots to track performance!</p>';
+                graphSection.style.display = 'none';
+                return;
+            }
+
+            // Create matrix data structure
+            const matrix = {};
+            years.forEach(year => {
+                matrix[year] = {};
+                investments.forEach(investment => {
+                    matrix[year][investment] = null;
+                });
+            });
+
+            // Populate matrix with data
+            yearlyData.forEach(record => {
+                matrix[record.year][record.investmentName] = record;
+            });
+
+            // Create combined table
+            const combinedTable = createMatrixTable(matrix, investments, years, 'combined');
+
+            container.innerHTML = combinedTable;
+            
+            // Initialize the yearly graph
+            setTimeout(() => initializeYearlyGraph(), 100);
+        }
+
+        function createMatrixTable(matrix, investments, years, viewType) {
+            const headerRow = `
+                <tr>
+                    <th>Investment</th>
+                    ${years.map(year => `<th>${year}</th>`).join('')}
+                </tr>
+            `;
+
+            const dataRows = investments.map(investment => {
+                const cells = years.map(year => {
+                    const record = matrix[year][investment];
+                    if (!record) {
+                        return `<td class="editable-cell" onclick="addCellValue('${investment}', ${year})" style="background-color: #f8f9fa; color: #999; cursor: pointer;" title="Click to add value">+</td>`;
+                    }
+
+                    const investmentObj = investmentData.find(inv => inv.name === investment);
+                    if (!investmentObj) return '<td>-</td>';
+
+                    // Calculate change
+                    let change = 0;
+                    let changePercent = 0;
+                    let changeClass = '';
+
+                    // Find previous year's record for this investment
+                    const previousYearRecord = yearlyData.find(r => 
+                        r.investmentName === investment && 
+                        r.year === (year - 1)
+                    );
+
+                    if (previousYearRecord) {
+                        // Compare with previous year
+                        change = record.value - previousYearRecord.value;
+                        changePercent = ((change / previousYearRecord.value) * 100);
+                    } else {
+                        // Compare with initial investment (first year for this investment)
+                        change = record.value - investmentObj.startInvestment;
+                        changePercent = ((change / investmentObj.startInvestment) * 100);
+                    }
+
+                    changeClass = change >= 0 ? 'positive' : 'negative';
+
+                    let cellContent = '';
+                    if (viewType === 'combined') {
+                        const poundValue = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                        const percentValue = `${change >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+                        cellContent = `${poundValue} / ${percentValue}`;
+                    } else if (viewType === 'percent') {
+                        cellContent = `${change >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+                    } else {
+                        cellContent = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                    }
+
+                    return `
+                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer;" 
+                            onclick="editCellValue(${record.id}, '${investment}', ${year}, ${record.value})"
+                            title="Value: £${record.value.toLocaleString()} | Click to edit">
+                            ${cellContent}
+                            <button class="cell-delete-btn" onclick="event.stopPropagation(); deleteCellValue(${record.id})" title="Delete">×</button>
+                        </td>
+                    `;
+                });
+
+                return `
+                    <tr>
+                        <td><strong>${investment}</strong></td>
+                        ${cells.join('')}
+                    </tr>
+                `;
+            }).join('');
+
+            // Calculate totals row
+            const totalsRow = years.map(year => {
+                let totalChange = 0;
+                let totalChangePercent = 0;
+                let hasData = false;
+
+                investments.forEach(investment => {
+                    const record = matrix[year][investment];
+                    if (record) {
+                        hasData = true;
+                        const investmentObj = investmentData.find(inv => inv.name === investment);
+                        if (investmentObj) {
+                            // Calculate individual change for this investment
+                            let change = 0;
+                            let changePercent = 0;
+
+                            // Find previous year's record for this investment
+                            const previousYearRecord = yearlyData.find(r => 
+                                r.investmentName === investment && 
+                                r.year === (year - 1)
+                            );
+
+                            if (previousYearRecord) {
+                                // Compare with previous year
+                                change = record.value - previousYearRecord.value;
+                                changePercent = ((change / previousYearRecord.value) * 100);
+                            } else {
+                                // Compare with initial investment (first year for this investment)
+                                change = record.value - investmentObj.startInvestment;
+                                changePercent = ((change / investmentObj.startInvestment) * 100);
+                            }
+
+                            totalChange += change;
+                            totalChangePercent += changePercent;
+                        }
+                    }
+                });
+
+                if (!hasData) {
+                    return '<td style="background-color: #f8f9fa; font-weight: bold; text-align: center;">-</td>';
+                }
+
+                const totalClass = totalChange >= 0 ? 'positive' : 'negative';
+
+                if (viewType === 'combined') {
+                    const poundValue = `${totalChange >= 0 ? '+' : ''}£${totalChange.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                    const percentValue = `${totalChangePercent >= 0 ? '+' : ''}${totalChangePercent.toFixed(1)}%`;
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${poundValue} / ${percentValue}</td>`;
+                } else if (viewType === 'percent') {
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${totalChangePercent >= 0 ? '+' : ''}${totalChangePercent.toFixed(1)}%</td>`;
+                } else {
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${totalChange >= 0 ? '+' : ''}£${totalChange.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>`;
+                }
+            }).join('');
+
+            return `
+                <table class="matrix-table">
+                    <thead>${headerRow}</thead>
+                    <tbody>
+                        ${dataRows}
+                        <tr style="border-top: 2px solid #007bff; background-color: #f8f9fa;">
+                            <td><strong>📊 TOTALS</strong></td>
+                            ${totalsRow}
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function addCellValue(investmentName, year) {
+            const investment = investmentData.find(inv => inv.name === investmentName);
+            if (!investment) {
+                alert('Investment not found');
+                return;
+            }
+
+            const value = prompt(`Enter the value for ${investmentName} at the end of ${year}:`);
+            if (value !== null && !isNaN(parseFloat(value))) {
+                try {
+                    const response = await fetch('/api/finance/yearly-records', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            investmentId: investment.id,
+                            year: year,
+                            value: parseFloat(value),
+                            notes: ''
+                        })
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        yearlyData.push(result.data);
+                        loadYearlyTrackingData();
+                    } else {
+                        alert('Error adding yearly record: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error adding yearly record:', error);
+                    alert('Failed to add yearly record. Please try again.');
+                }
+            }
+        }
+
+        async function editCellValue(recordId, investmentName, year, currentValue) {
+            const newValue = prompt(`Edit value for ${investmentName} at the end of ${year}:`, currentValue);
+            if (newValue !== null && !isNaN(parseFloat(newValue))) {
+                try {
+                    const record = yearlyData.find(r => r.id === recordId);
+                    if (record) {
+                        const response = await fetch('/api/finance/yearly-records', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                investmentId: record.investmentId,
+                                year: year,
+                                value: parseFloat(newValue),
+                                notes: record.notes || ''
+                            })
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            const index = yearlyData.findIndex(r => r.id === recordId);
+                            yearlyData[index] = result.data;
+                            loadYearlyTrackingData();
+                        } else {
+                            alert('Error updating yearly record: ' + result.error);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error updating yearly record:', error);
+                    alert('Failed to update yearly record. Please try again.');
+                }
+            }
+        }
+
+        function initializeDragAndDrop() {
+            // Widget drag and drop
+            const widgetsContainer = document.getElementById('widgetsContainer');
+            const widgets = widgetsContainer.querySelectorAll('.widget-section');
+
+            widgets.forEach(widget => {
+                widget.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.dataset.widget);
+                    this.classList.add('dragging');
+                });
+
+                widget.addEventListener('dragend', function(e) {
+                    this.classList.remove('dragging');
+                    document.querySelectorAll('.widget-section').forEach(w => w.classList.remove('drag-over'));
+                });
+
+                widget.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    const dragging = document.querySelector('.widget-section.dragging');
+                    if (dragging && dragging !== this) {
+                        this.classList.add('drag-over');
+                    }
+                });
+
+                widget.addEventListener('dragleave', function(e) {
+                    this.classList.remove('drag-over');
+                });
+
+                widget.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    const draggedWidget = e.dataTransfer.getData('text/plain');
+                    const draggedElement = document.querySelector(`[data-widget="${draggedWidget}"]`);
+                    
+                    if (draggedElement && draggedElement !== this) {
+                        const allWidgets = Array.from(widgetsContainer.children);
+                        const draggedIndex = allWidgets.indexOf(draggedElement);
+                        const targetIndex = allWidgets.indexOf(this);
+                        
+                        if (draggedIndex < targetIndex) {
+                            this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                        } else {
+                            this.parentNode.insertBefore(draggedElement, this);
+                        }
+                        
+                        saveWidgetOrder();
+                    }
+                    
+                    this.classList.remove('drag-over');
+                });
+            });
+        }
+
+        function loadWidgetOrder() {
+            const container = document.getElementById('widgetsContainer');
+            const widgets = Array.from(container.children);
+            
+            // Sort widgets according to saved order
+            widgetOrder.forEach(widgetType => {
+                const widget = widgets.find(w => w.dataset.widget === widgetType);
+                if (widget) {
+                    container.appendChild(widget);
+                }
+            });
+        }
+
+        function initializeInvestmentDragAndDrop() {
+            const tbody = document.getElementById('investmentTableBody');
+            const draggableRows = tbody.querySelectorAll('tr[draggable="true"]');
+
+            draggableRows.forEach(row => {
+                // Remove existing listeners to avoid duplicates
+                row.removeEventListener('dragstart', handleInvestmentDragStart);
+                row.removeEventListener('dragend', handleInvestmentDragEnd);
+                row.removeEventListener('dragover', handleInvestmentDragOver);
+                row.removeEventListener('dragleave', handleInvestmentDragLeave);
+                row.removeEventListener('drop', handleInvestmentDrop);
+
+                // Add new listeners
+                row.addEventListener('dragstart', handleInvestmentDragStart);
+                row.addEventListener('dragend', handleInvestmentDragEnd);
+                row.addEventListener('dragover', handleInvestmentDragOver);
+                row.addEventListener('dragleave', handleInvestmentDragLeave);
+                row.addEventListener('drop', handleInvestmentDrop);
+            });
+        }
+
+        function handleInvestmentDragStart(e) {
+            console.log('Drag start - element:', this);
+            console.log('Dataset:', this.dataset);
+            console.log('Investment ID:', this.dataset.investmentId);
+            
+            // Stop the event from bubbling up to widget drag handlers
+            e.stopPropagation();
+            
+            // Make sure we have the investment ID
+            if (!this.dataset.investmentId) {
+                console.error('No investment ID found on dragged element');
+                e.preventDefault();
+                return;
+            }
+            
+            e.dataTransfer.setData('text/plain', this.dataset.investmentId);
+            this.classList.add('dragging');
+        }
+
+        function handleInvestmentDragEnd(e) {
+            console.log('Drag end');
+            this.classList.remove('dragging');
+            document.querySelectorAll('tr[draggable="true"]').forEach(row => row.classList.remove('drag-over'));
+        }
+
+        function handleInvestmentDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const dragging = document.querySelector('tr.dragging');
+            if (dragging && dragging !== this && this.draggable) {
+                this.classList.add('drag-over');
+            }
+        }
+
+        function handleInvestmentDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleInvestmentDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const draggedInvestmentId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.querySelector(`tr[data-investment-id="${draggedInvestmentId}"]`);
+            
+            console.log('Drop - draggedInvestmentId:', draggedInvestmentId);
+            console.log('Drop - draggedElement:', draggedElement);
+            console.log('Drop - target:', this);
+            
+            if (draggedElement && draggedElement !== this && this.draggable) {
+                const tbody = document.getElementById('investmentTableBody');
+                const allRows = Array.from(tbody.children).filter(row => row.draggable);
+                const draggedIndex = allRows.indexOf(draggedElement);
+                const targetIndex = allRows.indexOf(this);
+                
+                console.log('Dragged index:', draggedIndex, 'Target index:', targetIndex);
+                
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    if (draggedIndex < targetIndex) {
+                        this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                    } else {
+                        this.parentNode.insertBefore(draggedElement, this);
+                    }
+                    
+                    saveInvestmentOrder();
+                }
+            }
+            
+            this.classList.remove('drag-over');
+        }
+
+        function loadMonthlyTrackingData() {
+            const container = document.getElementById('monthlyTrackingTables');
+            container.innerHTML = '';
+
+            if (monthlyData.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">No monthly records yet. Start tracking monthly performance from 2025!</p>';
+                return;
+            }
+
+            // Get unique investments and year-months
+            let investments = [...new Set(monthlyData.map(record => record.investmentName))];
+            
+            // Apply investment order if available
+            if (investmentOrder.length > 0) {
+                const investmentNameOrder = investmentOrder.map(id => {
+                    const investment = investmentData.find(inv => inv.id === id);
+                    return investment ? investment.name : null;
+                }).filter(name => name !== null);
+                
+                investments.sort((a, b) => {
+                    const aIndex = investmentNameOrder.indexOf(a);
+                    const bIndex = investmentNameOrder.indexOf(b);
+                    if (aIndex === -1 && bIndex === -1) return 0;
+                    if (aIndex === -1) return 1;
+                    if (bIndex === -1) return -1;
+                    return aIndex - bIndex;
+                });
+            } else {
+                investments.sort();
+            }
+            
+            const yearMonths = [...new Set(monthlyData.map(record => `${record.year}-${record.month.toString().padStart(2, '0')}`))].sort();
+
+            if (investments.length === 0 || yearMonths.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">No monthly records yet. Start tracking monthly performance from 2025!</p>';
+                return;
+            }
+
+            // Create matrix data structure
+            const matrix = {};
+            yearMonths.forEach(yearMonth => {
+                matrix[yearMonth] = {};
+                investments.forEach(investment => {
+                    matrix[yearMonth][investment] = null;
+                });
+            });
+
+            // Populate matrix with data
+            monthlyData.forEach(record => {
+                const yearMonth = `${record.year}-${record.month.toString().padStart(2, '0')}`;
+                matrix[yearMonth][record.investmentName] = record;
+            });
+
+            // Create combined table
+            const combinedTable = createMonthlyMatrixTable(matrix, investments, yearMonths, 'combined');
+
+            container.innerHTML = combinedTable;
+        }
+
+        function createMonthlyMatrixTable(matrix, investments, yearMonths, viewType) {
+            const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const headerRow = `
+                <tr>
+                    <th>Investment</th>
+                    ${yearMonths.map(yearMonth => {
+                        const [year, monthNum] = yearMonth.split('-');
+                        return `<th>${monthNames[parseInt(monthNum)]} ${year}</th>`;
+                    }).join('')}
+                </tr>
+            `;
+
+            const dataRows = investments.map(investment => {
+                const cells = yearMonths.map((yearMonth, index) => {
+                    const record = matrix[yearMonth][investment];
+                    const [year, monthNum] = yearMonth.split('-');
+                    
+                    if (!record) {
+                        return `<td class="editable-cell" onclick="addMonthlyCellValue('${investment}', ${year}, ${parseInt(monthNum)})" style="background-color: #f8f9fa; color: #999; cursor: pointer;" title="Click to add value">+</td>`;
+                    }
+
+                    const investmentObj = investmentData.find(inv => inv.name === investment);
+                    if (!investmentObj) return '<td>-</td>';
+
+                    // Calculate change from previous month
+                    let change = 0;
+                    let changePercent = 0;
+                    let changeClass = '';
+
+                    if (index === 0) {
+                        // First month - compare with initial investment or last yearly record
+                        const [year] = yearMonth.split('-');
+                        const lastYearlyRecord = yearlyData
+                            .filter(r => r.investmentName === investment && r.year < parseInt(year))
+                            .sort((a, b) => b.year - a.year)[0];
+                        
+                        const baseValue = lastYearlyRecord ? lastYearlyRecord.value : investmentObj.startInvestment;
+                        change = record.value - baseValue;
+                        changePercent = ((change / baseValue) * 100);
+                    } else {
+                        // Compare with previous month
+                        const prevYearMonth = yearMonths[index - 1];
+                        const prevRecord = matrix[prevYearMonth][investment];
+                        
+                        if (prevRecord) {
+                            change = record.value - prevRecord.value;
+                            changePercent = ((change / prevRecord.value) * 100);
+                        } else {
+                            // If no previous month data, compare with initial investment
+                            change = record.value - investmentObj.startInvestment;
+                            changePercent = ((change / investmentObj.startInvestment) * 100);
+                        }
+                    }
+
+                    changeClass = change >= 0 ? 'positive' : 'negative';
+
+                    let cellContent = '';
+                    if (viewType === 'combined') {
+                        const poundValue = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                        const percentValue = `${change >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+                        cellContent = `${poundValue} / ${percentValue}`;
+                    } else if (viewType === 'percent') {
+                        cellContent = `${change >= 0 ? '+' : ''}${changePercent.toFixed(1)}%`;
+                    } else {
+                        cellContent = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                    }
+
+                    return `
+                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer;" 
+                            onclick="editMonthlyCellValue(${record.id}, '${investment}', ${year}, ${parseInt(monthNum)}, ${record.value})"
+                            title="Value: £${record.value.toLocaleString()} | Click to edit">
+                            ${cellContent}
+                            <button class="cell-delete-btn" onclick="event.stopPropagation(); deleteMonthlyCellValue(${record.id})" title="Delete">×</button>
+                        </td>
+                    `;
+                });
+
+                return `
+                    <tr>
+                        <td><strong>${investment}</strong></td>
+                        ${cells.join('')}
+                    </tr>
+                `;
+            }).join('');
+
+            // Calculate totals row
+            const totalsRow = yearMonths.map((yearMonth, index) => {
+                let totalChange = 0;
+                let totalChangePercent = 0;
+                let hasData = false;
+
+                investments.forEach(investment => {
+                    const record = matrix[yearMonth][investment];
+                    if (record) {
+                        hasData = true;
+                        const investmentObj = investmentData.find(inv => inv.name === investment);
+                        if (investmentObj) {
+                            // Calculate individual change for this investment
+                            let change = 0;
+                            let changePercent = 0;
+
+                            if (index === 0) {
+                                // First month - compare with initial investment or last yearly record
+                                const [year] = yearMonth.split('-');
+                                const lastYearlyRecord = yearlyData
+                                    .filter(r => r.investmentName === investment && r.year < parseInt(year))
+                                    .sort((a, b) => b.year - a.year)[0];
+                                
+                                const baseValue = lastYearlyRecord ? lastYearlyRecord.value : investmentObj.startInvestment;
+                                change = record.value - baseValue;
+                                changePercent = ((change / baseValue) * 100);
+                            } else {
+                                // Compare with previous month
+                                const prevYearMonth = yearMonths[index - 1];
+                                const prevRecord = matrix[prevYearMonth][investment];
+                                
+                                if (prevRecord) {
+                                    change = record.value - prevRecord.value;
+                                    changePercent = ((change / prevRecord.value) * 100);
+                                } else {
+                                    // If no previous month data, compare with initial investment
+                                    change = record.value - investmentObj.startInvestment;
+                                    changePercent = ((change / investmentObj.startInvestment) * 100);
+                                }
+                            }
+
+                            totalChange += change;
+                            totalChangePercent += changePercent;
+                        }
+                    }
+                });
+
+                if (!hasData) {
+                    return '<td style="background-color: #f8f9fa; font-weight: bold; text-align: center;">-</td>';
+                }
+
+                const totalClass = totalChange >= 0 ? 'positive' : 'negative';
+
+                if (viewType === 'combined') {
+                    const poundValue = `${totalChange >= 0 ? '+' : ''}£${totalChange.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                    const percentValue = `${totalChangePercent >= 0 ? '+' : ''}${totalChangePercent.toFixed(1)}%`;
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${poundValue} / ${percentValue}</td>`;
+                } else if (viewType === 'percent') {
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${totalChangePercent >= 0 ? '+' : ''}${totalChangePercent.toFixed(1)}%</td>`;
+                } else {
+                    return `<td class="${totalClass}" style="background-color: #f8f9fa; font-weight: bold; text-align: center;">${totalChange >= 0 ? '+' : ''}£${totalChange.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>`;
+                }
+            }).join('');
+
+            return `
+                <table class="matrix-table">
+                    <thead>${headerRow}</thead>
+                    <tbody>
+                        ${dataRows}
+                        <tr style="border-top: 2px solid #007bff; background-color: #f8f9fa;">
+                            <td><strong>📊 TOTALS</strong></td>
+                            ${totalsRow}
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        }
+
+        async function addMonthlyCellValue(investmentName, year, month) {
+            const investment = investmentData.find(inv => inv.name === investmentName);
+            if (!investment) {
+                alert('Investment not found');
+                return;
+            }
+
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const value = prompt(`Enter the value for ${investmentName} at the end of ${monthNames[month]} ${year}:`);
+            if (value !== null && !isNaN(parseFloat(value))) {
+                try {
+                    const response = await fetch('/api/finance/monthly-records', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            investmentId: investment.id,
+                            year: year,
+                            month: month,
+                            value: parseFloat(value),
+                            notes: ''
+                        })
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        monthlyData.push(result.data);
+                        loadMonthlyTrackingData();
+                    } else {
+                        alert('Error adding monthly record: ' + result.error);
+                    }
+                } catch (error) {
+                    console.error('Error adding monthly record:', error);
+                    alert('Failed to add monthly record. Please try again.');
+                }
+            }
+        }
+
+        async function editMonthlyCellValue(recordId, investmentName, year, month, currentValue) {
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const newValue = prompt(`Edit value for ${investmentName} at the end of ${monthNames[month]} ${year}:`, currentValue);
+            if (newValue !== null && !isNaN(parseFloat(newValue))) {
+                try {
+                    const record = monthlyData.find(r => r.id === recordId);
+                    if (record) {
+                        const response = await fetch('/api/finance/monthly-records', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                investmentId: record.investmentId,
+                                year: year,
+                                month: month,
+                                value: parseFloat(newValue),
+                                notes: record.notes || ''
+                            })
+                        });
+
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            const index = monthlyData.findIndex(r => r.id === recordId);
+                            monthlyData[index] = result.data;
+                            loadMonthlyTrackingData();
+                        } else {
+                            alert('Error updating monthly record: ' + result.error);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error updating monthly record:', error);
+                    alert('Failed to update monthly record. Please try again.');
+                }
+            }
+        }
+
+        // Global chart variables
+        let yearlyChart = null;
+        let monthlyChart = null;
+
+        function updateYearlyForecastLabel() {
+            const years = document.getElementById('yearlyForecastYears').value;
+            document.getElementById('yearlyForecastLabel').textContent = `${years} year${years > 1 ? 's' : ''}`;
+        }
+
+
+
+        function calculateHistoricalReturn(investmentName, isMonthly = false) {
+            let records;
+            if (isMonthly) {
+                records = monthlyData.filter(r => r.investmentName === investmentName).sort((a, b) => {
+                    if (a.year !== b.year) return a.year - b.year;
+                    return a.month - b.month;
+                });
+            } else {
+                records = yearlyData.filter(r => r.investmentName === investmentName).sort((a, b) => a.year - b.year);
+            }
+
+            if (records.length < 2) return 0;
+
+            const investment = investmentData.find(inv => inv.name === investmentName);
+            if (!investment) return 0;
+
+            const firstValue = investment.startInvestment;
+            const lastValue = records[records.length - 1].value;
+            const timeSpan = isMonthly ? 
+                ((records[records.length - 1].year - records[0].year) * 12 + (records[records.length - 1].month - records[0].month)) / 12 :
+                records[records.length - 1].year - records[0].year;
+
+            if (timeSpan <= 0) return 0;
+
+            // Calculate compound annual growth rate (CAGR)
+            const cagr = Math.pow(lastValue / firstValue, 1 / timeSpan) - 1;
+            return cagr * 100; // Return as percentage
+        }
+
+        function generateForecastData(investmentName, currentValue, forecastYears, customReturn, bulkInvestment = 0, isMonthly = false) {
+            const annualReturn = customReturn !== null && customReturn !== undefined && customReturn !== '' ? 
+                parseFloat(customReturn) : calculateHistoricalReturn(investmentName, isMonthly);
+            
+            const monthlyReturn = annualReturn / 100 / 12;
+            const forecastMonths = forecastYears * 12;
+            
+            let value = currentValue + bulkInvestment;
+            const forecastData = [{ value: currentValue, month: 0 }];
+            
+            for (let month = 1; month <= forecastMonths; month++) {
+                if (month === 1) {
+                    value = currentValue + bulkInvestment;
+                }
+                value = value * (1 + monthlyReturn);
+                forecastData.push({ value: value, month: month });
+            }
+            
+            return { data: forecastData, annualReturn: annualReturn };
+        }
+
+        function initializeYearlyGraph() {
+            updateYearlyGraph();
+        }
+
+        function updateYearlyGraph() {
+            const forecastYears = parseInt(document.getElementById('yearlyForecastYears').value);
+            const customReturn = document.getElementById('yearlyCustomReturn').value;
+            const bulkInvestment = parseFloat(document.getElementById('yearlyBulkInvestment').value) || 0;
+
+
+
+            // Get unique investments
+            const investments = [...new Set(yearlyData.map(record => record.investmentName))];
+            
+            let totalForecastValue = 0;
+            let forecastStats = [];
+
+            investments.forEach((investment, index) => {
+                const investmentRecords = yearlyData.filter(r => r.investmentName === investment).sort((a, b) => a.year - b.year);
+                const investmentObj = investmentData.find(inv => inv.name === investment);
+                
+                if (!investmentObj || investmentRecords.length === 0) return;
+
+                // Current value for forecast
+                const currentValue = investmentRecords[investmentRecords.length - 1].value;
+                
+                // Generate forecast
+                const forecast = generateForecastData(investment, currentValue, forecastYears, customReturn, bulkInvestment);
+
+                const finalValue = forecast.data[forecast.data.length - 1].value;
+                totalForecastValue += finalValue;
+                forecastStats.push({
+                    name: investment,
+                    currentValue: currentValue,
+                    forecastValue: finalValue,
+                    growth: finalValue - currentValue,
+                    annualReturn: forecast.annualReturn
+                });
+            });
+
+            // Update forecast statistics
+            updateYearlyForecastStats(forecastStats, totalForecastValue, forecastYears);
+        }
+
+
+
+        function updateYearlyForecastStats(stats, totalValue, years) {
+            const metricsContainer = document.getElementById('yearlyKeyMetrics');
+            
+            const currentTotal = stats.reduce((sum, stat) => sum + stat.currentValue, 0);
+            const totalGrowth = totalValue - currentTotal;
+            
+            // Use custom return if available, otherwise calculate from forecast
+            const customReturn = document.getElementById('yearlyCustomReturn').value;
+            const bulkInvestment = parseFloat(document.getElementById('yearlyBulkInvestment').value) || 0;
+            let displayReturn, annualAmount;
+            
+            if (customReturn && customReturn !== '') {
+                displayReturn = parseFloat(customReturn);
+                // Calculate compound growth to show final year's annual return
+                const returnRate = displayReturn / 100;
+                const portfolioAfterBulk = currentTotal + bulkInvestment;
+                const finalYearValue = portfolioAfterBulk * Math.pow(1 + returnRate, years - 1);
+                annualAmount = finalYearValue * returnRate;
+            } else {
+                displayReturn = currentTotal > 0 ? ((totalValue / currentTotal) ** (1 / years) - 1) * 100 : 0;
+                const returnRate = displayReturn / 100;
+                const portfolioAfterBulk = currentTotal + bulkInvestment;
+                const finalYearValue = portfolioAfterBulk * Math.pow(1 + returnRate, years - 1);
+                annualAmount = finalYearValue * returnRate;
+            }
+
+            // Key Metrics Cards
+            const returnColor = displayReturn >= 5 ? '#4CAF50' : displayReturn >= 0 ? '#FF9800' : '#F44336';
+            const growthColor = totalGrowth >= 0 ? '#4CAF50' : '#F44336';
+            
+            metricsContainer.innerHTML = `
+                <div style="padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #2196F3; margin-bottom: 5px;">£${currentTotal.toLocaleString()}</div>
+                    <div style="font-size: 12px; color: #666;">Current Portfolio Value</div>
+                </div>
+                <div style="padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+                    <div style="font-size: 20px; font-weight: bold; color: ${returnColor}; margin-bottom: 5px;">${displayReturn.toFixed(1)}% / £${annualAmount.toLocaleString()}</div>
+                    <div style="font-size: 12px; color: #666;">Annual Return (Year ${years})</div>
+                </div>
+                <div style="padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #9C27B0; margin-bottom: 5px;">£${totalValue.toLocaleString()}</div>
+                    <div style="font-size: 12px; color: #666;">${years}-Year Projected Value</div>
+                </div>
+                <div style="padding: 15px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: ${growthColor}; margin-bottom: 5px;">${totalGrowth >= 0 ? '+' : ''}£${totalGrowth.toLocaleString()}</div>
+                    <div style="font-size: 12px; color: #666;">Total Growth Forecast</div>
+                </div>
+            `;
+            
+            // Historical performance now shown on homepage dashboard
+        }
+        
+                 function updateHistoricalPerformance() {
+             // Historical Performance widget has been moved to homepage dashboard
+             console.log('Historical Performance is now displayed on homepage dashboard');
+         }
+         
+         function calculateYearlyProfits() {
+             const profits = {};
+             
+             // Get all years that have data
+             const years = [...new Set(yearlyData.map(record => record.year))].sort();
+             
+             years.forEach(year => {
+                 let totalYearProfit = 0;
+                 
+                 // Get all investments that have data for this year
+                 const investmentsThisYear = [...new Set(yearlyData.filter(r => r.year === year).map(r => r.investmentName))];
+                 
+                 investmentsThisYear.forEach(investmentName => {
+                     const investmentObj = investmentData.find(inv => inv.name === investmentName);
+                     if (!investmentObj) return;
+                     
+                     const recordThisYear = yearlyData.find(r => r.investmentName === investmentName && r.year === year);
+                     if (!recordThisYear) return;
+                     
+                     let baseValue;
+                     
+                     // Find the previous year's value or use start investment
+                     const previousYearRecord = yearlyData.find(r => r.investmentName === investmentName && r.year === year - 1);
+                     if (previousYearRecord) {
+                         baseValue = previousYearRecord.value;
+                     } else {
+                         // No previous year data, check if this is the first year after start
+                         const startYear = new Date(investmentObj.startDate).getFullYear();
+                         if (year === startYear || year === startYear + 1) {
+                             baseValue = investmentObj.startInvestment;
+                         } else {
+                             // Skip this investment for this year as we can't determine base value
+                             return;
+                         }
+                     }
+                     
+                     // Calculate profit for this investment this year
+                     const profit = recordThisYear.value - baseValue;
+                     totalYearProfit += profit;
+                 });
+                 
+                 profits[year] = totalYearProfit;
+             });
+             
+             return profits;
+         }
+
+
+
+        function initializeDragAndDrop() {
+            // Widget drag and drop
+            const widgetsContainer = document.getElementById('widgetsContainer');
+            const widgets = widgetsContainer.querySelectorAll('.widget-section');
+
+            widgets.forEach(widget => {
+                widget.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.dataset.widget);
+                    this.classList.add('dragging');
+                });
+
+                widget.addEventListener('dragend', function(e) {
+                    this.classList.remove('dragging');
+                    document.querySelectorAll('.widget-section').forEach(w => w.classList.remove('drag-over'));
+                });
+
+                widget.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    const dragging = document.querySelector('.widget-section.dragging');
+                    if (dragging && dragging !== this) {
+                        this.classList.add('drag-over');
+                    }
+                });
+
+                widget.addEventListener('dragleave', function(e) {
+                    this.classList.remove('drag-over');
+                });
+
+                widget.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    const draggedWidget = e.dataTransfer.getData('text/plain');
+                    const draggedElement = document.querySelector(`[data-widget="${draggedWidget}"]`);
+                    
+                    if (draggedElement && draggedElement !== this) {
+                        const allWidgets = Array.from(widgetsContainer.children);
+                        const draggedIndex = allWidgets.indexOf(draggedElement);
+                        const targetIndex = allWidgets.indexOf(this);
+                        
+                        if (draggedIndex < targetIndex) {
+                            this.parentNode.insertBefore(draggedElement, this.nextSibling);
+                        } else {
+                            this.parentNode.insertBefore(draggedElement, this);
+                        }
+                        
+                        saveWidgetOrder();
+                    }
+                    
+                    this.classList.remove('drag-over');
+                });
+            });
+        }
+
+    </script>
+</body>
+</html> 

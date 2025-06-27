@@ -1,0 +1,3607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin Trading Tracker</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        body {
+            padding: 15px;
+        }
+        
+        .nav-links {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        .nav-links a {
+            color: #007bff;
+            text-decoration: none;
+            margin-right: 20px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            background-color: #e9ecef;
+        }
+        .nav-links a:hover {
+            background-color: #007bff;
+            color: white;
+        }
+        .nav-links a.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        
+        .summary-card.profit {
+            border-left-color: #28a745;
+        }
+        
+        .summary-card.loss {
+            border-left-color: #dc3545;
+        }
+        
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .summary-card .value.positive {
+            color: #28a745;
+        }
+        
+        .summary-card .value.negative {
+            color: #dc3545;
+        }
+        
+        .actions {
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn.btn-success {
+            background-color: #28a745;
+        }
+        
+        .btn.btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .trades-table th,
+        .trades-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .trades-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .trades-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+        }
+        
+        .status-open {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-closed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .profit-positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .profit-negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+        
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .checkbox-label {
+            display: flex !important;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            margin-bottom: 10px !important;
+            padding: 8px 0;
+        }
+        
+        .checkbox-label input[type="checkbox"] {
+            margin: 0;
+            width: 16px;
+            height: 16px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-buttons button {
+            padding: 5px 10px;
+            font-size: 12px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .edit-btn {
+            background-color: #ffc107;
+            color: #000;
+        }
+        
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .edit-btn:hover {
+            background-color: #e0a800;
+        }
+        
+        .delete-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .calculated-field {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+        }
+        
+        /* Backtester Styles */
+        .optimize-button {
+            background-color: #28a745;
+        }
+        .optimize-button:hover {
+            background-color: #218838;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .tab {
+            background: #f8f9fa;
+            border: none;
+            padding: 15px 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-right: 1px solid #ddd;
+            transition: all 0.3s ease;
+            flex: 1;
+            text-align: center;
+        }
+
+        .tab:last-child {
+            border-right: none;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .tab.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .info-box h3 {
+            margin: 0 0 15px 0;
+            font-size: 20px;
+        }
+        .info-box p {
+            margin: 8px 0;
+            opacity: 0.9;
+        }
+        
+        .optimization-box {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        /* ORGANIZED METRICS LAYOUT */
+        .metrics-section {
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .metrics-row {
+            margin-bottom: 25px;
+        }
+        
+        .metrics-row h4 {
+            margin: 0 0 15px 0;
+            padding: 10px 15px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            color: #495057;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .metrics-row.trading h4 {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .metrics-row.strategy h4 {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .metrics-row.buyhold h4 {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .metrics-row.comparison h4 {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            width: 100%;
+        }
+        
+        .metric {
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+        .metric.negative {
+            border-left-color: #dc3545;
+        }
+        .metric.positive {
+            border-left-color: #28a745;
+        }
+        .metric.profit {
+            border-left-color: #ffc107;
+            background-color: #fffbf0;
+        }
+        .metric.neutral {
+            border-left-color: #6c757d;
+        }
+        
+        .metric-value {
+            font-size: 22px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .metric-value.positive { color: #28a745; }
+        .metric-value.negative { color: #dc3545; }
+        .metric-value.profit { color: #ff8c00; }
+        .metric-value.neutral { color: #6c757d; }
+        
+        .metric-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+        
+        .metric-description {
+            font-size: 10px;
+            color: #999;
+            font-style: italic;
+        }
+        
+        /* CHART CONTAINER - FULL WIDTH */
+        .chart-container {
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+            width: 100%;
+            min-width: 0;
+            overflow: hidden;
+        }
+        
+        /* CHART ITSELF - FULL WIDTH */
+        #chart {
+            width: 100% !important;
+            height: 800px !important;
+            min-width: 0 !important;
+        }
+        
+        /* Make sure plotly containers don't have max-width */
+        .js-plotly-plot .plotly {
+            width: 100% !important;
+        }
+        
+        .optimization-results {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .optimization-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .optimization-table th, .optimization-table td {
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .optimization-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+        .optimization-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        .best-result {
+            background-color: #d4edda !important;
+            font-weight: bold;
+        }
+        
+        .position-indicator {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .position-btc {
+            background-color: #ffeaa7;
+            color: #2d3436;
+        }
+        .position-cash {
+            background-color: #81ecec;
+            color: #2d3436;
+        }
+
+        /* Price Monitor Styles */
+        .price-display {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .current-price {
+            font-size: 48px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .price-info {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .refresh-button {
+            background-color: #28a745;
+        }
+        .refresh-button:hover {
+            background-color: #218838;
+        }
+        
+        .analysis-card {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 5px solid #007bff;
+            width: 100%;
+        }
+        .status-buy {
+            border-left-color: #28a745 !important;
+            background-color: #f8fff9 !important;
+        }
+        .status-close {
+            border-left-color: #ffc107 !important;
+            background-color: #fffdf0 !important;
+        }
+        .status-far {
+            border-left-color: #dc3545 !important;
+            background-color: #fff5f5 !important;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .auto-refresh input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .last-updated {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .alert-section {
+            background: linear-gradient(135deg, #fd7e14 0%, #e67e22 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 15px 0;
+            width: 100%;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .alert-section h3 {
+            display: none;
+        }
+        
+        .price-history {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 100%;
+        }
+        
+        .price-history h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+        }
+        
+        .price-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        
+        .price-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            border-left: 3px solid #007bff;
+        }
+        
+        .price-time {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .price-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .button-group button {
+            margin-right: 0;
+        }
+
+        /* Data Viewer Styles */
+        .copy-button {
+            background-color: #28a745;
+        }
+        .copy-button:hover {
+            background-color: #218838;
+        }
+        
+        /* Time Period Selector Styles */
+        .time-period-selector {
+            display: flex;
+            gap: 8px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .period-btn {
+            background-color: #f8f9fa;
+            color: #333;
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            min-width: 45px;
+        }
+
+        .period-btn:hover {
+            background-color: #e9ecef;
+            border-color: #007bff;
+            transform: translateY(-1px);
+        }
+
+        .period-btn.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .data-table th, .data-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .data-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .data-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .data-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+            overflow-x: auto;
+        }
+        
+        .summary {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            width: 100%;
+        }
+        
+        .summary h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .summary p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .button-row button {
+            margin-right: 0;
+        }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #007bff;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid #dc3545;
+            width: 100%;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .nav-links a {
+                margin-right: 0;
+                flex: 1;
+                text-align: center;
+                min-width: 120px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .trades-table {
+                font-size: 12px;
+            }
+            
+            .trades-table th,
+            .trades-table td {
+                padding: 8px;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            .optimization-table {
+                font-size: 12px;
+            }
+            .optimization-table th, .optimization-table td {
+                padding: 6px;
+            }
+            #chart {
+                height: 600px !important;
+            }
+        }
+
+        /* Graph Modal Styles */
+        #graphModal .modal-content {
+            max-width: 800px;
+            width: 95%;
+        }
+
+        .graph-container {
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+        }
+
+        .clickable-profit {
+            cursor: pointer;
+        }
+
+        .clickable-profit:hover {
+            opacity: 0.8;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="nav-links">
+        <a href="/">🏠 Home</a>
+        <a href="/personal-finance">💼 Personal Finance</a>
+        <a href="/finance-tracker">💰 Finance Tracker</a>
+        <a href="/bitcoin-tracker" class="active">₿ Bitcoin Tracker</a>
+        <a href="/debug">🐛 Debug</a>
+    </div>
+
+    <!-- Bitcoin Tracker with Integrated Features -->
+    <div class="container">
+        <h1>₿ Bitcoin Tracker - Complete Trading Suite</h1>
+        <p>Track trades, monitor prices, analyze data, and backtest strategies - all in one place</p>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="trades">📊 Trading Records</button>
+            <button class="tab" data-tab="monitor">💰 Price Monitor</button>
+            <button class="tab" data-tab="data">📊 Data Viewer</button>
+            <button class="tab" data-tab="backtest">🚀 Single Backtest</button>
+            <button class="tab" data-tab="optimize">🎯 Find Best Parameters</button>
+        </div>
+        
+        <!-- Trading Records Tab -->
+        <div id="trades-tab" class="tab-content active">
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <h3>Open Positions</h3>
+                    <div class="value" id="openPositions">0</div>
+                </div>
+                <div class="summary-card profit">
+                    <h3>Total Profit/Loss</h3>
+                    <div class="value" id="totalProfit">£0.00</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Total Fees</h3>
+                    <div class="value" id="totalFees">£0.00</div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="btn btn-success" onclick="showAddTradeModal()">+ Add New Trade</button>
+                <span id="autoRefreshStatus" style="margin-left: 15px; color: #666; font-size: 12px;"></span>
+            </div>
+            
+            <table class="trades-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Initial Investment (£)</th>
+                        <th>BTC Buy Price (£)</th>
+                        <th>BTC Amount</th>
+                        <th>BTC Sell Price (£)</th>
+                        <th>% Gain</th>
+                        <th>Fee (£)</th>
+                        <th>Profit (£)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tradesTableBody">
+                    <!-- Trades will be populated here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Price Monitor Tab -->
+        <div id="monitor-tab" class="tab-content">
+            <div class="price-display" id="priceDisplay">
+                <div class="price-info">Current BTC Price</div>
+                <div class="current-price" id="currentPrice">Loading...</div>
+                <div class="price-info" id="priceInfo">Fetching latest price...</div>
+                <div class="last-updated" id="lastUpdated"></div>
+                <div class="price-history" id="priceHistory" style="display: none;">
+                    <h3>📈 Recent Price History</h3>
+                    <div class="price-grid" id="priceGrid"></div>
+                </div>
+            </div>
+
+            <div class="auto-refresh">
+                <span id="priceMonitorAutoRefreshStatus" style="color: #666; font-size: 12px;"></span>
+            </div>
+
+            <!-- Target Dip Alert Configuration -->
+            <div class="alarm-config" style="background: white; padding: 20px; border-radius: 10px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #28a745;">
+                <h3 style="margin: 0 0 15px 0; color: #333;">🎯 Target Dip Alert</h3>
+                <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">Get notified when your analyzed dip target is reached (requires Last Sell Price and Target Dip % below)</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enableDipAlarm"> Enable Target Dip Alert
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 5px;">⚠️ Requires "Last Sell Price" and "Target Dip %" to be configured below</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Price Alert Configuration -->
+            <div class="alarm-config" style="background: white; padding: 20px; border-radius: 10px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">
+                <h3 style="margin: 0 0 15px 0; color: #333;">💰 Price Alert</h3>
+                <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">Get notified when BTC reaches a specific price target</p>
+                <div class="form-group">
+                    <label for="priceAlarmValue">Target Price (£):</label>
+                    <input type="number" id="priceAlarmValue" step="0.01" placeholder="e.g., 75000">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enablePriceAlarm"> Enable Price Alert
+                    </label>
+                </div>
+            </div>
+
+            <form id="dipAnalysisForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="lastSellPrice">💸 Last Sell Price (£):</label>
+                        <input type="number" id="lastSellPrice" step="0.01" placeholder="Enter your last sell price">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="targetDipPercent">📉 Target Dip Percentage (%):</label>
+                        <input type="number" id="targetDipPercent" value="5" min="1" max="50" step="0.1">
+                    </div>
+                </div>
+                
+                <button type="submit" id="analyzeButton">🎯 Analyze Dip Opportunity</button>
+            </form>
+
+
+            <div id="analysisResults" style="display: none;">
+                <div class="analysis-card" id="analysisCard">
+                    <h3 id="statusText">📊 Analysis Results</h3>
+                    <div class="metric-grid" id="analysisMetrics"></div>
+                </div>
+            </div>
+
+            
+            <div id="monitorError" class="error" style="display: none;"></div>
+        </div>
+
+        <!-- Data Viewer Tab -->
+        <div id="data-tab" class="tab-content">
+            <div class="info-box">
+                <h3>📋 Data Export Tool</h3>
+                <p><strong>View and export historical BTC price data</strong> for your own analysis</p>
+                <p>Filter by date ranges and copy data directly to spreadsheets</p>
+            </div>
+            
+            <form id="dataForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="days">📅 Data Period (Days):</label>
+                        <select id="days">
+                            <option value="7">Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 3 months</option>
+                            <option value="180">Last 6 months</option>
+                            <option value="365" selected>Last year</option>
+                            <option value="730">Last 2 years</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dateFilter">📆 Filter Loaded Data:</label>
+                        <select id="dateFilter">
+                            <option value="all">Show all loaded data</option>
+                            <option value="year">Show specific year only</option>
+                            <option value="month">Show specific month only</option>
+                            <option value="day">Show specific day only</option>
+                        </select>
+                        <div class="help-text">Filter the loaded data by specific dates</div>
+                    </div>
+                    
+                    <div class="form-group" id="filterValueGroup" style="display: none;">
+                        <label for="filterValue">Enter Date to Filter:</label>
+                        <input type="text" id="filterValue" placeholder="e.g. 2024, 2024-01, 2024-01-15">
+                        <div class="help-text" id="filterHelpText">Enter the date in the format shown above</div>
+                    </div>
+                </div>
+                
+                <div class="button-row">
+                    <button type="submit" id="loadData">📥 Load Data</button>
+                    <button type="button" id="copyData" class="copy-button" style="display: none;">📋 Copy All Data</button>
+                    <button type="button" id="copyFiltered" class="copy-button" style="display: none;">📋 Copy Filtered Data</button>
+                    <button type="button" id="exportCSV" class="copy-button" style="display: none;">💾 Export CSV</button>
+                </div>
+            </form>
+            
+            <div id="summary" class="summary" style="display: none;">
+                <h3>📊 Data Summary</h3>
+                <div class="stats-row" id="statsRow"></div>
+                <div id="summaryText"></div>
+            </div>
+            
+            <div id="dataContainer" style="display: none;">
+                <h3>📋 Data Table</h3>
+                <p><strong>Total Records:</strong> <span id="recordCount">0</span> | <strong>Filtered:</strong> <span id="filteredCount">0</span></p>
+                <div class="data-container">
+                    <table class="data-table" id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Open (£)</th>
+                                <th>High (£)</th>
+                                <th>Low (£)</th>
+                                <th>Close (£)</th>
+                                <th>Volume</th>
+                                <th>Daily Change</th>
+                                <th>Daily Change %</th>
+                                <th>Lowest Dip %</th>
+                                <th>Highest Increase %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="dataError" class="error" style="display: none;"></div>
+        </div>
+
+        <!-- Single Backtest Tab -->
+        <div id="backtest-tab" class="tab-content">
+            <div class="info-box">
+                <h3>📊 Single Strategy Test</h3>
+                <p><strong>✅ Transaction Costs:</strong> Realistic trading fees included</p>
+                <p><strong>📈 Portfolio Tracking:</strong> Visual comparison vs buy & hold</p>
+                <p><strong>📉 Risk Metrics:</strong> Maximum drawdown analysis</p>
+                <p><strong>🔗 Additional Tools:</strong> Use Data Viewer to export price data and Price Monitor to track live dips</p>
+            </div>
+            
+            <form id="backtestForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="lookback_days">📅 Lookback Days:</label>
+                        <input type="number" id="lookback_days" value="365" min="30" max="1825">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="investment_value">💰 Investment Value (£):</label>
+                        <input type="number" id="investment_value" value="1000" min="100" step="0.01">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="buy_dip_percent">📉 Buy Dip Percentage (%):</label>
+                        <input type="number" id="buy_dip_percent" value="5" min="0.1" max="20" step="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sell_gain_percent">📈 Sell Gain Percentage (%):</label>
+                        <input type="number" id="sell_gain_percent" value="10" min="0.1" max="50" step="0.1">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="transaction_fee_percent">💸 Transaction Fee (%):</label>
+                    <input type="number" id="transaction_fee_percent" value="0.1" min="0" max="2" step="0.01">
+                </div>
+                
+                <button type="submit" id="runBacktest">🔍 Run Backtest</button>
+            </form>
+        </div>
+        
+        <!-- Optimization Tab -->
+        <div id="optimize-tab" class="tab-content">
+            <div class="optimization-box">
+                <h3>🎯 Parameter Optimization</h3>
+                <p><strong>Find the best buy/sell percentages</strong> for your selected time period</p>
+                <p>This will test hundreds of combinations to find optimal settings</p>
+                <p><strong>Note:</strong> 1% buy / 1% sell is now included in optimization!</p>
+            </div>
+            
+            <form id="optimizeForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="opt_lookback_days">📅 Lookback Days:</label>
+                        <input type="number" id="opt_lookback_days" value="365" min="30" max="1825">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="opt_investment_value">💰 Investment Value (£):</label>
+                        <input type="number" id="opt_investment_value" value="1000" min="100" step="0.01">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="buy_min">📉 Buy % Range (Min):</label>
+                        <input type="number" id="buy_min" value="1" min="0.1" max="15" step="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="buy_max">📉 Buy % Range (Max):</label>
+                        <input type="number" id="buy_max" value="10" min="1" max="25" step="0.1">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sell_min">📈 Sell % Range (Min):</label>
+                        <input type="number" id="sell_min" value="1" min="0.1" max="20" step="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sell_max">📈 Sell % Range (Max):</label>
+                        <input type="number" id="sell_max" value="10" min="1" max="50" step="0.1">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="opt_transaction_fee_percent">💸 Transaction Fee (%):</label>
+                        <input type="number" id="opt_transaction_fee_percent" value="0.1" min="0" max="2" step="0.01">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="step">🎯 Step Size:</label>
+                        <input type="number" id="step" value="0.1" min="0.1" max="2" step="0.1">
+                    </div>
+                </div>
+                
+                <button type="submit" id="runOptimization" class="optimize-button">🎯 Find Best Parameters</button>
+            </form>
+        </div>
+        
+        <div id="backtesterResults" style="display: none;">
+            <h2>📊 Results <span id="finalPosition"></span></h2>
+            <div class="metrics-section" id="metrics"></div>
+            <div class="chart-container">
+                <div id="chart"></div>
+            </div>
+            <div id="backtesterTrades"></div>
+        </div>
+        
+        <div id="optimization-results" style="display: none;">
+            <h2>🎯 Optimization Results</h2>
+            <div id="optimization-summary"></div>
+            <div class="optimization-results">
+                <table class="optimization-table" id="optimization-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Buy %</th>
+                            <th>Sell %</th>
+                            <th>Final Value</th>
+                            <th>Return %</th>
+                            <th>Trades</th>
+                            <th>Fees</th>
+                            <th>Max Drawdown</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="backtesterError" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Add/Edit Trade Modal -->
+    <div id="tradeModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Add New Trade</h2>
+            
+            <form id="tradeForm">
+                <input type="hidden" id="tradeId">
+                
+                <div class="form-group">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="initial_investment_gbp">Initial Investment (£)</label>
+                        <input type="number" id="initial_investment_gbp" step="0.01" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="btc_buy_price">BTC Buy Price (£)</label>
+                        <input type="number" id="btc_buy_price" step="0.01" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="btc_sell_price">BTC Sell Price (£)</label>
+                        <input type="number" id="btc_sell_price" step="0.01">
+                        <div class="help-text">Leave empty for open positions</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="fee">Fee (£)</label>
+                        <input type="number" id="fee" step="0.01">
+                        <div class="help-text">Leave empty for open positions</div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="profit_display">Calculated Profit (£)</label>
+                    <input type="text" id="profit_display" class="calculated-field" readonly>
+                    <div class="help-text">Automatically calculated when all fields are filled</div>
+                </div>
+                
+                <button type="submit" class="btn btn-success">Save Trade</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Graph Modal -->
+    <div id="graphModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeGraphModal()">&times;</span>
+            <h2 id="graphTitle">Profit/Gain History</h2>
+            
+            <!-- Time Period Selector -->
+            <div class="time-period-selector">
+                <button class="period-btn active" data-period="1" data-unit="day">1D</button>
+                <button class="period-btn" data-period="7" data-unit="day">7D</button>
+                <button class="period-btn" data-period="14" data-unit="day">14D</button>
+                <button class="period-btn" data-period="1" data-unit="month">1M</button>
+                <button class="period-btn" data-period="3" data-unit="month">3M</button>
+                <button class="period-btn" data-period="6" data-unit="month">6M</button>
+                <button class="period-btn" data-period="12" data-unit="month">12M</button>
+            </div>
+            
+            <div class="graph-container">
+                <canvas id="profitGraph"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let trades = [];
+        let currentBTCPrice = null;
+        let tradingRecordsAutoRefreshInterval = null;
+        let priceMonitorAutoRefreshInterval = null;
+        let countdownInterval = null;
+        let countdownSeconds = 60;
+
+        // Load trades on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTrades();
+            
+            // Add event listeners for auto-calculation
+            document.getElementById('initial_investment_gbp').addEventListener('input', calculateProfit);
+            document.getElementById('btc_buy_price').addEventListener('input', calculateProfit);
+            document.getElementById('btc_sell_price').addEventListener('input', calculateProfit);
+            document.getElementById('fee').addEventListener('input', calculateProfit);
+            
+            // Initialize backtester functionality
+            initializeBacktester();
+            
+            // Initialize tab switching
+            initializeTabs();
+            
+            // Initialize time period handlers for graph modal
+            setupTimePeriodHandlers();
+        });
+
+        // Initialize tab functionality
+        function initializeTabs() {
+            console.log('Initializing tabs...');
+            const tabButtons = document.querySelectorAll('.tab');
+            console.log('Found tab buttons:', tabButtons.length);
+            
+            tabButtons.forEach((button, index) => {
+                const tabName = button.getAttribute('data-tab');
+                console.log('Setting up tab:', tabName);
+                
+                button.addEventListener('click', function() {
+                    console.log('Tab clicked:', tabName);
+                    switchTab(tabName);
+                });
+            });
+        }
+
+
+        async function loadTrades() {
+            try {
+                const response = await fetch('/api/bitcoin/trades');
+                const data = await response.json();
+                
+                console.log('Loaded trades data:', data); // Debug log
+                
+                if (data.success) {
+                    trades = data.data;
+                    console.log('Trades array:', trades); // Debug log
+                    // Get current BTC price before rendering trades
+                    await getCurrentBTCPrice();
+                    renderTrades();
+                    updateSummary();
+                    
+                    // Start auto-refresh if we're on the trades tab and have open trades
+                    const currentTab = document.querySelector('.tab-content.active');
+                    if (currentTab && currentTab.id === 'trades-tab') {
+                        startTradingRecordsAutoRefresh();
+                    }
+                } else {
+                    console.error('API returned success: false', data);
+                }
+            } catch (error) {
+                console.error('Error loading trades:', error);
+            }
+        }
+
+        async function getCurrentBTCPrice() {
+            try {
+                const response = await fetch('/api/bitcoin/current-price');
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentBTCPrice = data.price;
+                }
+            } catch (error) {
+                console.error('Error getting current BTC price:', error);
+            }
+        }
+
+        function renderProfitCell(trade, currentPrice) {
+            if (trade.profit !== null) {
+                // Closed trade - show actual profit
+                return '£' + trade.profit.toFixed(2);
+            } else if (currentPrice && trade.btc_amount && trade.status === 'Open') {
+                // Open trade - calculate estimated profit
+                const estimatedValue = trade.btc_amount * currentPrice;
+                const estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                const profitClass = estimatedProfit >= 0 ? 'profit-positive' : 'profit-negative';
+                return '<span class="' + profitClass + '">£' + estimatedProfit.toFixed(2) + '*</span>';
+            } else {
+                return '-';
+            }
+        }
+
+        function renderTrades() {
+            const tbody = document.getElementById('tradesTableBody');
+            tbody.innerHTML = '';
+            
+            trades.forEach(trade => {
+                const row = document.createElement('tr');
+                
+                const statusClass = trade.status.toLowerCase();
+                const profitClass = trade.profit !== null ? (trade.profit >= 0 ? 'profit-positive' : 'profit-negative') : '';
+                
+                // Calculate percentage gain - use current price for open trades
+                let percentGain = '-';
+                let percentGainClass = '';
+                let isCurrentEstimate = false;
+                
+                if (trade.btc_buy_price) {
+                    if (trade.btc_sell_price !== null) {
+                        // Closed trade - use actual sell price
+                        const gain = ((trade.btc_sell_price - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%';
+                        percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
+                    } else if (currentBTCPrice && trade.status === 'Open') {
+                        // Open trade - use current BTC price for estimate
+                        const gain = ((currentBTCPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%*';
+                        percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
+                        isCurrentEstimate = true;
+                    }
+                }
+                
+                row.innerHTML = 
+                    '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
+                    '<td>' + new Date(trade.date).toLocaleDateString('en-GB') + '</td>' +
+                    '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
+                    '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
+                    '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +
+                    '<td>' + (trade.btc_sell_price !== null ? '£' + trade.btc_sell_price.toFixed(2) : (currentBTCPrice ? '£' + currentBTCPrice.toFixed(2) + '*' : '-')) + '</td>' +
+                    '<td class="' + percentGainClass + ' clickable-profit" onclick="openGraphModal(\'gain\', ' + trade.id + ')">' + percentGain + '</td>' +
+                    '<td>' + (trade.fee !== null ? '£' + trade.fee.toFixed(2) : '-') + '</td>' +
+                    '<td class="' + profitClass + ' clickable-profit" onclick="openGraphModal(\'profit\', ' + trade.id + ')">' + renderProfitCell(trade, currentBTCPrice) + '</td>' +
+                    '<td>' +
+                        '<div class="action-buttons">' +
+                            '<button class="edit-btn" onclick="editTrade(' + trade.id + ')">Edit</button>' +
+                            '<button class="delete-btn" onclick="deleteTrade(' + trade.id + ')">Delete</button>' +
+                        '</div>' +
+                    '</td>';
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateSummary() {
+            let openPositions = 0;
+            let totalProfit = 0;
+            let totalFees = 0;
+            
+            trades.forEach(trade => {
+                if (trade.status === 'Open') {
+                    openPositions++;
+                }
+                
+                if (trade.profit !== null) {
+                    totalProfit += trade.profit;
+                }
+                
+                if (trade.fee !== null) {
+                    totalFees += trade.fee;
+                }
+            });
+            
+            document.getElementById('openPositions').textContent = openPositions;
+            document.getElementById('totalProfit').textContent = '£' + totalProfit.toFixed(2);
+            document.getElementById('totalProfit').className = totalProfit >= 0 ? 'value positive' : 'value negative';
+            document.getElementById('totalFees').textContent = '£' + totalFees.toFixed(2);
+        }
+
+        function calculateProfit() {
+            const initialInvestment = parseFloat(document.getElementById('initial_investment_gbp').value) || 0;
+            const buyPrice = parseFloat(document.getElementById('btc_buy_price').value) || 0;
+            const sellPrice = parseFloat(document.getElementById('btc_sell_price').value) || 0;
+            const fee = parseFloat(document.getElementById('fee').value) || 0;
+            
+            if (initialInvestment && buyPrice && sellPrice && fee >= 0) {
+                const btcAmount = initialInvestment / buyPrice;
+                const grossReturn = btcAmount * sellPrice;
+                const profit = grossReturn - initialInvestment - fee;
+                
+                document.getElementById('profit_display').value = '£' + profit.toFixed(2);
+            } else {
+                document.getElementById('profit_display').value = 'Pending (fill all fields)';
+            }
+        }
+
+        function showAddTradeModal() {
+            document.getElementById('modalTitle').textContent = 'Add New Trade';
+            document.getElementById('tradeForm').reset();
+            document.getElementById('tradeId').value = '';
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('profit_display').value = 'Pending (fill all fields)';
+            document.getElementById('tradeModal').style.display = 'block';
+        }
+
+        function editTrade(id) {
+            const trade = trades.find(t => t.id === id);
+            if (!trade) return;
+            
+            document.getElementById('modalTitle').textContent = 'Edit Trade';
+            document.getElementById('tradeId').value = trade.id;
+            document.getElementById('date').value = trade.date;
+            document.getElementById('initial_investment_gbp').value = trade.initial_investment_gbp;
+            document.getElementById('btc_buy_price').value = trade.btc_buy_price;
+            document.getElementById('btc_sell_price').value = trade.btc_sell_price || '';
+            document.getElementById('fee').value = trade.fee !== null ? trade.fee : '';
+            
+            calculateProfit();
+            
+            document.getElementById('tradeModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('tradeModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('tradeModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        document.getElementById('tradeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            console.log('Form submitted'); // Debug log
+            
+            const tradeId = document.getElementById('tradeId').value;
+            const tradeData = {
+                date: document.getElementById('date').value,
+                type: 'BTC',
+                initial_investment_gbp: parseFloat(document.getElementById('initial_investment_gbp').value),
+                btc_buy_price: parseFloat(document.getElementById('btc_buy_price').value),
+                btc_sell_price: document.getElementById('btc_sell_price').value ? parseFloat(document.getElementById('btc_sell_price').value) : null,
+                fee: document.getElementById('fee').value ? parseFloat(document.getElementById('fee').value) : null
+            };
+            
+            console.log('Trade data:', tradeData); // Debug log
+            
+            try {
+                let response;
+                if (tradeId) {
+                    // Update existing trade
+                    response = await fetch(`/api/bitcoin/trades/${tradeId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(tradeData)
+                    });
+                } else {
+                    // Create new trade
+                    response = await fetch('/api/bitcoin/trades', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(tradeData)
+                    });
+                }
+                
+                const data = await response.json();
+                console.log('API response:', data); // Debug log
+                
+                if (data.success) {
+                    console.log('Trade saved successfully'); // Debug log
+                    closeModal();
+                    loadTrades();
+                } else {
+                    console.error('API error:', data.error); // Debug log
+                    alert('Error saving trade: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error saving trade:', error);
+                alert('Error saving trade');
+            }
+        });
+
+        async function deleteTrade(id) {
+            if (!confirm('Are you sure you want to delete this trade?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/bitcoin/trades/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadTrades();
+                } else {
+                    alert('Error deleting trade: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error deleting trade:', error);
+                alert('Error deleting trade');
+            }
+        }
+
+        async function refreshCurrentPrices(silent = false) {
+            const button = document.querySelector('button[onclick="refreshCurrentPrices()"]');
+            if (button && !silent) {
+                button.disabled = true;
+                button.textContent = '⏳ Updating...';
+            }
+            
+            try {
+                await getCurrentBTCPrice();
+                
+                // Re-render trades to show updated profit estimates
+                renderTrades();
+                
+                if (currentBTCPrice && !silent) {
+                    // Show current price and offer to update open positions
+                    const openTrades = trades.filter(t => t.status === 'Open');
+                    if (openTrades.length > 0) {
+                        alert(`Current BTC Price: £${currentBTCPrice.toFixed(2)}\n\nProfit estimates updated! You have ${openTrades.length} open position(s).`);
+                    } else {
+                        alert(`Current BTC Price: £${currentBTCPrice.toFixed(2)}\n\nNo open positions to update.`);
+                    }
+                }
+                
+                if (button && !silent) {
+                    button.textContent = '🔄 Update Current Prices';
+                    button.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error refreshing prices:', error);
+                if (button && !silent) {
+                    button.textContent = '🔄 Update Current Prices';
+                    button.disabled = false;
+                }
+            }
+        }
+
+        // Auto-refresh functionality for Trading Records
+        function startTradingRecordsAutoRefresh() {
+            // Only start if there are open trades
+            const openTrades = trades.filter(t => t.status === 'Open');
+            if (openTrades.length > 0 && !tradingRecordsAutoRefreshInterval) {
+                console.log('Starting auto-refresh for trading records (60 seconds)');
+                tradingRecordsAutoRefreshInterval = setInterval(() => {
+                    refreshCurrentPrices(true); // Silent refresh
+                }, 60000); // 60 seconds
+                
+                // Update status indicator
+                const statusElement = document.getElementById('autoRefreshStatus');
+                if (statusElement) {
+                    statusElement.textContent = '🔄 Auto-updating profits every 60s (60s)';
+                    statusElement.style.color = '#28a745';
+                }
+                
+                // Start countdown timer
+                startCountdownTimer();
+            }
+        }
+
+        function stopTradingRecordsAutoRefresh() {
+            if (tradingRecordsAutoRefreshInterval) {
+                console.log('Stopping auto-refresh for trading records');
+                clearInterval(tradingRecordsAutoRefreshInterval);
+                tradingRecordsAutoRefreshInterval = null;
+                
+                // Update status indicator
+                const statusElement = document.getElementById('autoRefreshStatus');
+                if (statusElement) {
+                    statusElement.textContent = '';
+                }
+                
+                // Stop countdown timer
+                stopCountdownTimer();
+            }
+        }
+
+        // Auto-refresh functionality for Price Monitor
+        function startPriceMonitorAutoRefresh() {
+            if (!priceMonitorAutoRefreshInterval) {
+                console.log('Starting auto-refresh for price monitor (60 seconds)');
+                priceMonitorAutoRefreshInterval = setInterval(() => {
+                    refreshPrice(true); // Silent refresh
+                }, 60000); // 60 seconds
+                
+                // Update status indicator
+                const statusElement = document.getElementById('priceMonitorAutoRefreshStatus');
+                if (statusElement) {
+                    statusElement.textContent = '🔄 Auto-updating prices every 60s';
+                    statusElement.style.color = '#28a745';
+                }
+            }
+        }
+
+        function stopPriceMonitorAutoRefresh() {
+            if (priceMonitorAutoRefreshInterval) {
+                console.log('Stopping auto-refresh for price monitor');
+                clearInterval(priceMonitorAutoRefreshInterval);
+                priceMonitorAutoRefreshInterval = null;
+                
+                // Update status indicator
+                const statusElement = document.getElementById('priceMonitorAutoRefreshStatus');
+                if (statusElement) {
+                    statusElement.textContent = '';
+                }
+            }
+        }
+
+        // Countdown timer functionality
+        function startCountdownTimer() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            countdownSeconds = 60;
+            updateCountdownDisplay();
+            
+            countdownInterval = setInterval(() => {
+                countdownSeconds--;
+                updateCountdownDisplay();
+                
+                if (countdownSeconds <= 0) {
+                    countdownSeconds = 60;
+                }
+            }, 1000);
+        }
+        
+        function stopCountdownTimer() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+        }
+        
+        function updateCountdownDisplay() {
+            const statusElement = document.getElementById('autoRefreshStatus');
+            if (statusElement && statusElement.textContent.includes('🔄 Auto-updating')) {
+                statusElement.textContent = `🔄 Auto-updating profits every 60s (${countdownSeconds}s)`;
+            }
+        }
+
+        // Graph functionality
+        let profitChart = null;
+        let currentChartType = null;
+        let currentTradeId = null;
+        let currentPeriod = 1;
+        let currentUnit = 'day';
+        
+        function openGraphModal(type, tradeId = null) {
+            const modal = document.getElementById('graphModal');
+            const title = document.getElementById('graphTitle');
+            
+            // Store current chart parameters
+            currentChartType = type;
+            currentTradeId = tradeId;
+            currentPeriod = 1;
+            currentUnit = 'day';
+            
+            // Reset period buttons
+            document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.period-btn[data-period="1"][data-unit="day"]').classList.add('active');
+            
+            if (type === 'gain') {
+                title.textContent = '% Gain History';
+                createGainChart(tradeId);
+            } else if (type === 'profit') {
+                title.textContent = 'Profit (£) History';
+                createProfitChart(tradeId);
+            }
+            
+            modal.style.display = 'block';
+        }
+        
+        function closeGraphModal() {
+            const modal = document.getElementById('graphModal');
+            modal.style.display = 'none';
+            
+            if (profitChart) {
+                profitChart.destroy();
+                profitChart = null;
+            }
+        }
+        
+        // Time period button event handlers
+        function setupTimePeriodHandlers() {
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const period = parseInt(this.dataset.period);
+                    const unit = this.dataset.unit;
+                    
+                    // Update current period
+                    currentPeriod = period;
+                    currentUnit = unit;
+                    
+                    // Update active button
+                    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Refresh the chart
+                    if (currentChartType === 'gain') {
+                        createGainChart(currentTradeId, period, unit);
+                    } else if (currentChartType === 'profit') {
+                        createProfitChart(currentTradeId, period, unit);
+                    }
+                });
+            });
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const graphModal = document.getElementById('graphModal');
+            const tradeModal = document.getElementById('tradeModal');
+            
+            if (event.target === graphModal) {
+                closeGraphModal();
+            } else if (event.target === tradeModal) {
+                closeModal();
+            }
+        }
+        
+        async function createGainChart(tradeId, period = currentPeriod, unit = currentUnit) {
+            const ctx = document.getElementById('profitGraph').getContext('2d');
+            
+            // Show loading indicator
+            if (profitChart) {
+                profitChart.destroy();
+            }
+            
+            // Create temporary loading chart
+            profitChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Loading...'],
+                    datasets: [{
+                        label: 'Loading historical data...',
+                        data: [0],
+                        borderColor: '#6c757d',
+                        backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+            try {
+                // Generate data points for the specified time period
+                const data = await generateGainData(tradeId, period, unit);
+                
+                // Destroy loading chart
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+                
+                if (!data) {
+                    // No historical data available - show "no data" message
+                    profitChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['No Data'],
+                            datasets: [{
+                                label: 'No historical data available',
+                                data: [0],
+                                borderColor: '#6c757d',
+                                backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                                borderWidth: 2,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'No historical price data available'
+                                }
+                            }
+                        }
+                    });
+                    return;
+                }
+                
+                // Determine if most values are negative to set appropriate colors
+                const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
+                const isNegative = avgValue < 0;
+                
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: '% Gain',
+                            data: data.values,
+                            borderColor: isNegative ? '#dc3545' : '#28a745',
+                            backgroundColor: isNegative ? 'rgba(220, 53, 69, 0.1)' : 'rgba(40, 167, 69, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return (value >= 0 ? '+' : '') + value.toFixed(2) + '%';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error creating gain chart:', error);
+                // Show error chart
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+                
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Error'],
+                        datasets: [{
+                            label: 'Error loading data',
+                            data: [0],
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Error loading historical data'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        async function createProfitChart(tradeId, period = currentPeriod, unit = currentUnit) {
+            const ctx = document.getElementById('profitGraph').getContext('2d');
+            
+            // Show loading indicator
+            if (profitChart) {
+                profitChart.destroy();
+            }
+            
+            // Create temporary loading chart
+            profitChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Loading...'],
+                    datasets: [{
+                        label: 'Loading historical data...',
+                        data: [0],
+                        borderColor: '#6c757d',
+                        backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+            try {
+                // Generate data points for the specified time period
+                const data = await generateProfitData(tradeId, period, unit);
+                
+                // Destroy loading chart
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+                
+                if (!data) {
+                    // No historical data available - show "no data" message
+                    profitChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ['No Data'],
+                            datasets: [{
+                                label: 'No historical data available',
+                                data: [0],
+                                borderColor: '#6c757d',
+                                backgroundColor: 'rgba(108, 117, 125, 0.1)',
+                                borderWidth: 2,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'No historical price data available'
+                                }
+                            }
+                        }
+                    });
+                    return;
+                }
+                
+                // Determine if most values are negative to set appropriate colors
+                const avgValue = data.values.reduce((sum, val) => sum + val, 0) / data.values.length;
+                const isNegative = avgValue < 0;
+                
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Profit (£)',
+                            data: data.values,
+                            borderColor: isNegative ? '#dc3545' : '#28a745',
+                            backgroundColor: isNegative ? 'rgba(220, 53, 69, 0.1)' : 'rgba(40, 167, 69, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '£' + (value >= 0 ? '+' : '') + value.toFixed(2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error creating profit chart:', error);
+                // Show error chart
+                if (profitChart) {
+                    profitChart.destroy();
+                }
+                
+                profitChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Error'],
+                        datasets: [{
+                            label: 'Error loading data',
+                            data: [0],
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Error loading historical data'
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        async function generateGainData(tradeId, period = 1, unit = 'day') {
+            // Calculate hours to fetch based on period and unit
+            let hoursBack = 24; // Default 1 day
+            if (unit === 'day') {
+                hoursBack = period * 24;
+            } else if (unit === 'month') {
+                hoursBack = period * 30 * 24;
+            }
+            
+            try {
+                // Fetch historical price data from API
+                const response = await fetch(`/api/bitcoin/historical-data?hours=${hoursBack}`);
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    // No historical data available - return null to indicate no data
+                    return null;
+                }
+                
+                const historicalData = result.data;
+                const trade = tradeId ? trades.find(t => t.id === tradeId) : null;
+                const labels = [];
+                const values = [];
+                
+                // Process historical data to create gain percentages
+                for (const dataPoint of historicalData) {
+                    const timestamp = new Date(dataPoint.timestamp);
+                    const historicalPrice = dataPoint.price_gbp;
+                    
+                    // Format label based on period
+                    let label;
+                    if (hoursBack <= 24) {
+                        label = timestamp.getHours().toString().padStart(2, '0') + ':' + timestamp.getMinutes().toString().padStart(2, '0');
+                    } else if (hoursBack <= 168) { // 7 days
+                        label = (timestamp.getMonth() + 1) + '/' + timestamp.getDate() + ' ' + timestamp.getHours().toString().padStart(2, '0') + ':' + timestamp.getMinutes().toString().padStart(2, '0');
+                    } else {
+                        label = (timestamp.getMonth() + 1) + '/' + timestamp.getDate();
+                    }
+                    
+                    let gainValue = 0;
+                    if (trade && trade.btc_buy_price && historicalPrice) {
+                        if (trade.btc_sell_price !== null) {
+                            // Closed trade - calculate gain based on historical vs buy price
+                            gainValue = ((historicalPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        } else if (trade.status === 'Open') {
+                            // Open trade - calculate gain based on historical vs buy price
+                            gainValue = ((historicalPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        }
+                    } else if (historicalPrice) {
+                        // General calculation - use average buy price from all trades
+                        const avgBuyPrice = trades.length > 0 ? 
+                            trades.reduce((sum, t) => sum + t.btc_buy_price, 0) / trades.length : 35000;
+                        gainValue = ((historicalPrice - avgBuyPrice) / avgBuyPrice) * 100;
+                    }
+                    
+                    labels.push(label);
+                    values.push(parseFloat(gainValue.toFixed(2)));
+                }
+                
+                return { labels, values };
+                
+            } catch (error) {
+                console.error('Error fetching historical data:', error);
+                // Return null to indicate no data available
+                return null;
+            }
+        }
+        
+        
+        async function generateProfitData(tradeId, period = 1, unit = 'day') {
+            // Calculate hours to fetch based on period and unit
+            let hoursBack = 24; // Default 1 day
+            if (unit === 'day') {
+                hoursBack = period * 24;
+            } else if (unit === 'month') {
+                hoursBack = period * 30 * 24;
+            }
+            
+            try {
+                // Fetch historical price data from API
+                const response = await fetch(`/api/bitcoin/historical-data?hours=${hoursBack}`);
+                const result = await response.json();
+                
+                if (!result.success || !result.data || result.data.length === 0) {
+                    // No historical data available - return null to indicate no data
+                    return null;
+                }
+                
+                const historicalData = result.data;
+                const trade = tradeId ? trades.find(t => t.id === tradeId) : null;
+                const labels = [];
+                const values = [];
+                
+                // Process historical data to create profit values
+                for (const dataPoint of historicalData) {
+                    const timestamp = new Date(dataPoint.timestamp);
+                    const historicalPrice = dataPoint.price_gbp;
+                    
+                    // Format label based on period
+                    let label;
+                    if (hoursBack <= 24) {
+                        label = timestamp.getHours().toString().padStart(2, '0') + ':' + timestamp.getMinutes().toString().padStart(2, '0');
+                    } else if (hoursBack <= 168) { // 7 days
+                        label = (timestamp.getMonth() + 1) + '/' + timestamp.getDate() + ' ' + timestamp.getHours().toString().padStart(2, '0') + ':' + timestamp.getMinutes().toString().padStart(2, '0');
+                    } else {
+                        label = (timestamp.getMonth() + 1) + '/' + timestamp.getDate();
+                    }
+                    
+                    let profitValue = 0;
+                    
+                    if (trade && trade.btc_amount && historicalPrice) {
+                        if (trade.profit !== null) {
+                            // Closed trade - calculate profit evolution based on historical price
+                            const estimatedValue = trade.btc_amount * historicalPrice;
+                            profitValue = estimatedValue - trade.initial_investment_gbp;
+                        } else if (trade.status === 'Open') {
+                            // Open trade - calculate profit based on historical price
+                            const estimatedValue = trade.btc_amount * historicalPrice;
+                            profitValue = estimatedValue - trade.initial_investment_gbp;
+                        }
+                    } else if (historicalPrice && trades.length > 0) {
+                        // Calculate total profit for all trades at this historical price
+                        profitValue = trades.reduce((total, t) => {
+                            if (t.btc_amount) {
+                                const estimatedValue = t.btc_amount * historicalPrice;
+                                return total + (estimatedValue - t.initial_investment_gbp);
+                            }
+                            return total;
+                        }, 0);
+                    }
+                    
+                    labels.push(label);
+                    values.push(parseFloat(profitValue.toFixed(2)));
+                }
+                
+                return { labels, values };
+                
+            } catch (error) {
+                console.error('Error fetching historical data for profit:', error);
+                // Return null to indicate no data available
+                return null;
+            }
+        }
+        
+
+        // Tab switching functionality
+        function switchTab(tabName) {
+            console.log('switchTab called with:', tabName);
+            
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            const targetTab = document.getElementById(tabName + '-tab');
+            console.log('Target tab element:', targetTab);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            
+            // Set active class on clicked tab button
+            const activeButton = document.querySelector('.tab[data-tab="' + tabName + '"]');
+            console.log('Active button:', activeButton);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+            
+            // Hide backtest results when switching tabs
+            const backtesterResults = document.getElementById('backtesterResults');
+            const optimizationResults = document.getElementById('optimization-results');
+            if (backtesterResults) backtesterResults.style.display = 'none';
+            if (optimizationResults) optimizationResults.style.display = 'none';
+            
+            // Initialize tab-specific functionality
+            if (tabName === 'trades') {
+                // Start auto-refresh for trading records if there are open trades
+                setTimeout(() => startTradingRecordsAutoRefresh(), 100);
+                stopPriceMonitorAutoRefresh();
+            } else if (tabName === 'monitor') {
+                // Start auto-refresh for price monitor
+                setTimeout(() => {
+                    initializePriceMonitor();
+                    startPriceMonitorAutoRefresh();
+                }, 100);
+                stopTradingRecordsAutoRefresh();
+            } else {
+                // Stop all auto-refresh when switching to other tabs
+                stopTradingRecordsAutoRefresh();
+                stopPriceMonitorAutoRefresh();
+            }
+            
+            if (tabName === 'data') {
+                setTimeout(() => initializeDataViewer(), 100);
+            }
+        }
+
+        // Make switchTab globally accessible for debugging
+        window.switchTab = switchTab;
+
+        // Price Monitor Variables
+        let autoRefreshInterval = null;
+        let currentPriceData = null;
+        let priceHistory = JSON.parse(localStorage.getItem('priceHistory')) || [];
+
+        // Data Viewer Variables
+        let allData = [];
+        let filteredData = [];
+
+        // Price Monitor Functions
+        function initializePriceMonitor() {
+            if (document.getElementById('dipAnalysisForm').hasEventListener) return;
+            
+            refreshPrice();
+            
+            document.getElementById('dipAnalysisForm').addEventListener('submit', analyzeDip);
+
+            const savedSellPrice = localStorage.getItem('lastSellPrice');
+            const savedTargetDip = localStorage.getItem('targetDipPercent');
+            
+            if (savedSellPrice) {
+                document.getElementById('lastSellPrice').value = savedSellPrice;
+            }
+            if (savedTargetDip) {
+                document.getElementById('targetDipPercent').value = savedTargetDip;
+            }
+
+            // Don't auto-analyze on page load to avoid confusing stale data
+            // User should click "Analyze Dip Opportunity" to get fresh analysis
+
+            updatePriceHistory();
+            
+            // Initialize alarm system
+            initializeAlarms();
+            
+            // Mark as having event listeners
+            document.getElementById('dipAnalysisForm').hasEventListener = true;
+        }
+
+        // Alarm System
+        let sirenInterval = null;
+        let currentAlarms = {
+            priceAlert: { enabled: false, value: 0, triggered: false },
+            dipAlert: { enabled: false, triggered: false }
+        };
+
+        function initializeAlarms() {
+            // Load saved alarm settings
+            const savedPriceAlarm = localStorage.getItem('priceAlarmValue');
+            const savedPriceEnabled = localStorage.getItem('enablePriceAlarm') === 'true';
+            const savedDipEnabled = localStorage.getItem('enableDipAlarm') === 'true';
+            
+            if (savedPriceAlarm) {
+                document.getElementById('priceAlarmValue').value = savedPriceAlarm;
+                currentAlarms.priceAlert.value = parseFloat(savedPriceAlarm);
+            }
+            
+            document.getElementById('enablePriceAlarm').checked = savedPriceEnabled;
+            currentAlarms.priceAlert.enabled = savedPriceEnabled;
+            
+            // Only enable dip alarm if both Last Sell Price and Target Dip % are configured
+            const lastSellPrice = document.getElementById('lastSellPrice').value;
+            const targetDipPercent = document.getElementById('targetDipPercent').value;
+            
+            if (savedDipEnabled && lastSellPrice && targetDipPercent) {
+                document.getElementById('enableDipAlarm').checked = true;
+                currentAlarms.dipAlert.enabled = true;
+            } else {
+                document.getElementById('enableDipAlarm').checked = false;
+                currentAlarms.dipAlert.enabled = false;
+                // Clear saved setting if configuration is incomplete
+                if (savedDipEnabled && (!lastSellPrice || !targetDipPercent)) {
+                    localStorage.setItem('enableDipAlarm', 'false');
+                }
+            }
+            
+            // Create audio context for alarm sound
+            createSirenAudio();
+            
+            // Add event listeners
+            document.getElementById('priceAlarmValue').addEventListener('input', savePriceAlarmSettings);
+            document.getElementById('enablePriceAlarm').addEventListener('change', savePriceAlarmSettings);
+            document.getElementById('enableDipAlarm').addEventListener('change', saveDipAlarmSettings);
+            
+            // Monitor dip analysis fields for changes
+            document.getElementById('lastSellPrice').addEventListener('input', checkDipAlarmConfiguration);
+            document.getElementById('targetDipPercent').addEventListener('input', checkDipAlarmConfiguration);
+        }
+        
+        function checkDipAlarmConfiguration() {
+            const lastSellPrice = document.getElementById('lastSellPrice').value;
+            const targetDipPercent = document.getElementById('targetDipPercent').value;
+            const dipAlarmCheckbox = document.getElementById('enableDipAlarm');
+            
+            // If alarm is currently enabled but configuration becomes invalid, disable it
+            if (dipAlarmCheckbox.checked && (!lastSellPrice || !targetDipPercent)) {
+                dipAlarmCheckbox.checked = false;
+                currentAlarms.dipAlert.enabled = false;
+                localStorage.setItem('enableDipAlarm', 'false');
+                stopSiren();
+            }
+        }
+
+        function savePriceAlarmSettings() {
+            const value = document.getElementById('priceAlarmValue').value;
+            const enabled = document.getElementById('enablePriceAlarm').checked;
+            
+            localStorage.setItem('priceAlarmValue', value);
+            localStorage.setItem('enablePriceAlarm', enabled);
+            localStorage.setItem('priceAlarmTriggered', 'false'); // Reset global trigger state
+            
+            currentAlarms.priceAlert.value = parseFloat(value) || 0;
+            currentAlarms.priceAlert.enabled = enabled;
+            currentAlarms.priceAlert.triggered = false; // Reset trigger state
+            
+            // Stop siren if disabling alarm
+            if (!enabled) {
+                stopSiren();
+            }
+        }
+
+        function saveDipAlarmSettings() {
+            const enabled = document.getElementById('enableDipAlarm').checked;
+            const lastSellPrice = document.getElementById('lastSellPrice').value;
+            const targetDipPercent = document.getElementById('targetDipPercent').value;
+            
+            // Check if dip analysis is properly configured
+            if (enabled && (!lastSellPrice || !targetDipPercent)) {
+                // Uncheck the alarm and show error
+                document.getElementById('enableDipAlarm').checked = false;
+                alert('⚠️ Please configure Last Sell Price and Target Dip % before enabling Target Dip Alert');
+                return;
+            }
+            
+            localStorage.setItem('enableDipAlarm', enabled);
+            currentAlarms.dipAlert.enabled = enabled;
+            currentAlarms.dipAlert.triggered = false; // Reset trigger state
+            
+            // Stop siren if disabling alarm
+            if (!enabled) {
+                stopSiren();
+            }
+        }
+
+        function createSirenAudio() {
+            try {
+                // Create Web Audio context for iPhone-style alarm
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                window.sirenAudioContext = audioContext;
+                
+                console.log('iPhone alarm audio context created');
+            } catch (e) {
+                console.log('Web Audio API not supported, will use speech fallback');
+            }
+        }
+
+        function playiPhoneAlarmPattern() {
+            if (!window.sirenAudioContext) return false;
+            
+            // iPhone "Marimba" alarm pattern - classic rising notes
+            const notes = [329.63, 369.99, 415.30, 466.16, 523.25]; // E4, F#4, G#4, A#4, C5
+            
+            notes.forEach((frequency, index) => {
+                setTimeout(() => {
+                    const oscillator = window.sirenAudioContext.createOscillator();
+                    const gainNode = window.sirenAudioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(window.sirenAudioContext.destination);
+                    
+                    // Marimba-like sound
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(frequency, window.sirenAudioContext.currentTime);
+                    
+                    // Quick attack and decay like a marimba
+                    gainNode.gain.setValueAtTime(0, window.sirenAudioContext.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0.6, window.sirenAudioContext.currentTime + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, window.sirenAudioContext.currentTime + 0.4);
+                    
+                    oscillator.start();
+                    oscillator.stop(window.sirenAudioContext.currentTime + 0.4);
+                }, index * 150); // 150ms between notes
+            });
+            
+            return true;
+        }
+
+        function startSiren() {
+            if (sirenInterval) return; // Already playing
+            
+            try {
+                // Play iPhone alarm pattern immediately
+                if (playiPhoneAlarmPattern()) {
+                    // Continue playing the pattern every 3 seconds
+                    sirenInterval = setInterval(() => {
+                        playiPhoneAlarmPattern();
+                    }, 3000);
+                    console.log('iPhone alarm pattern started');
+                } else {
+                    startFallbackAlarm();
+                }
+            } catch (e) {
+                console.log('iPhone alarm failed:', e);
+                startFallbackAlarm();
+            }
+        }
+
+        function startFallbackAlarm() {
+            // iPhone-style beep pattern fallback
+            if (window.sirenAudioContext) {
+                // Create iPhone-style triple beep pattern
+                sirenInterval = setInterval(() => {
+                    for (let i = 0; i < 3; i++) {
+                        setTimeout(() => {
+                            const oscillator = window.sirenAudioContext.createOscillator();
+                            const gainNode = window.sirenAudioContext.createGain();
+                            
+                            oscillator.connect(gainNode);
+                            gainNode.connect(window.sirenAudioContext.destination);
+                            
+                            oscillator.type = 'sine';
+                            oscillator.frequency.setValueAtTime(800, window.sirenAudioContext.currentTime);
+                            gainNode.gain.setValueAtTime(0.5, window.sirenAudioContext.currentTime);
+                            gainNode.gain.exponentialRampToValueAtTime(0.01, window.sirenAudioContext.currentTime + 0.3);
+                            
+                            oscillator.start();
+                            oscillator.stop(window.sirenAudioContext.currentTime + 0.3);
+                        }, i * 200);
+                    }
+                }, 2000);
+            } else {
+                // Speech synthesis fallback
+                sirenInterval = setInterval(() => {
+                    if (window.speechSynthesis) {
+                        const utterance = new SpeechSynthesisUtterance('ALARM');
+                        utterance.rate = 1.5;
+                        utterance.volume = 0.8;
+                        utterance.pitch = 1.5;
+                        window.speechSynthesis.speak(utterance);
+                    }
+                    
+                    // Visual flash
+                    document.body.style.backgroundColor = '#ff0000';
+                    setTimeout(() => {
+                        document.body.style.backgroundColor = '';
+                    }, 300);
+                }, 1000);
+            }
+        }
+
+        function stopSiren() {
+            // Stop the repeating alarm pattern
+            if (sirenInterval) {
+                clearInterval(sirenInterval);
+                sirenInterval = null;
+                console.log('iPhone alarm stopped');
+            }
+            
+            // Stop any oscillators from fallback
+            if (window.currentSirenOscillator) {
+                try {
+                    window.currentSirenOscillator.stop();
+                    window.currentSirenOscillator = null;
+                } catch (e) {
+                    console.log('Error stopping oscillator:', e);
+                }
+            }
+            
+            // Stop any speech synthesis
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        function playAlarm() {
+            startSiren();
+        }
+
+
+        function checkAlarms(currentPrice, dipAnalysisData = null) {
+            console.log('🔔 Checking alarms:', {
+                priceAlarmEnabled: currentAlarms.priceAlert.enabled,
+                priceAlarmTriggered: currentAlarms.priceAlert.triggered,
+                priceAlarmValue: currentAlarms.priceAlert.value,
+                dipAlarmEnabled: currentAlarms.dipAlert.enabled,
+                currentPrice: currentPrice,
+                dipStatus: dipAnalysisData?.status
+            });
+            
+            // Check price alarm
+            if (currentAlarms.priceAlert.enabled && !currentAlarms.priceAlert.triggered && currentAlarms.priceAlert.value > 0) {
+                console.log('💰 Price alarm conditions met, checking threshold...');
+                const diff = Math.abs(currentPrice - currentAlarms.priceAlert.value);
+                const percentDiff = (diff / currentAlarms.priceAlert.value) * 100;
+                
+                console.log('💰 Price comparison:', {
+                    target: currentAlarms.priceAlert.value,
+                    current: currentPrice,
+                    diff: diff,
+                    percentDiff: percentDiff.toFixed(2) + '%'
+                });
+                
+                if (percentDiff <= 1) { // Within 1% of target
+                    console.log('🚨 PRICE ALARM TRIGGERED!');
+                    currentAlarms.priceAlert.triggered = true;
+                    localStorage.setItem('priceAlarmTriggered', 'true'); // Set global trigger state
+                    playAlarm();
+                    showAlarmNotification('💰 PRICE ALERT TRIGGERED', `BTC price reached your target!<br>Current: £${currentPrice.toLocaleString()} | Target: £${currentAlarms.priceAlert.value.toLocaleString()}`);
+                } else {
+                    console.log('💰 Price not close enough to target yet');
+                }
+            }
+            
+            // Check dip target alarm
+            if (currentAlarms.dipAlert.enabled && !currentAlarms.dipAlert.triggered && dipAnalysisData) {
+                console.log('🎯 Checking dip alarm:', dipAnalysisData.status);
+                if (dipAnalysisData.status === 'BUY_SIGNAL') {
+                    console.log('🚨 DIP ALARM TRIGGERED!');
+                    currentAlarms.dipAlert.triggered = true;
+                    playAlarm();
+                    showAlarmNotification('🎯 TARGET DIP ALERT', `Your dip target has been reached!<br>Current: £${dipAnalysisData.current_price.toLocaleString()} | Target: £${dipAnalysisData.target_buy_price.toLocaleString()}`);
+                }
+            }
+        }
+
+        function showAlarmNotification(title, message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+                color: white;
+                padding: 30px 40px;
+                border-radius: 15px;
+                box-shadow: 0 10px 40px rgba(220, 38, 38, 0.6);
+                z-index: 10000;
+                font-weight: bold;
+                animation: slideIn 0.3s ease-out;
+                cursor: pointer;
+                min-width: 400px;
+                max-width: 90vw;
+                text-align: center;
+                border: 3px solid rgba(255, 255, 255, 0.3);
+            `;
+            notification.innerHTML = `
+                <div style="font-size: 24px; margin-bottom: 10px;">${title}</div>
+                <div style="font-size: 18px; margin-bottom: 15px; line-height: 1.4;">${message}</div>
+                <div style="font-size: 14px; opacity: 0.9; font-weight: normal;">
+                    🔊 Click anywhere to STOP ALARM
+                </div>
+            `;
+            
+            // Click to stop alarm and dismiss notification
+            notification.addEventListener('click', () => {
+                stopSiren();
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 300);
+                }
+            });
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 20 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 300);
+                }
+            }, 20000);
+        }
+
+        async function refreshPrice(silent = false) {
+            const button = document.getElementById('refreshNow');
+            if (button && !silent) {
+                button.disabled = true;
+                button.textContent = '⏳ Refreshing...';
+            }
+
+            try {
+                const response = await fetch('/api/current-price');
+                const data = await response.json();
+
+                if (data.success) {
+                    currentPriceData = data;
+                    displayPrice(data);
+                    
+                    addToPriceHistory(data.price, data.timestamp);
+                    
+                    // Check price alarm
+                    checkAlarms(data.price);
+                    
+                    // Only check alarms, don't auto-trigger analysis
+                    // User should manually click "Analyze Dip Opportunity" for fresh analysis
+                    
+                    if (document.getElementById('error')) {
+                        document.getElementById('error').style.display = 'none';
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to fetch price');
+                }
+            } catch (error) {
+                if (!silent) {
+                    const errorDiv = document.getElementById('monitorError');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Failed to fetch current price: ' + error.message;
+                        errorDiv.style.display = 'block';
+                    }
+                }
+            }
+
+            if (button && !silent) {
+                button.disabled = false;
+                button.textContent = '🔄 Refresh Now';
+            }
+        }
+
+        function displayPrice(data) {
+            document.getElementById('currentPrice').textContent = '£' + data.price.toLocaleString();
+            document.getElementById('priceInfo').textContent = 'BTC/' + data.pair + ' from Kraken';
+            document.getElementById('lastUpdated').innerHTML = 'Last updated: ' + new Date(data.timestamp).toLocaleTimeString();
+        }
+
+        function addToPriceHistory(price, timestamp) {
+            priceHistory.push({
+                price: price,
+                timestamp: timestamp,
+                time: new Date(timestamp).toLocaleTimeString()
+            });
+
+            if (priceHistory.length > 10) {
+                priceHistory = priceHistory.slice(-10);
+            }
+
+            localStorage.setItem('priceHistory', JSON.stringify(priceHistory));
+            updatePriceHistory();
+        }
+
+        function updatePriceHistory() {
+            if (priceHistory.length === 0) {
+                document.getElementById('priceHistory').style.display = 'none';
+                return;
+            }
+
+            const priceGrid = document.getElementById('priceGrid');
+            priceGrid.innerHTML = priceHistory.slice(-6).map((entry, index, arr) => {
+                const prevPrice = index > 0 ? arr[index - 1].price : entry.price;
+                const changeClass = entry.price > prevPrice ? 'positive' : entry.price < prevPrice ? 'negative' : '';
+                
+                return '<div class="price-item">' +
+                    '<div class="price-time">' + entry.time + '</div>' +
+                    '<div class="price-value ' + changeClass + '">£' + entry.price.toLocaleString() + '</div>' +
+                '</div>';
+            }).join('');
+
+            document.getElementById('priceHistory').style.display = 'block';
+        }
+
+        function clearPriceHistory() {
+            priceHistory = [];
+            localStorage.removeItem('priceHistory');
+            updatePriceHistory();
+        }
+
+
+        async function analyzeDip(event) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            const lastSellPrice = parseFloat(document.getElementById('lastSellPrice').value);
+            const targetDipPercent = parseFloat(document.getElementById('targetDipPercent').value);
+
+            if (!lastSellPrice || !targetDipPercent) {
+                const errorDiv = document.getElementById('monitorError');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Please enter both last sell price and target dip percentage';
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+
+            localStorage.setItem('lastSellPrice', lastSellPrice);
+            localStorage.setItem('targetDipPercent', targetDipPercent);
+
+            const button = document.getElementById('analyzeButton');
+            button.disabled = true;
+            button.textContent = '⏳ Analyzing...';
+
+            try {
+                const response = await fetch('/api/dip-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        last_sell_price: lastSellPrice,
+                        target_dip_percent: targetDipPercent
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayAnalysis(data);
+                    
+                    // Check dip alarm with current price
+                    if (currentPriceData) {
+                        checkAlarms(currentPriceData.price, data);
+                    }
+                    
+                    const errorDiv = document.getElementById('monitorError');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                    }
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+            } catch (error) {
+                const errorDiv = document.getElementById('monitorError');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Analysis failed: ' + error.message;
+                    errorDiv.style.display = 'block';
+                }
+            }
+
+            button.disabled = false;
+            button.textContent = '🎯 Analyze Dip Opportunity';
+        }
+
+        function displayAnalysis(data) {
+            if (data.message) {
+                document.getElementById('analysisResults').style.display = 'none';
+                return;
+            }
+
+            const card = document.getElementById('analysisCard');
+            const statusText = document.getElementById('statusText');
+            const metrics = document.getElementById('analysisMetrics');
+
+            card.className = 'analysis-card';
+            if (data.status === 'BUY_SIGNAL') {
+                card.classList.add('status-buy');
+            } else if (data.status === 'CLOSE_TO_TARGET') {
+                card.classList.add('status-close');
+            } else {
+                card.classList.add('status-far');
+            }
+
+            statusText.textContent = data.status_text;
+
+            const targetBuyPrice = data.target_buy_price;
+            const currentChange = data.current_change_percent;
+            const additionalDipNeeded = data.additional_dip_needed;
+
+            metrics.innerHTML = 
+                '<div style="font-size: 14px; line-height: 1.6;">' +
+                    '<div><strong>Current:</strong> £' + data.current_price.toLocaleString() + ' | <strong>Target:</strong> £' + targetBuyPrice.toLocaleString() + '</div>' +
+                    '<div><strong>Change:</strong> <span class="' + (currentChange >= 0 ? 'positive' : 'negative') + '">' + 
+                        (currentChange > 0 ? '+' : '') + currentChange.toFixed(2) + '%</span> | ' +
+                    '<strong>Need:</strong> <span class="' + (additionalDipNeeded <= 0 ? 'positive' : 'negative') + '">' +
+                        (additionalDipNeeded <= 0 ? '✅ Target reached' : additionalDipNeeded.toFixed(2) + '% more dip') +
+                    '</span></div>' +
+                '</div>';
+
+            document.getElementById('analysisResults').style.display = 'block';
+        }
+
+
+        // Data Viewer Functions
+        function initializeDataViewer() {
+            if (document.getElementById('dataForm').hasEventListener) return;
+            
+            const dateFilter = document.getElementById('dateFilter');
+            const filterValueGroup = document.getElementById('filterValueGroup');
+            
+            dateFilter.addEventListener('change', function() {
+                if (this.value === 'all') {
+                    filterValueGroup.style.display = 'none';
+                } else {
+                    filterValueGroup.style.display = 'block';
+                    updateFilterPlaceholder();
+                }
+                if (allData.length > 0) {
+                    applyDateFilter();
+                }
+            });
+            
+            document.getElementById('filterValue').addEventListener('input', function() {
+                if (allData.length > 0) {
+                    applyDateFilter();
+                }
+            });
+
+            document.getElementById('dataForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await loadData();
+            });
+
+            document.getElementById('copyData').addEventListener('click', function() {
+                copyToClipboard(allData, 'All data');
+            });
+
+            document.getElementById('copyFiltered').addEventListener('click', function() {
+                copyToClipboard(filteredData, 'Filtered data');
+            });
+
+            document.getElementById('exportCSV').addEventListener('click', function() {
+                exportToCSV(filteredData.length > 0 ? filteredData : allData);
+            });
+            
+            // Mark as having event listeners
+            document.getElementById('dataForm').hasEventListener = true;
+        }
+
+        function updateFilterPlaceholder() {
+            const filterType = document.getElementById('dateFilter').value;
+            const filterValue = document.getElementById('filterValue');
+            const helpText = document.getElementById('filterHelpText');
+            
+            switch(filterType) {
+                case 'year':
+                    filterValue.placeholder = '2024';
+                    helpText.textContent = 'Enter a 4-digit year (e.g. 2024)';
+                    break;
+                case 'month':
+                    filterValue.placeholder = '2024-01';
+                    helpText.textContent = 'Enter year-month (e.g. 2024-01 for January 2024)';
+                    break;
+                case 'day':
+                    filterValue.placeholder = '2024-01-15';
+                    helpText.textContent = 'Enter full date (e.g. 2024-01-15 for January 15, 2024)';
+                    break;
+            }
+        }
+
+        async function loadData() {
+            const button = document.getElementById('loadData');
+            button.disabled = true;
+            button.textContent = '⏳ Loading...';
+            
+            try {
+                const days = document.getElementById('days').value;
+                
+                const response = await fetch('/api/historical-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ days: parseInt(days) })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Sort data by date in descending order (most recent first)
+                    const sortedData = data.data.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+                    
+                    allData = sortedData.map((row, index) => {
+                        const dailyChange = row.Close - row.Open;
+                        const dailyChangePercent = ((row.Close - row.Open) / row.Open) * 100;
+                        const lowestDipPercent = ((row.Low - row.Open) / row.Open) * 100;
+                        const highestIncreasePercent = ((row.High - row.Open) / row.Open) * 100;
+                        
+                        return {
+                            ...row,
+                            DailyChange: dailyChange,
+                            DailyChangePercent: dailyChangePercent,
+                            LowestDipPercent: lowestDipPercent,
+                            HighestIncreasePercent: highestIncreasePercent
+                        };
+                    });
+                    
+                    displaySummary(data);
+                    applyDateFilter();
+                    const errorDiv = document.getElementById('dataError');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                    }
+                } else {
+                    const errorDiv = document.getElementById('dataError');
+                    if (errorDiv) {
+                        errorDiv.textContent = data.error || 'Failed to load data';
+                        errorDiv.style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                const errorDiv = document.getElementById('dataError');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Network error: ' + error.message;
+                    errorDiv.style.display = 'block';
+                }
+            }
+            
+            button.disabled = false;
+            button.textContent = '📥 Load Data';
+        }
+
+        function displaySummary(data) {
+            const summary = document.getElementById('summary');
+            const statsRow = document.getElementById('statsRow');
+            const summaryText = document.getElementById('summaryText');
+            
+            const prices = allData.map(row => row.Close);
+            const volumes = allData.map(row => row.Volume);
+            const changes = allData.map(row => row.DailyChangePercent);
+            
+            const minPrice = Math.min(...prices);
+            const maxPrice = Math.max(...prices);
+            const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+            const latestPrice = prices[prices.length - 1];
+            const firstPrice = prices[0];
+            const priceChange = ((latestPrice - firstPrice) / firstPrice * 100);
+            const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+            const avgDailyChange = changes.reduce((a, b) => a + b, 0) / changes.length;
+            const volatility = Math.sqrt(changes.reduce((a, b) => a + Math.pow(b - avgDailyChange, 2), 0) / changes.length);
+
+            statsRow.innerHTML = 
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Current Price</div>' +
+                    '<div class="stat-value">£' + latestPrice.toLocaleString() + '</div>' +
+                '</div>' +
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Period Change</div>' +
+                    '<div class="stat-value" style="color: ' + (priceChange >= 0 ? '#28a745' : '#dc3545') + '">' + (priceChange > 0 ? '+' : '') + priceChange.toFixed(2) + '%</div>' +
+                '</div>' +
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Price Range</div>' +
+                    '<div class="stat-value">£' + minPrice.toLocaleString() + ' - £' + maxPrice.toLocaleString() + '</div>' +
+                '</div>' +
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Average Price</div>' +
+                    '<div class="stat-value">£' + avgPrice.toLocaleString() + '</div>' +
+                '</div>' +
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Average Volume</div>' +
+                    '<div class="stat-value">' + avgVolume.toLocaleString() + '</div>' +
+                '</div>' +
+                '<div class="stat-item">' +
+                    '<div class="stat-label">Daily Volatility</div>' +
+                    '<div class="stat-value">' + volatility.toFixed(2) + '%</div>' +
+                '</div>';
+
+            summaryText.innerHTML = 
+                '<p><strong>Data Source:</strong> ' + data.source + '</p>' +
+                '<p><strong>Total Records:</strong> ' + data.total_rows + '</p>' +
+                '<p><strong>Period:</strong> ' + data.data[0].Date + ' to ' + data.data[data.data.length - 1].Date + '</p>' +
+                '<p><strong>Average Daily Change:</strong> <span style="color: ' + (avgDailyChange >= 0 ? '#28a745' : '#dc3545') + '">' + (avgDailyChange > 0 ? '+' : '') + avgDailyChange.toFixed(2) + '%</span></p>';
+            
+            summary.style.display = 'block';
+        }
+
+        function applyDateFilter() {
+            const filterType = document.getElementById('dateFilter').value;
+            const filterValue = document.getElementById('filterValue').value.toLowerCase();
+            
+            if (filterType === 'all' || !filterValue) {
+                filteredData = [...allData];
+            } else {
+                filteredData = allData.filter(row => {
+                    const date = row.Date.toLowerCase();
+                    switch(filterType) {
+                        case 'year':
+                            return date.startsWith(filterValue);
+                        case 'month':
+                            return date.startsWith(filterValue);
+                        case 'day':
+                            return date === filterValue;
+                        default:
+                            return true;
+                    }
+                });
+            }
+            
+            displayData(filteredData);
+        }
+
+        function displayData(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            
+            tableBody.innerHTML = data.map(row => 
+                '<tr>' +
+                    '<td>' + row.Date + '</td>' +
+                    '<td>£' + row.Open.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+                    '<td>£' + row.High.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+                    '<td>£' + row.Low.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+                    '<td>£' + row.Close.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+                    '<td>' + row.Volume.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>' +
+                    '<td style="color: ' + (row.DailyChange >= 0 ? '#28a745' : '#dc3545') + '">' +
+                        (row.DailyChange > 0 ? '+' : '') + '£' + row.DailyChange.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
+                    '</td>' +
+                    '<td style="color: ' + (row.DailyChangePercent >= 0 ? '#28a745' : '#dc3545') + '">' +
+                        (row.DailyChangePercent > 0 ? '+' : '') + row.DailyChangePercent.toFixed(2) + '%' +
+                    '</td>' +
+                    '<td style="color: ' + (row.LowestDipPercent >= 0 ? '#28a745' : '#dc3545') + '">' +
+                        (row.LowestDipPercent > 0 ? '+' : '') + row.LowestDipPercent.toFixed(2) + '%' +
+                    '</td>' +
+                    '<td style="color: ' + (row.HighestIncreasePercent >= 0 ? '#28a745' : '#dc3545') + '">' +
+                        (row.HighestIncreasePercent > 0 ? '+' : '') + row.HighestIncreasePercent.toFixed(2) + '%' +
+                    '</td>' +
+                '</tr>'
+            ).join('');
+            
+            document.getElementById('recordCount').textContent = allData.length;
+            document.getElementById('filteredCount').textContent = data.length;
+            
+            document.getElementById('dataContainer').style.display = 'block';
+            document.getElementById('copyData').style.display = 'inline-block';
+            document.getElementById('copyFiltered').style.display = filteredData.length !== allData.length ? 'inline-block' : 'none';
+            document.getElementById('exportCSV').style.display = 'inline-block';
+        }
+
+        async function copyToClipboard(data, description) {
+            try {
+                const headers = 'Date\tOpen\tHigh\tLow\tClose\tVolume\tDaily Change\tDaily Change %\tLowest Dip %\tHighest Increase %';
+                const rows = data.map(row => 
+                    row.Date + '\t' + row.Open + '\t' + row.High + '\t' + row.Low + '\t' + row.Close + '\t' + row.Volume + '\t' + row.DailyChange + '\t' + row.DailyChangePercent.toFixed(2) + '%\t' + row.LowestDipPercent.toFixed(2) + '%\t' + row.HighestIncreasePercent.toFixed(2) + '%'
+                ).join('\n');
+                
+                const csvContent = headers + '\n' + rows;
+                
+                await navigator.clipboard.writeText(csvContent);
+                
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.backgroundColor = '#28a745';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = '';
+                }, 2000);
+                
+            } catch (error) {
+                alert('Failed to copy data to clipboard. Please try selecting the table manually.');
+            }
+        }
+
+        function exportToCSV(data) {
+            const headers = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume', 'Daily Change', 'Daily Change %', 'Lowest Dip %', 'Highest Increase %'];
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => [
+                    row.Date,
+                    row.Open,
+                    row.High,
+                    row.Low,
+                    row.Close,
+                    row.Volume,
+                    row.DailyChange,
+                    row.DailyChangePercent.toFixed(2),
+                    row.LowestDipPercent.toFixed(2),
+                    row.HighestIncreasePercent.toFixed(2)
+                ].join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'btc_data_' + new Date().toISOString().split('T')[0] + '.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize backtester forms
+        function initializeBacktester() {
+            // Backtester form handlers
+            const backtestForm = document.getElementById('backtestForm');
+            if (backtestForm) {
+                backtestForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const button = document.getElementById('runBacktest');
+                    button.disabled = true;
+                    button.textContent = '⏳ Running Backtest...';
+                    
+                    const formData = {
+                        lookback_days: document.getElementById('lookback_days').value,
+                        investment_value: document.getElementById('investment_value').value,
+                        buy_dip_percent: document.getElementById('buy_dip_percent').value,
+                        sell_gain_percent: document.getElementById('sell_gain_percent').value,
+                        transaction_fee_percent: document.getElementById('transaction_fee_percent').value
+                    };
+                    
+                    try {
+                        const response = await fetch('/backtest', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(formData)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            displayBacktestResults(data.results, data.chart, parseFloat(formData.investment_value));
+                            document.getElementById('backtesterError').style.display = 'none';
+                            document.getElementById('optimization-results').style.display = 'none';
+                        } else {
+                            document.getElementById('backtesterError').textContent = data.error || 'An error occurred';
+                            document.getElementById('backtesterError').style.display = 'block';
+                            document.getElementById('backtesterResults').style.display = 'none';
+                        }
+                    } catch (error) {
+                        document.getElementById('backtesterError').textContent = 'Network error: ' + error.message;
+                        document.getElementById('backtesterError').style.display = 'block';
+                        document.getElementById('backtesterResults').style.display = 'none';
+                    }
+                    
+                    button.disabled = false;
+                    button.textContent = '🔍 Run Backtest';
+                });
+            }
+
+            const optimizeForm = document.getElementById('optimizeForm');
+            if (optimizeForm) {
+                optimizeForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const button = document.getElementById('runOptimization');
+                    button.disabled = true;
+                    button.textContent = '⏳ Optimizing... This may take a minute...';
+                    
+                    const formData = {
+                        lookback_days: document.getElementById('opt_lookback_days').value,
+                        investment_value: document.getElementById('opt_investment_value').value,
+                        buy_min: document.getElementById('buy_min').value,
+                        buy_max: document.getElementById('buy_max').value,
+                        sell_min: document.getElementById('sell_min').value,
+                        sell_max: document.getElementById('sell_max').value,
+                        step: document.getElementById('step').value,
+                        transaction_fee_percent: document.getElementById('opt_transaction_fee_percent').value
+                    };
+                    
+                    try {
+                        const response = await fetch('/optimize', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(formData)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            displayOptimizationResults(data.optimization);
+                            document.getElementById('backtesterError').style.display = 'none';
+                            document.getElementById('backtesterResults').style.display = 'none';
+                        } else {
+                            document.getElementById('backtesterError').textContent = data.error || 'An error occurred';
+                            document.getElementById('backtesterError').style.display = 'block';
+                            document.getElementById('optimization-results').style.display = 'none';
+                        }
+                    } catch (error) {
+                        document.getElementById('backtesterError').textContent = 'Network error: ' + error.message;
+                        document.getElementById('backtesterError').style.display = 'block';
+                        document.getElementById('optimization-results').style.display = 'none';
+                    }
+                    
+                    button.disabled = false;
+                    button.textContent = '🎯 Find Best Parameters';
+                });
+            }
+        }
+        
+        function displayBacktestResults(results, chartData, initialInvestment) {
+            const positionClass = results.final_position === 'BTC' ? 'position-btc' : 'position-cash';
+            const positionText = results.final_position === 'BTC' ? '₿ Holding BTC' : '💰 Holding Cash';
+            document.getElementById('finalPosition').innerHTML = `<span class="${positionClass}">${positionText}</span>`;
+            
+            // Calculate profits
+            const strategyProfit = results.final_value - initialInvestment;
+            const buyHoldProfit = results.buy_hold_final_value - initialInvestment;
+            const profitDifference = strategyProfit - buyHoldProfit;
+            
+            // Calculate win rate and average trade
+            const avgTradeValue = results.num_trades > 0 ? (results.final_value - initialInvestment) / results.num_trades : 0;
+            const feePerTrade = results.num_trades > 0 ? results.total_fees_paid / results.num_trades : 0;
+            
+            const metricsHtml = `
+                <!-- Row 1: Trading Summary -->
+                <div class="metrics-row trading">
+                    <h4>📊 Trading Summary</h4>
+                    <div class="metrics-grid">
+                        <div class="metric neutral">
+                            <div class="metric-value neutral">${results.num_trades}</div>
+                            <div class="metric-label">Total Trades</div>
+                            <div class="metric-description">Buy + sell executions</div>
+                        </div>
+                        <div class="metric negative">
+                            <div class="metric-value negative">£${results.total_fees_paid.toLocaleString()}</div>
+                            <div class="metric-label">Total Fees Paid</div>
+                            <div class="metric-description">Transaction costs</div>
+                        </div>
+                        <div class="metric neutral">
+                            <div class="metric-value neutral">£${feePerTrade.toFixed(2)}</div>
+                            <div class="metric-label">Average Fee per Trade</div>
+                            <div class="metric-description">Cost per transaction</div>
+                        </div>
+                        <div class="metric ${avgTradeValue >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value ${avgTradeValue >= 0 ? 'positive' : 'negative'}">
+                                ${avgTradeValue > 0 ? '+' : ''}£${avgTradeValue.toFixed(2)}
+                            </div>
+                            <div class="metric-label">Average Trade Impact</div>
+                            <div class="metric-description">Profit/loss per trade</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Strategy Performance -->
+                <div class="metrics-row strategy">
+                    <h4>🎯 Strategy Performance</h4>
+                    <div class="metrics-grid">
+                        <div class="metric ${results.total_return >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value">£${results.final_value.toLocaleString()}</div>
+                            <div class="metric-label">Strategy Final Value</div>
+                            <div class="metric-description">After all fees</div>
+                        </div>
+                        <div class="metric profit">
+                            <div class="metric-value profit ${strategyProfit >= 0 ? 'positive' : 'negative'}">
+                                ${strategyProfit > 0 ? '+' : ''}£${strategyProfit.toLocaleString()}
+                            </div>
+                            <div class="metric-label">Strategy Profit</div>
+                            <div class="metric-description">Total gain/loss</div>
+                        </div>
+                        <div class="metric ${results.total_return >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value ${results.total_return >= 0 ? 'positive' : 'negative'}">
+                                ${results.total_return > 0 ? '+' : ''}${results.total_return}%
+                            </div>
+                            <div class="metric-label">Strategy Return</div>
+                            <div class="metric-description">Percentage gain/loss</div>
+                        </div>
+                        <div class="metric negative">
+                            <div class="metric-value negative">${results.max_drawdown}%</div>
+                            <div class="metric-label">Strategy Max Drawdown</div>
+                            <div class="metric-description">Worst peak-to-trough</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Buy & Hold Comparison -->
+                <div class="metrics-row buyhold">
+                    <h4>📈 Buy & Hold Benchmark</h4>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <div class="metric-value">£${results.buy_hold_final_value.toLocaleString()}</div>
+                            <div class="metric-label">Buy & Hold Final Value</div>
+                            <div class="metric-description">No trading costs</div>
+                        </div>
+                        <div class="metric profit">
+                            <div class="metric-value profit ${buyHoldProfit >= 0 ? 'positive' : 'negative'}">
+                                ${buyHoldProfit > 0 ? '+' : ''}£${buyHoldProfit.toLocaleString()}
+                            </div>
+                            <div class="metric-label">Buy & Hold Profit</div>
+                            <div class="metric-description">Theoretical profit</div>
+                        </div>
+                        <div class="metric ${results.buy_hold_return >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value ${results.buy_hold_return >= 0 ? 'positive' : 'negative'}">
+                                ${results.buy_hold_return > 0 ? '+' : ''}${results.buy_hold_return}%
+                            </div>
+                            <div class="metric-label">Buy & Hold Return</div>
+                            <div class="metric-description">Just holding BTC</div>
+                        </div>
+                        <div class="metric negative">
+                            <div class="metric-value negative">${results.buy_hold_max_drawdown}%</div>
+                            <div class="metric-label">Buy & Hold Max Drawdown</div>
+                            <div class="metric-description">Worst peak-to-trough</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 4: Strategy vs Buy & Hold -->
+                <div class="metrics-row comparison">
+                    <h4>⚖️ Strategy vs Buy & Hold</h4>
+                    <div class="metrics-grid">
+                        <div class="metric profit">
+                            <div class="metric-value profit ${profitDifference >= 0 ? 'positive' : 'negative'}">
+                                ${profitDifference > 0 ? '+' : ''}£${profitDifference.toLocaleString()}
+                            </div>
+                            <div class="metric-label">Extra Profit vs Buy & Hold</div>
+                            <div class="metric-description">Strategy advantage</div>
+                        </div>
+                        <div class="metric ${(results.total_return - results.buy_hold_return) >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value ${(results.total_return - results.buy_hold_return) >= 0 ? 'positive' : 'negative'}">
+                                ${(results.total_return - results.buy_hold_return) > 0 ? '+' : ''}${(results.total_return - results.buy_hold_return).toFixed(2)}%
+                            </div>
+                            <div class="metric-label">Return Difference</div>
+                            <div class="metric-description">Outperformance</div>
+                        </div>
+                        <div class="metric ${(results.buy_hold_max_drawdown - results.max_drawdown) >= 0 ? 'positive' : 'negative'}">
+                            <div class="metric-value ${(results.buy_hold_max_drawdown - results.max_drawdown) >= 0 ? 'positive' : 'negative'}">
+                                ${(results.buy_hold_max_drawdown - results.max_drawdown) > 0 ? '+' : ''}${(results.buy_hold_max_drawdown - results.max_drawdown).toFixed(2)}%
+                            </div>
+                            <div class="metric-label">Drawdown Improvement</div>
+                            <div class="metric-description">Risk reduction vs B&H</div>
+                        </div>
+                        <div class="metric ${profitDifference >= results.total_fees_paid ? 'positive' : 'negative'}">
+                            <div class="metric-value ${profitDifference >= results.total_fees_paid ? 'positive' : 'negative'}">
+                                ${profitDifference >= results.total_fees_paid ? '✅' : '❌'}
+                            </div>
+                            <div class="metric-label">Strategy Worth It?</div>
+                            <div class="metric-description">Beats fees + B&H</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('metrics').innerHTML = metricsHtml;
+            
+            const chart = JSON.parse(chartData);
+            
+            // Get the container width
+            const container = document.getElementById('chart').parentElement;
+            const containerWidth = container.offsetWidth - 30; // Account for padding
+            
+            // FORCE CHART TO USE FULL WIDTH
+            Plotly.newPlot('chart', chart.data, {
+                ...chart.layout,
+                width: containerWidth,
+                height: 800,
+                autosize: false,  // Turn off autosize so we can control width
+                responsive: true,
+                margin: {
+                    l: 50,
+                    r: 50,
+                    t: 80,
+                    b: 60
+                }
+            }, {
+                responsive: true,
+                displayModeBar: true
+            });
+            
+            // Resize chart when window resizes
+            window.addEventListener('resize', function() {
+                const newContainerWidth = container.offsetWidth - 30;
+                Plotly.relayout('chart', {
+                    width: newContainerWidth
+                });
+            });
+            
+            if (results.recent_trades && results.recent_trades.length > 0) {
+                const tradesHtml = `
+                    <h3>💼 Recent Trades</h3>
+                    <table class="trades-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Action</th>
+                                <th>Price</th>
+                                <th>Amount</th>
+                                <th>Fee</th>
+                                <th>Net Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.recent_trades.map(trade => `
+                                <tr>
+                                    <td>${new Date(trade.date).toLocaleDateString()}</td>
+                                    <td style="color: ${trade.action === 'BUY' ? '#28a745' : '#dc3545'}">
+                                        ${trade.action === 'BUY' ? '🟢' : '🔴'} ${trade.action}
+                                    </td>
+                                    <td>£${trade.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                    <td>${trade.amount.toFixed(6)} BTC</td>
+                                    <td>£${trade.fee.toFixed(2)}</td>
+                                    <td>£${trade.action === 'BUY' ? trade.cash_after_fees.toFixed(2) : trade.cash_received.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                document.getElementById('backtesterTrades').innerHTML = tradesHtml;
+            }
+            
+            document.getElementById('backtesterResults').style.display = 'block';
+        }
+
+        function displayOptimizationResults(optimization) {
+            const summaryHtml = `
+                <div class="metrics-grid">
+                    <div class="metric positive">
+                        <div class="metric-value positive">${optimization.results[0].total_return.toFixed(2)}%</div>
+                        <div class="metric-label">Best Return Found</div>
+                        <div class="metric-description">Buy ${optimization.results[0].buy_dip_percent}% / Sell ${optimization.results[0].sell_gain_percent}%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${optimization.buy_hold_return.toFixed(2)}%</div>
+                        <div class="metric-label">Buy & Hold Return</div>
+                        <div class="metric-description">Baseline comparison</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${optimization.total_tested}</div>
+                        <div class="metric-label">Combinations Tested</div>
+                        <div class="metric-description">${optimization.data_period}</div>
+                    </div>
+                    <div class="metric positive">
+                        <div class="metric-value positive">+${(optimization.results[0].total_return - optimization.buy_hold_return).toFixed(2)}%</div>
+                        <div class="metric-label">Outperformance</div>
+                        <div class="metric-description">vs Buy & Hold</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('optimization-summary').innerHTML = summaryHtml;
+
+            const tableBody = document.querySelector('#optimization-table tbody');
+            tableBody.innerHTML = optimization.results.slice(0, 20).map((result, index) => `
+                <tr class="${index === 0 ? 'best-result' : ''}">
+                    <td>${index + 1}</td>
+                    <td>${result.buy_dip_percent}%</td>
+                    <td>${result.sell_gain_percent}%</td>
+                    <td>£${result.final_value.toLocaleString()}</td>
+                    <td style="color: ${result.total_return >= 0 ? '#28a745' : '#dc3545'}">
+                        ${result.total_return > 0 ? '+' : ''}${result.total_return.toFixed(2)}%
+                    </td>
+                    <td>${result.num_trades}</td>
+                    <td>£${result.total_fees_paid.toFixed(2)}</td>
+                    <td style="color: #dc3545">${result.max_drawdown.toFixed(2)}%</td>
+                    <td>
+                        <button onclick="useParameters(${result.buy_dip_percent}, ${result.sell_gain_percent})" 
+                                style="padding: 5px 10px; font-size: 12px;">
+                            Use These
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('optimization-results').style.display = 'block';
+        }
+
+        function useParameters(buyPercent, sellPercent) {
+            switchTab('backtest');
+            
+            setTimeout(() => {
+                document.getElementById('buy_dip_percent').value = buyPercent;
+                document.getElementById('sell_gain_percent').value = sellPercent;
+                
+                const buyInput = document.getElementById('buy_dip_percent');
+                const sellInput = document.getElementById('sell_gain_percent');
+                
+                buyInput.style.background = '#d4edda';
+                sellInput.style.background = '#d4edda';
+                
+                setTimeout(() => {
+                    buyInput.style.background = '';
+                    sellInput.style.background = '';
+                }, 2000);
+            }, 200);
+        }
+
+    </script>
+</body>
+</html> 
