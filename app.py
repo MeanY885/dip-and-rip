@@ -985,8 +985,155 @@ def parse_csv_file(file_content):
     
     return transactions
 
+def parse_santander_statement(lines):
+    """Parse Santander statement - only extract Money Out transactions, skip all Money In"""
+    transactions = []
+    
+    # Find the header line to understand column structure
+    header_line = None
+    for line in lines:
+        if 'Money In' in line and 'Money Out' in line:
+            header_line = line
+            break
+    
+    if not header_line:
+        logger.warning("Could not find Money In/Money Out header in PDF")
+        return []
+    
+    # Analyze header to find column positions
+    money_out_pos = header_line.find('Money Out')
+    balance_pos = header_line.find('Balance')
+    
+    logger.info(f"Column positions - Money Out: {money_out_pos}, Balance: {balance_pos}")
+    
+    for line_num, line in enumerate(lines):
+        line = line.strip()
+        if len(line) < 15:
+            continue
+            
+        # Skip header and non-transaction lines
+        if any(header in line.lower() for header in ['date description', 'money in', 'money out', 'balance', 'transaction date']):
+            continue
+            
+        # Look for transaction lines starting with date
+        date_match = re.match(r'(\d{1,2}\/\d{1,2}\/\d{4})', line)
+        if not date_match:
+            continue
+            
+        try:
+            date_str = date_match.group(1)
+            
+            # Find all £ amounts in the line with their positions
+            pound_matches = []
+            for match in re.finditer(r'£\s*([\d,]+\.?\d*)', line):
+                amount = match.group(1)
+                position = match.start()
+                pound_matches.append((amount, position))
+            
+            if len(pound_matches) < 2:
+                continue
+            
+            # The last amount is always the balance
+            balance_amount = pound_matches[-1][0]
+            
+            # Determine which amount is the transaction amount based on position
+            transaction_amount = None
+            description = ""
+            
+            if len(pound_matches) == 2:
+                # Format: Date Description Transaction Balance
+                # The first amount is the transaction (could be Money In or Money Out)
+                transaction_amount = pound_matches[0][0]
+                transaction_pos = pound_matches[0][1]
+                
+                # Extract description (between date and first £)
+                date_end = date_match.end()
+                description = line[date_end:transaction_pos].strip()
+                
+            elif len(pound_matches) == 3:
+                # Format: Date Description Money_In Money_Out Balance
+                money_in_amount = pound_matches[0][0]
+                money_in_pos = pound_matches[0][1]
+                money_out_amount = pound_matches[1][0]
+                money_out_pos = pound_matches[1][1]
+                
+                # Extract description (between date and first £)
+                date_end = date_match.end()
+                description = line[date_end:money_in_pos].strip()
+                
+                # Check which column has a value
+                money_in_val = float(money_in_amount.replace(',', ''))
+                money_out_val = float(money_out_amount.replace(',', ''))
+                
+                if money_in_val > 0 and money_out_val == 0:
+                    # This is a Money In transaction - skip it completely
+                    logger.debug(f"Skipping Money In transaction: {description[:30]}... £{money_in_val}")
+                    continue
+                elif money_out_val > 0 and money_in_val == 0:
+                    # This is a Money Out transaction - process it
+                    transaction_amount = money_out_amount
+                else:
+                    # Both or neither have values - skip to be safe
+                    continue
+            else:
+                continue
+            
+            if not transaction_amount:
+                continue
+                
+            # Parse date
+            try:
+                date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
+            except ValueError:
+                continue
+                
+            # Clean description
+            description = re.sub(r'\s+', ' ', description).strip()
+            
+            # Skip specific internal transfers that are not true expenses
+            if (description == 'TRANSFER TO Shared Account' or 
+                description == 'TRANSFER TO Extra Monthly Savings' or
+                description == 'TRANSFER TO Savings Account' or
+                description.startswith('TRANSFER TO Extra Monthly')):
+                logger.debug(f"Skipping internal transfer: {description}")
+                continue
+            
+            # Skip any Money In transactions that might slip through (based on description patterns)
+            desc_lower = description.lower()
+            if (desc_lower.startswith('credit from') or
+                desc_lower.startswith('bank giro credit') or
+                desc_lower.startswith('faster payments receipt') or
+                (desc_lower == 'transfer' or desc_lower.startswith('transfer ')) and 'to' not in desc_lower):
+                logger.debug(f"Skipping Money In transaction: {description}")
+                continue
+            
+            # Convert amount to negative (expense)
+            amount_val = float(transaction_amount.replace(',', ''))
+            amount = -amount_val
+            
+            transaction = {
+                'date': date_obj,
+                'description': description,
+                'amount': amount
+            }
+            
+            transactions.append(transaction)
+            logger.debug(f"Added Money Out transaction: {date_obj} £{amount} '{description[:30]}...'")
+            
+        except (ValueError, IndexError) as e:
+            logger.debug(f"Error parsing line: {line[:50]}... Error: {e}")
+            continue
+    
+    logger.info(f"Extracted {len(transactions)} Money Out transactions from Santander statement")
+    return transactions
+
+def parse_generic_statement(lines):
+    """Fallback parser for non-Santander formats"""
+    # This contains the original parsing logic as backup
+    return []
+
 def parse_pdf_file(file_content):
-    """Parse PDF file and extract transactions using improved pattern matching"""
+    """Parse PDF file using column-based extraction for Santander statements"""
     transactions = []
     
     if not PDF_SUPPORT:
@@ -1002,14 +1149,20 @@ def parse_pdf_file(file_content):
                     full_text += page_text + "\n"
         
         logger.info(f"PDF text length: {len(full_text)} characters")
-        
-        # Save first 1000 characters for debugging
         logger.info(f"PDF text sample: {full_text[:1000]}")
         
         lines = full_text.split('\n')
         logger.info(f"PDF has {len(lines)} lines")
         
-        # Specialized patterns for different bank statement formats
+        # Check if this is a Santander statement with Money In/Money Out columns
+        is_santander_format = any('Money In' in line and 'Money Out' in line for line in lines)
+        
+        if is_santander_format:
+            logger.info("Detected Santander format with Money In/Money Out columns")
+            return parse_santander_statement(lines)
+        else:
+            logger.info("Using fallback parsing method")
+            return parse_generic_statement(lines)
         patterns = [
             # Pattern 1: Santander format - Date Description Money Out Balance
             # Example: "22/06/2025 CARD PAYMENT TO DELIVEROO £ 29.39 £ 17.47"
