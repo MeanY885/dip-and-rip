@@ -1141,13 +1141,25 @@ def parse_pdf_file(file_content):
                         
                         logger.debug(f"Parsed line: Date='{date_str}', Description='{description}', Amount='{money_amount}', Balance='{balance}'")
                         
-                        # Now determine if it's Money In or Money Out based on description
+                        # Check if this is a Money In transaction that should be discounted
+                        description_lower = description.lower()
+                        
+                        # Skip Money In transactions (these should be discounted/ignored)
+                        if ((description_lower == 'transfer' or (description_lower.startswith('transfer ') and 'to' not in description_lower)) or
+                            description_lower.startswith('deposit') or
+                            description_lower.startswith('salary') or
+                            description_lower.startswith('refund') or
+                            'credit' in description_lower or
+                            'receipt' in description_lower or
+                            description_lower.startswith('bank giro credit')):
+                            logger.debug(f"Skipping Money In transaction: {description[:50]}...")
+                            continue
+                        
+                        # Now determine if it's Money Out based on description
                         amount_val = float(amount_str.replace(',', ''))
                         
                         # Default to Money Out (most transactions are expenses)
                         amount = -amount_val
-                        
-                        description_lower = description.lower()
                         
                         # Classify based on transaction type (check BEFORE cleaning description)
                         if (description_lower.startswith('card payment to') or 
@@ -1158,13 +1170,6 @@ def parse_pdf_file(file_content):
                             any(merchant in description_lower for merchant in ['deliveroo', 'domino', 'tesco', 'gousto', 'mcdonalds', 'google', 'vodafone', 'amazon', 'paypal', 'ebay', 'spotify', 'netflix'])):
                             # These are clearly expenses/outgoing payments
                             amount = -amount_val
-                        elif (description_lower == 'transfer' or (description_lower.startswith('transfer ') and 'to' not in description_lower)) or \
-                             description_lower.startswith('deposit') or \
-                             description_lower.startswith('salary') or \
-                             description_lower.startswith('refund') or \
-                             'credit' in description_lower:
-                            # These are incoming money
-                            amount = amount_val
                         else:
                             # For unclear cases, assume it's an expense (most bank transactions are outgoing)
                             amount = -amount_val
