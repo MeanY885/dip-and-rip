@@ -1042,8 +1042,8 @@
                                 // Set category filter
                                 document.getElementById('categoryFilter').value = category.id;
                                 
-                                // Load filtered transactions
-                                loadTransactions();
+                                // Load filtered transactions (reset to page 1)
+                                loadTransactions(1);
                                 
                                 // Provide visual feedback
                                 const resultsDiv = document.createElement('div');
@@ -1448,7 +1448,9 @@
             loadOverview();
         }
 
-        async function loadTransactions() {
+        let currentTransactionsPage = 1;
+
+        async function loadTransactions(page = 1) {
             const yearFilter = document.getElementById('yearFilter').value;
             const monthFilter = document.getElementById('monthFilter').value;
             const categoryFilter = document.getElementById('categoryFilter').value;
@@ -1457,12 +1459,14 @@
             if (yearFilter) url += `year=${yearFilter}&`;
             if (monthFilter) url += `month=${monthFilter}&`;
             if (categoryFilter) url += `category_id=${categoryFilter}&`;
+            url += `page=${page}&per_page=50`;
             
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 
                 if (data.success) {
+                    currentTransactionsPage = page;
                     displayTransactions(data.data, data.pagination);
                 }
             } catch (error) {
@@ -1533,10 +1537,26 @@
             
             html += '</tbody></table>';
             
-            // Add Delete All button aligned with Actions column
+            // Add pagination controls and Delete All button
             html += `
-                <div style="margin-top: 15px; display: flex; justify-content: flex-end; align-items: center; gap: 20px;">
-                    ${pagination.pages > 1 ? `<span style="color: #666;">Page ${pagination.page} of ${pagination.pages} (${pagination.total} total)</span>` : ''}
+                <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        ${pagination.pages > 1 ? `
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button onclick="loadTransactions(${pagination.page - 1})" 
+                                        ${pagination.page <= 1 ? 'disabled' : ''} 
+                                        style="padding: 8px 12px; border: 1px solid #ddd; background: ${pagination.page <= 1 ? '#f5f5f5' : '#fff'}; border-radius: 4px; cursor: ${pagination.page <= 1 ? 'not-allowed' : 'pointer'};">
+                                    ← Previous
+                                </button>
+                                <span style="color: #666; margin: 0 10px;">Page ${pagination.page} of ${pagination.pages} (${pagination.total} total)</span>
+                                <button onclick="loadTransactions(${pagination.page + 1})" 
+                                        ${pagination.page >= pagination.pages ? 'disabled' : ''} 
+                                        style="padding: 8px 12px; border: 1px solid #ddd; background: ${pagination.page >= pagination.pages ? '#f5f5f5' : '#fff'}; border-radius: 4px; cursor: ${pagination.page >= pagination.pages ? 'not-allowed' : 'pointer'};">
+                                    Next →
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
                     <button class="delete-all-btn" onclick="deleteAllTransactions()" title="Delete all transactions">
                         🗑️ Delete All Transactions
                     </button>
