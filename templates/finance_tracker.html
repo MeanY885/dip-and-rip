@@ -602,9 +602,9 @@
             
             <div class="upload-area" onclick="document.getElementById('fileInput').click()">
                 <h3>📤 Upload Financial Data</h3>
-                <p>Click here or drag & drop your PDF bank statements</p>
-                <p style="font-size: 14px; color: #666;">Supported format: PDF bank statements only</p>
-                <input type="file" id="fileInput" class="file-input" accept=".pdf" multiple>
+                <p>Click here or drag & drop your TXT bank statements</p>
+                <p style="font-size: 14px; color: #666;">Supported format: TXT bank statements only</p>
+                <input type="file" id="fileInput" class="file-input" accept=".txt" multiple>
             </div>
 
 
@@ -823,7 +823,9 @@
                         notificationDiv.innerHTML += `
                             <div class="notification success">
                                 ✅ Successfully imported ${result.imported} transactions from ${file.name}
-                                ${result.duplicates_skipped > 0 ? `(${result.duplicates_skipped} duplicates skipped)` : ''}
+                                <br>💰 Money In: ${result.money_in_count || 0} | Money Out: ${result.money_out_count || 0}
+                                ${result.current_balance ? `<br>💳 Current Balance: £${result.current_balance.toFixed(2)}` : ''}
+                                ${result.duplicates_skipped > 0 ? `<br>(${result.duplicates_skipped} duplicates skipped)` : ''}
                             </div>
                         `;
 
