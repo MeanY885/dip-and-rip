@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 import json
 import os
 from datetime import datetime, timedelta
+from collections import defaultdict
 import logging
 import itertools
 import shutil
@@ -189,6 +190,18 @@ class AccountBalance(db.Model):
     balance = db.Column(db.Float, nullable=False)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     source_file = db.Column(db.String(255), nullable=True)
+
+class RecurringTracker(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description_pattern = db.Column(db.Text, nullable=False)  # Normalized description for matching
+    expected_amount = db.Column(db.Float, nullable=False)  # Last known amount
+    amount_history = db.Column(db.Text, nullable=True)  # JSON string of price changes over time
+    frequency_days = db.Column(db.Integer, nullable=False)  # Expected days between occurrences
+    last_occurrence = db.Column(db.Date, nullable=False)  # Last seen date
+    status = db.Column(db.String(20), default='active')  # 'active', 'price_changed', 'missing', 'stopped'
+    variance_threshold = db.Column(db.Float, default=0.05)  # 5% default threshold for price change alerts
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class FinanceCategoryLearning(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -935,6 +948,158 @@ def predict_category(description, existing_patterns):
             best_match = pattern
     
     return best_match, best_score
+
+def detect_recurring_transactions():
+    """Analyze transactions to detect recurring patterns and update RecurringTracker"""
+    try:
+        # Get all transactions from the last 6 months
+        six_months_ago = datetime.now().date() - timedelta(days=180)
+        transactions = FinanceTransaction.query.filter(
+            FinanceTransaction.date >= six_months_ago
+        ).order_by(FinanceTransaction.date.asc()).all()
+        
+        # Group transactions by normalized description pattern
+        pattern_groups = defaultdict(list)
+        for transaction in transactions:
+            pattern = extract_description_keywords(transaction.description)
+            if pattern and len(pattern) > 5:  # Only consider meaningful patterns
+                pattern_groups[pattern].append(transaction)
+        
+        # Analyze each group for recurring behavior
+        for pattern, group_transactions in pattern_groups.items():
+            if len(group_transactions) >= 3:  # Need at least 3 occurrences to detect pattern
+                analyze_recurring_pattern(pattern, group_transactions)
+                
+        logger.info(f"Recurring detection completed for {len(pattern_groups)} transaction patterns")
+        
+    except Exception as e:
+        logger.error(f"Error in recurring detection: {e}")
+
+def analyze_recurring_pattern(pattern, transactions):
+    """Analyze a group of similar transactions for recurring behavior"""
+    try:
+        # Sort by date
+        transactions.sort(key=lambda t: t.date)
+        
+        # Calculate intervals between transactions
+        intervals = []
+        for i in range(1, len(transactions)):
+            days_diff = (transactions[i].date - transactions[i-1].date).days
+            intervals.append(days_diff)
+        
+        # Determine if pattern is recurring (consistent intervals)
+        if intervals and len(set(intervals)) <= 2:  # Allow some variance in intervals
+            avg_frequency = sum(intervals) / len(intervals)
+            
+            # Check for existing tracker
+            existing_tracker = RecurringTracker.query.filter_by(
+                description_pattern=pattern
+            ).first()
+            
+            latest_transaction = transactions[-1]
+            
+            if existing_tracker:
+                update_recurring_tracker(existing_tracker, latest_transaction, avg_frequency)
+            else:
+                create_recurring_tracker(pattern, transactions, avg_frequency)
+                
+    except Exception as e:
+        logger.error(f"Error analyzing pattern {pattern}: {e}")
+
+def create_recurring_tracker(pattern, transactions, frequency_days):
+    """Create a new recurring tracker"""
+    try:
+        latest_transaction = transactions[-1]
+        
+        # Create amount history
+        amount_history = []
+        for transaction in transactions[-5:]:  # Keep last 5 amounts
+            amount_history.append({
+                'date': transaction.date.isoformat(),
+                'amount': transaction.amount
+            })
+        
+        tracker = RecurringTracker(
+            description_pattern=pattern,
+            expected_amount=latest_transaction.amount,
+            amount_history=json.dumps(amount_history),
+            frequency_days=int(frequency_days),
+            last_occurrence=latest_transaction.date,
+            status='active'
+        )
+        
+        db.session.add(tracker)
+        db.session.commit()
+        
+        logger.info(f"Created recurring tracker for: {pattern}")
+        
+    except Exception as e:
+        logger.error(f"Error creating recurring tracker: {e}")
+        db.session.rollback()
+
+def update_recurring_tracker(tracker, transaction, frequency_days):
+    """Update existing recurring tracker with new transaction"""
+    try:
+        # Check for price changes
+        amount_change_percent = 0
+        if tracker.expected_amount != 0:
+            amount_change_percent = abs(transaction.amount - tracker.expected_amount) / abs(tracker.expected_amount)
+        
+        # Update amount history
+        history = json.loads(tracker.amount_history or "[]")
+        history.append({
+            'date': transaction.date.isoformat(),
+            'amount': transaction.amount
+        })
+        
+        # Keep only last 10 entries
+        tracker.amount_history = json.dumps(history[-10:])
+        
+        # Update tracker fields
+        tracker.last_occurrence = transaction.date
+        tracker.frequency_days = int(frequency_days)
+        tracker.updated_at = datetime.utcnow()
+        
+        # Check for price change
+        if amount_change_percent > tracker.variance_threshold:
+            tracker.status = 'price_changed'
+            tracker.expected_amount = transaction.amount
+            logger.info(f"Price change detected for {tracker.description_pattern}: {amount_change_percent:.1%}")
+        else:
+            tracker.status = 'active'
+            tracker.expected_amount = transaction.amount
+        
+        db.session.commit()
+        
+    except Exception as e:
+        logger.error(f"Error updating recurring tracker: {e}")
+        db.session.rollback()
+
+def check_missing_recurring_payments():
+    """Check for missing recurring payments and update status"""
+    try:
+        active_trackers = RecurringTracker.query.filter_by(status='active').all()
+        today = datetime.now().date()
+        
+        for tracker in active_trackers:
+            days_since_last = (today - tracker.last_occurrence).days
+            expected_days = tracker.frequency_days
+            
+            # Consider missing if 1.5x the expected frequency has passed
+            if days_since_last > (expected_days * 1.5):
+                if days_since_last > (expected_days * 3):
+                    tracker.status = 'stopped'
+                    logger.info(f"Marked as stopped: {tracker.description_pattern}")
+                else:
+                    tracker.status = 'missing'
+                    logger.info(f"Marked as missing: {tracker.description_pattern}")
+                
+                tracker.updated_at = datetime.utcnow()
+                db.session.commit()
+                
+    except Exception as e:
+        logger.error(f"Error checking missing payments: {e}")
+        db.session.rollback()
 
 def parse_csv_file(file_content):
     """Parse CSV file and extract transactions"""
@@ -2691,6 +2856,66 @@ def update_transaction_recurring(transaction_id):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance-tracker/recurring-insights')
+def recurring_insights():
+    """Get recurring transaction insights and alerts"""
+    try:
+        # Run detection and missing payment checks
+        detect_recurring_transactions()
+        check_missing_recurring_payments()
+        
+        # Get all tracked recurring transactions
+        trackers = RecurringTracker.query.all()
+        
+        insights = {
+            'total_recurring': 0,
+            'price_changes': [],
+            'missing_payments': [],
+            'stopped_payments': [],
+            'active_count': 0
+        }
+        
+        for tracker in trackers:
+            if tracker.status == 'active':
+                insights['active_count'] += 1
+                insights['total_recurring'] += abs(tracker.expected_amount)
+            elif tracker.status == 'price_changed':
+                # Get previous amount from history
+                history = json.loads(tracker.amount_history or "[]")
+                if len(history) >= 2:
+                    prev_amount = history[-2]['amount']
+                    change_percent = ((tracker.expected_amount - prev_amount) / abs(prev_amount)) * 100
+                    insights['price_changes'].append({
+                        'description': tracker.description_pattern,
+                        'old_amount': prev_amount,
+                        'new_amount': tracker.expected_amount,
+                        'change_percent': change_percent,
+                        'last_occurrence': tracker.last_occurrence.isoformat()
+                    })
+            elif tracker.status == 'missing':
+                days_overdue = (datetime.now().date() - tracker.last_occurrence).days - tracker.frequency_days
+                insights['missing_payments'].append({
+                    'description': tracker.description_pattern,
+                    'expected_amount': tracker.expected_amount,
+                    'days_overdue': days_overdue,
+                    'last_occurrence': tracker.last_occurrence.isoformat()
+                })
+            elif tracker.status == 'stopped':
+                insights['stopped_payments'].append({
+                    'description': tracker.description_pattern,
+                    'expected_amount': tracker.expected_amount,
+                    'last_occurrence': tracker.last_occurrence.isoformat()
+                })
+        
+        return jsonify({
+            'success': True,
+            'insights': insights
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting recurring insights: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance-tracker/auto-categorize', methods=['POST'])

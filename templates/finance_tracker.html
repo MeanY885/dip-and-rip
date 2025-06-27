@@ -598,8 +598,8 @@
                     <div class="value" id="recurringAmount">£0.00</div>
                 </div>
                 <div class="summary-card net">
-                    <h3>🎯 Current vs Budget</h3>
-                    <div class="value" id="budgetComparison">£0.00</div>
+                    <h3>🎯 Net Balance</h3>
+                    <div class="value" id="netBalance">£0.00</div>
                 </div>
             </div>
 
@@ -887,6 +887,20 @@
                     document.getElementById('totalTransactions').textContent = summary.total_transactions;
                     document.getElementById('totalExpenses').textContent = `£${summary.expenses.toFixed(2)}`;
                     
+                    // Update Net Balance with color coding
+                    const netBalance = summary.net || 0;
+                    const netBalanceElement = document.getElementById('netBalance');
+                    netBalanceElement.textContent = `£${netBalance.toFixed(2)}`;
+                    
+                    // Color code the net balance
+                    if (netBalance > 0) {
+                        netBalanceElement.style.color = '#10b981'; // Green for positive
+                    } else if (netBalance < 0) {
+                        netBalanceElement.style.color = '#ef4444'; // Red for negative
+                    } else {
+                        netBalanceElement.style.color = '#6b7280'; // Gray for zero
+                    }
+                    
                     // Calculate and display recurring spend
                     calculateRecurringSpend();
 
@@ -899,9 +913,8 @@
                     updateCategoryChart(summary.categories);
                     updateMonthlyChart(summary.monthly_data);
                     
-                    // Load categories for budget chart and calculate budget comparison
+                    // Load categories for budget chart
                     loadCategoriesForBudget(summary.categories);
-                    calculateBudgetComparison(summary.categories);
                 }
             } catch (error) {
                 console.error('Error loading overview:', error);
@@ -1400,26 +1413,100 @@
         }
 
         async function calculateRecurringSpend() {
-            console.log('Calculating recurring spend...');
+            console.log('Calculating recurring spend and insights...');
             
             try {
-                const response = await fetch('/api/finance-tracker/transactions/recurring');
-                const data = await response.json();
+                // Get enhanced recurring insights
+                const insightsResponse = await fetch('/api/finance-tracker/recurring-insights');
+                const insightsData = await insightsResponse.json();
                 
-                console.log('Recurring transactions response:', data);
-                
-                if (data.success) {
-                    const recurringTotal = data.recurring_total;
-                    console.log(`Found ${data.count} recurring transactions, total: £${recurringTotal}`);
-                    document.getElementById('recurringAmount').textContent = `£${recurringTotal.toFixed(2)}`;
+                if (insightsData.success) {
+                    const insights = insightsData.insights;
+                    
+                    // Update recurring amount with enhanced display
+                    let recurringText = `£${insights.total_recurring.toFixed(2)}`;
+                    
+                    // Add alerts for price changes, missing payments, etc.
+                    const alerts = [];
+                    if (insights.price_changes.length > 0) {
+                        alerts.push(`📈 ${insights.price_changes.length} price change${insights.price_changes.length > 1 ? 's' : ''}`);
+                    }
+                    if (insights.missing_payments.length > 0) {
+                        alerts.push(`⚠️ ${insights.missing_payments.length} missing`);
+                    }
+                    if (insights.stopped_payments.length > 0) {
+                        alerts.push(`🛑 ${insights.stopped_payments.length} stopped`);
+                    }
+                    
+                    const recurringElement = document.getElementById('recurringAmount');
+                    if (alerts.length > 0) {
+                        recurringElement.innerHTML = `
+                            ${recurringText}<br>
+                            <small style="font-size: 12px; opacity: 0.8;">${alerts.join(' | ')}</small>
+                        `;
+                    } else {
+                        recurringElement.textContent = recurringText;
+                    }
+                    
+                    // Show detailed alerts if any
+                    showRecurringAlerts(insights);
+                    
                 } else {
-                    console.log('No recurring transactions found or error:', data.error);
+                    console.log('Error getting recurring insights:', insightsData.error);
                     document.getElementById('recurringAmount').textContent = '£0.00';
                 }
             } catch (error) {
                 console.error('Error calculating recurring spend:', error);
                 document.getElementById('recurringAmount').textContent = '£0.00';
             }
+        }
+        
+        function showRecurringAlerts(insights) {
+            // Create or update alerts container
+            let alertsContainer = document.getElementById('recurringAlerts');
+            if (!alertsContainer) {
+                alertsContainer = document.createElement('div');
+                alertsContainer.id = 'recurringAlerts';
+                alertsContainer.style.marginTop = '15px';
+                
+                // Insert after the summary cards
+                const summaryCards = document.querySelector('.summary-cards');
+                summaryCards.parentNode.insertBefore(alertsContainer, summaryCards.nextSibling);
+            }
+            
+            let alertsHtml = '';
+            
+            // Price change alerts
+            insights.price_changes.forEach(change => {
+                const changeIcon = change.change_percent > 0 ? '🔺' : '🔻';
+                const changeColor = change.change_percent > 0 ? '#ef4444' : '#10b981';
+                alertsHtml += `
+                    <div class="alert-item" style="background: ${change.change_percent > 0 ? '#fef2f2' : '#f0fdf4'}; border-left: 4px solid ${changeColor}; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                        ${changeIcon} <strong>${change.description}</strong> changed from £${Math.abs(change.old_amount).toFixed(2)} to £${Math.abs(change.new_amount).toFixed(2)} 
+                        <span style="color: ${changeColor};">(${change.change_percent > 0 ? '+' : ''}${change.change_percent.toFixed(1)}%)</span>
+                    </div>
+                `;
+            });
+            
+            // Missing payment alerts
+            insights.missing_payments.forEach(missing => {
+                alertsHtml += `
+                    <div class="alert-item" style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                        ⚠️ <strong>${missing.description}</strong> is ${missing.days_overdue} days overdue (£${Math.abs(missing.expected_amount).toFixed(2)} expected)
+                    </div>
+                `;
+            });
+            
+            // Stopped payment alerts
+            insights.stopped_payments.forEach(stopped => {
+                alertsHtml += `
+                    <div class="alert-item" style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 10px; margin: 5px 0; border-radius: 4px;">
+                        🛑 <strong>${stopped.description}</strong> may have stopped (£${Math.abs(stopped.expected_amount).toFixed(2)} last payment)
+                    </div>
+                `;
+            });
+            
+            alertsContainer.innerHTML = alertsHtml;
         }
 
         async function updateRecurring(transactionId, isRecurring) {
