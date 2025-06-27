@@ -598,7 +598,7 @@
                     <div class="value" id="recurringAmount">£0.00</div>
                 </div>
                 <div class="summary-card net">
-                    <h3>🎯 Net Balance</h3>
+                    <h3>🎯 Remaining Budget</h3>
                     <div class="value" id="netBalance">£0.00</div>
                 </div>
             </div>
@@ -887,12 +887,12 @@
                     document.getElementById('totalTransactions').textContent = summary.total_transactions;
                     document.getElementById('totalExpenses').textContent = `£${summary.expenses.toFixed(2)}`;
                     
-                    // Update Net Balance with color coding
+                    // Update Remaining Budget with color coding
                     const netBalance = summary.net || 0;
                     const netBalanceElement = document.getElementById('netBalance');
                     netBalanceElement.textContent = `£${netBalance.toFixed(2)}`;
                     
-                    // Color code the net balance
+                    // Color code the remaining budget
                     if (netBalance > 0) {
                         netBalanceElement.style.color = '#10b981'; // Green for positive
                     } else if (netBalance < 0) {

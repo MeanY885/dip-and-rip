@@ -2782,7 +2782,7 @@ def finance_summary():
                 'income': income,
                 'expenses': abs(expenses),
                 'budget': total_budget,
-                'net': total_budget + expenses,  # Budget - Expenses (expenses are negative)
+                'net': total_budget + expenses,  # Remaining Budget - Expenses (expenses are negative)
                 'categories': list(categories.values()),
                 'monthly_data': list(monthly_data.values())
             }
