@@ -11,7 +11,6 @@ from plotly.subplots import make_subplots
 import json
 import os
 from datetime import datetime, timedelta
-from collections import defaultdict
 import logging
 import itertools
 import shutil
@@ -24,9 +23,6 @@ import io
 from werkzeug.utils import secure_filename
 # Removed PDF and Excel imports - now using TXT parsing only
 from difflib import SequenceMatcher
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-import atexit
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -193,18 +189,6 @@ class AccountBalance(db.Model):
     balance = db.Column(db.Float, nullable=False)
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
     source_file = db.Column(db.String(255), nullable=True)
-
-class RecurringTracker(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    description_pattern = db.Column(db.Text, nullable=False)  # Normalized description for matching
-    expected_amount = db.Column(db.Float, nullable=False)  # Last known amount
-    amount_history = db.Column(db.Text, nullable=True)  # JSON string of price changes over time
-    frequency_days = db.Column(db.Integer, nullable=False)  # Expected days between occurrences
-    last_occurrence = db.Column(db.Date, nullable=False)  # Last seen date
-    status = db.Column(db.String(20), default='active')  # 'active', 'price_changed', 'missing', 'stopped'
-    variance_threshold = db.Column(db.Float, default=0.05)  # 5% default threshold for price change alerts
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class FinanceCategoryLearning(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -716,84 +700,6 @@ class BTCBacktester:
         
         return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-# Helper function to update monthly investment records
-def update_current_monthly_record(investment_id, current_value):
-    """Update or create monthly record for current month when investment value changes"""
-    try:
-        from datetime import datetime
-        
-        # Get current date
-        now = datetime.now()
-        current_year = now.year
-        current_month = now.month
-        
-        # Check if monthly record already exists for this investment in current month
-        existing_record = MonthlyRecord.query.filter_by(
-            investment_id=investment_id,
-            year=current_year,
-            month=current_month
-        ).first()
-        
-        if existing_record:
-            # Update existing record
-            existing_record.value = current_value
-            existing_record.date = now.date()
-            logger.info(f"Updated monthly record for investment {investment_id}: {current_value}")
-        else:
-            # Create new monthly record
-            new_record = MonthlyRecord(
-                investment_id=investment_id,
-                year=current_year,
-                month=current_month,
-                value=current_value,
-                date=now.date(),
-                notes=f"Auto-updated from current value"
-            )
-            db.session.add(new_record)
-            logger.info(f"Created new monthly record for investment {investment_id}: {current_value}")
-        
-        # Don't commit here - let the calling function handle the transaction
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error updating monthly record for investment {investment_id}: {str(e)}")
-        return False
-
-# Function to handle month advancement (called at midnight on 1st of each month)
-def advance_to_next_month():
-    """Called at midnight on 1st of each month - just log the month advancement"""
-    try:
-        from datetime import datetime
-        now = datetime.now()
-        logger.info(f"Month advanced to: {now.strftime('%B %Y')} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("New month started - monthly records will be created as investments are updated")
-        return True
-    except Exception as e:
-        logger.error(f"Error in month advancement: {str(e)}")
-        return False
-
-# Initialize APScheduler
-scheduler = BackgroundScheduler()
-
-# Schedule month advancement job to run at midnight on 1st of every month
-scheduler.add_job(
-    func=advance_to_next_month,
-    trigger=CronTrigger(day=1, hour=0, minute=0),
-    id='advance_month',
-    name='Advance to next month',
-    replace_existing=True
-)
-
-# Start the scheduler
-try:
-    scheduler.start()
-    logger.info("APScheduler started successfully - monthly advancement scheduled")
-except Exception as e:
-    logger.error(f"Failed to start APScheduler: {str(e)}")
-
-# Shut down scheduler when app exits
-atexit.register(lambda: scheduler.shutdown())
-
 # Utility function to fetch current BTC price
 def get_current_btc_price():
     """Get current BTC/GBP price from Kraken and store as historical data"""
@@ -1030,158 +936,6 @@ def predict_category(description, existing_patterns):
     
     return best_match, best_score
 
-def detect_recurring_transactions():
-    """Analyze transactions to detect recurring patterns and update RecurringTracker"""
-    try:
-        # Get all transactions from the last 6 months
-        six_months_ago = datetime.now().date() - timedelta(days=180)
-        transactions = FinanceTransaction.query.filter(
-            FinanceTransaction.date >= six_months_ago
-        ).order_by(FinanceTransaction.date.asc()).all()
-        
-        # Group transactions by normalized description pattern
-        pattern_groups = defaultdict(list)
-        for transaction in transactions:
-            pattern = extract_description_keywords(transaction.description)
-            if pattern and len(pattern) > 5:  # Only consider meaningful patterns
-                pattern_groups[pattern].append(transaction)
-        
-        # Analyze each group for recurring behavior
-        for pattern, group_transactions in pattern_groups.items():
-            if len(group_transactions) >= 3:  # Need at least 3 occurrences to detect pattern
-                analyze_recurring_pattern(pattern, group_transactions)
-                
-        logger.info(f"Recurring detection completed for {len(pattern_groups)} transaction patterns")
-        
-    except Exception as e:
-        logger.error(f"Error in recurring detection: {e}")
-
-def analyze_recurring_pattern(pattern, transactions):
-    """Analyze a group of similar transactions for recurring behavior"""
-    try:
-        # Sort by date
-        transactions.sort(key=lambda t: t.date)
-        
-        # Calculate intervals between transactions
-        intervals = []
-        for i in range(1, len(transactions)):
-            days_diff = (transactions[i].date - transactions[i-1].date).days
-            intervals.append(days_diff)
-        
-        # Determine if pattern is recurring (consistent intervals)
-        if intervals and len(set(intervals)) <= 2:  # Allow some variance in intervals
-            avg_frequency = sum(intervals) / len(intervals)
-            
-            # Check for existing tracker
-            existing_tracker = RecurringTracker.query.filter_by(
-                description_pattern=pattern
-            ).first()
-            
-            latest_transaction = transactions[-1]
-            
-            if existing_tracker:
-                update_recurring_tracker(existing_tracker, latest_transaction, avg_frequency)
-            else:
-                create_recurring_tracker(pattern, transactions, avg_frequency)
-                
-    except Exception as e:
-        logger.error(f"Error analyzing pattern {pattern}: {e}")
-
-def create_recurring_tracker(pattern, transactions, frequency_days):
-    """Create a new recurring tracker"""
-    try:
-        latest_transaction = transactions[-1]
-        
-        # Create amount history
-        amount_history = []
-        for transaction in transactions[-5:]:  # Keep last 5 amounts
-            amount_history.append({
-                'date': transaction.date.isoformat(),
-                'amount': transaction.amount
-            })
-        
-        tracker = RecurringTracker(
-            description_pattern=pattern,
-            expected_amount=latest_transaction.amount,
-            amount_history=json.dumps(amount_history),
-            frequency_days=int(frequency_days),
-            last_occurrence=latest_transaction.date,
-            status='active'
-        )
-        
-        db.session.add(tracker)
-        db.session.commit()
-        
-        logger.info(f"Created recurring tracker for: {pattern}")
-        
-    except Exception as e:
-        logger.error(f"Error creating recurring tracker: {e}")
-        db.session.rollback()
-
-def update_recurring_tracker(tracker, transaction, frequency_days):
-    """Update existing recurring tracker with new transaction"""
-    try:
-        # Check for price changes
-        amount_change_percent = 0
-        if tracker.expected_amount != 0:
-            amount_change_percent = abs(transaction.amount - tracker.expected_amount) / abs(tracker.expected_amount)
-        
-        # Update amount history
-        history = json.loads(tracker.amount_history or "[]")
-        history.append({
-            'date': transaction.date.isoformat(),
-            'amount': transaction.amount
-        })
-        
-        # Keep only last 10 entries
-        tracker.amount_history = json.dumps(history[-10:])
-        
-        # Update tracker fields
-        tracker.last_occurrence = transaction.date
-        tracker.frequency_days = int(frequency_days)
-        tracker.updated_at = datetime.utcnow()
-        
-        # Check for price change
-        if amount_change_percent > tracker.variance_threshold:
-            tracker.status = 'price_changed'
-            tracker.expected_amount = transaction.amount
-            logger.info(f"Price change detected for {tracker.description_pattern}: {amount_change_percent:.1%}")
-        else:
-            tracker.status = 'active'
-            tracker.expected_amount = transaction.amount
-        
-        db.session.commit()
-        
-    except Exception as e:
-        logger.error(f"Error updating recurring tracker: {e}")
-        db.session.rollback()
-
-def check_missing_recurring_payments():
-    """Check for missing recurring payments and update status"""
-    try:
-        active_trackers = RecurringTracker.query.filter_by(status='active').all()
-        today = datetime.now().date()
-        
-        for tracker in active_trackers:
-            days_since_last = (today - tracker.last_occurrence).days
-            expected_days = tracker.frequency_days
-            
-            # Consider missing if 1.5x the expected frequency has passed
-            if days_since_last > (expected_days * 1.5):
-                if days_since_last > (expected_days * 3):
-                    tracker.status = 'stopped'
-                    logger.info(f"Marked as stopped: {tracker.description_pattern}")
-                else:
-                    tracker.status = 'missing'
-                    logger.info(f"Marked as missing: {tracker.description_pattern}")
-                
-                tracker.updated_at = datetime.utcnow()
-                db.session.commit()
-                
-    except Exception as e:
-        logger.error(f"Error checking missing payments: {e}")
-        db.session.rollback()
-
 def parse_csv_file(file_content):
     """Parse CSV file and extract transactions"""
     transactions = []
@@ -1289,16 +1043,11 @@ def parse_txt_statement(content):
     if current_transaction.get('date') and current_transaction.get('description') and current_transaction.get('amount') is not None:
         transactions.append(current_transaction)
     
-    # Sort transactions by date to find the most recent one
-    if transactions:
-        transactions.sort(key=lambda tx: tx['date'])
-        most_recent_balance = transactions[-1].get('balance')  # Get balance from most recent transaction
-        logger.info(f"Parsed {len(transactions)} transactions from .txt file")
-        logger.info(f"Current account balance (from most recent transaction): £{most_recent_balance:.2f}")
-        return transactions, most_recent_balance
-    else:
-        logger.info(f"Parsed {len(transactions)} transactions from .txt file")
-        return transactions, None
+    logger.info(f"Parsed {len(transactions)} transactions from .txt file")
+    if last_balance is not None:
+        logger.info(f"Current account balance: £{last_balance:.2f}")
+    
+    return transactions, last_balance
 
 def parse_generic_statement(lines):
     """Fallback parser for non-Santander formats"""
@@ -1311,7 +1060,7 @@ def parse_txt_file(file_content):
     try:
         # Decode content if it's bytes
         if isinstance(file_content, bytes):
-            content = file_content.decode('utf-8', errors='ignore')
+            content = file_content.decode('utf-8')
         else:
             content = file_content
             
@@ -1322,7 +1071,101 @@ def parse_txt_file(file_content):
     except Exception as e:
         logger.error(f"Error parsing .txt file: {e}")
         return [], None
-# Removed Excel parsing - now using TXT files only
+def parse_excel_file(file_content, filename):
+    """Parse Excel file and extract transactions"""
+    transactions = []
+    
+    try:
+        if filename.endswith('.xls'):
+            workbook = xlrd.open_workbook(file_contents=file_content)
+            sheet = workbook.sheet_by_index(0)
+            
+            # Find header row
+            headers = []
+            for row_idx in range(min(5, sheet.nrows)):  # Check first 5 rows for headers
+                row_values = [str(cell.value).lower() for cell in sheet.row(row_idx)]
+                if any('date' in val for val in row_values):
+                    headers = row_values
+                    start_row = row_idx + 1
+                    break
+            
+            if headers:
+                date_col = amount_col = desc_col = None
+                for i, header in enumerate(headers):
+                    if 'date' in header:
+                        date_col = i
+                    elif any(word in header for word in ['amount', 'value', 'debit', 'credit']):
+                        amount_col = i
+                    elif any(word in header for word in ['description', 'memo', 'details']):
+                        desc_col = i
+                
+                if date_col is not None and amount_col is not None and desc_col is not None:
+                    for row_idx in range(start_row, sheet.nrows):
+                        try:
+                            row = sheet.row(row_idx)
+                            date_val = row[date_col].value
+                            amount_val = row[amount_col].value
+                            desc_val = str(row[desc_col].value)
+                            
+                            # Convert Excel date to Python date
+                            if isinstance(date_val, float):
+                                date_obj = xlrd.xldate_as_datetime(date_val, workbook.datemode).date()
+                            else:
+                                date_obj = pd.to_datetime(str(date_val)).date()
+                            
+                            amount = float(amount_val)
+                            
+                            transactions.append({
+                                'date': date_obj,
+                                'amount': amount,
+                                'description': desc_val,
+                                'source_row': str([cell.value for cell in row])
+                            })
+                        except (ValueError, TypeError, xlrd.XLDateError):
+                            continue
+        
+        else:  # .xlsx
+            workbook = openpyxl.load_workbook(io.BytesIO(file_content))
+            sheet = workbook.active
+            
+            # Find headers
+            headers = []
+            for row in sheet.iter_rows(max_row=5, values_only=True):
+                if any(cell and 'date' in str(cell).lower() for cell in row):
+                    headers = [str(cell).lower() if cell else '' for cell in row]
+                    break
+            
+            if headers:
+                date_col = amount_col = desc_col = None
+                for i, header in enumerate(headers):
+                    if 'date' in header:
+                        date_col = i
+                    elif any(word in header for word in ['amount', 'value', 'debit', 'credit']):
+                        amount_col = i
+                    elif any(word in header for word in ['description', 'memo', 'details']):
+                        desc_col = i
+                
+                if date_col is not None and amount_col is not None and desc_col is not None:
+                    for row in sheet.iter_rows(min_row=2, values_only=True):
+                        try:
+                            if row[date_col] and row[amount_col] and row[desc_col]:
+                                date_obj = pd.to_datetime(row[date_col]).date()
+                                amount = float(row[amount_col])
+                                description = str(row[desc_col])
+                                
+                                transactions.append({
+                                    'date': date_obj,
+                                    'amount': amount,
+                                    'description': description,
+                                    'source_row': str(list(row))
+                                })
+                        except (ValueError, TypeError):
+                            continue
+    
+    except Exception as e:
+        logger.error(f"Error parsing Excel file: {e}")
+    
+    return transactions
 
 def get_historical_price_data(hours_back=24):
     """Get historical price data from database"""
@@ -1344,21 +1187,18 @@ def get_historical_price_data(hours_back=24):
                 'timestamp': record.timestamp.isoformat(),
                 'price_gbp': record.price_gbp,
                 'price_usd': record.price_usd,
-                'volume': record.volume if hasattr(record, 'volume') else None
+                'volume': record.volume
             })
         
         return {
             'success': True,
             'data': data_points,
-            'hours_back': hours_back,
-            'total_points': len(data_points)
+            'count': len(data_points)
         }
         
     except Exception as e:
-        logger.error(f"Error fetching historical data: {e}")
         return {'success': False, 'error': str(e)}
 
-# Routes
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -1671,10 +1511,7 @@ def finance_investment_detail(investment_id):
             data = request.json
             
             if 'currentValue' in data:
-                new_value = float(data['currentValue'])
-                investment.current_value = new_value
-                # Automatically update monthly record with new current value
-                update_current_monthly_record(investment.id, new_value)
+                investment.current_value = float(data['currentValue'])
             if 'name' in data:
                 investment.name = data['name']
             if 'startInvestment' in data:
@@ -1797,11 +1634,6 @@ def finance_monthly_records():
         # Get all monthly records
         records = MonthlyRecord.query.join(Investment).order_by(MonthlyRecord.year.desc(), MonthlyRecord.month.desc()).all()
         
-        # Get current month and year for indicator
-        now = datetime.now()
-        current_year = now.year
-        current_month = now.month
-        
         return jsonify({
             'success': True,
             'data': [{
@@ -1811,8 +1643,6 @@ def finance_monthly_records():
                 'year': record.year,
                 'month': record.month,
                 'value': record.value,
-                'valueDisplay': f"{record.value}*" if (record.year == current_year and record.month == current_month) else str(record.value),
-                'isCurrent': record.year == current_year and record.month == current_month,
                 'notes': record.notes or '',
                 'date': record.date.isoformat()
             } for record in records]
@@ -2834,10 +2664,6 @@ def finance_summary():
         income = sum(t.amount for t in transactions if t.amount > 0)
         expenses = sum(t.amount for t in transactions if t.amount < 0)
         
-        # Calculate total budget from all categories
-        all_categories = FinanceCategory.query.all()
-        total_budget = sum(cat.budget for cat in all_categories if cat.budget and cat.budget > 0)
-        
         # Category breakdown
         categories = {}
         for t in transactions:
@@ -2872,8 +2698,7 @@ def finance_summary():
                 'total_amount': total_amount,
                 'income': income,
                 'expenses': abs(expenses),
-                'budget': total_budget,
-                'net': total_budget + expenses,  # Remaining Budget - Expenses (expenses are negative)
+                'net': income + expenses,
                 'categories': list(categories.values()),
                 'monthly_data': list(monthly_data.values())
             }
@@ -2890,25 +2715,13 @@ def finance_recurring_transactions():
             FinanceTransaction.is_recurring == True
         ).all()
         
-        # Group by description pattern to avoid stacking/duplication
-        pattern_groups = defaultdict(list)
-        for transaction in recurring_transactions:
-            pattern = extract_description_keywords(transaction.description)
-            if pattern:
-                pattern_groups[pattern].append(transaction)
-        
-        # Calculate monthly total using latest amount per pattern (no stacking)
-        recurring_total = 0
-        for pattern, transactions in pattern_groups.items():
-            transactions.sort(key=lambda t: t.date)
-            latest_amount = abs(transactions[-1].amount)  # Take latest amount for this pattern
-            recurring_total += latest_amount
+        # Calculate monthly total from recurring transactions
+        recurring_total = sum(abs(t.amount) for t in recurring_transactions)
         
         return jsonify({
             'success': True,
             'recurring_total': recurring_total,
-            'count': len(pattern_groups),  # Count unique patterns, not total transactions
-            'unique_patterns': len(pattern_groups)
+            'count': len(recurring_transactions)
         })
         
     except Exception as e:
@@ -2965,170 +2778,6 @@ def update_transaction_recurring(transaction_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/finance-tracker/recurring-insights')
-def recurring_insights():
-    """Get recurring transaction insights and alerts for manually marked recurring items only"""
-    try:
-        # Get manually marked recurring transactions (is_recurring = True)
-        manually_recurring = FinanceTransaction.query.filter_by(is_recurring=True).all()
-        
-        insights = {
-            'total_recurring': 0,
-            'price_changes': [],
-            'missing_payments': [],
-            'stopped_payments': [],
-            'active_count': 0
-        }
-        
-        # Group manually marked recurring transactions by description pattern
-        pattern_groups = defaultdict(list)
-        for transaction in manually_recurring:
-            pattern = extract_description_keywords(transaction.description)
-            if pattern:
-                pattern_groups[pattern].append(transaction)
-        
-        # Analyze each group for price changes and missing payments
-        for pattern, transactions in pattern_groups.items():
-            if len(transactions) >= 2:  # Need at least 2 to detect changes
-                transactions.sort(key=lambda t: t.date)
-                latest = transactions[-1]
-                previous = transactions[-2]
-                
-                # Check for price changes (5% threshold)
-                if abs(latest.amount) != abs(previous.amount):
-                    change_percent = ((abs(latest.amount) - abs(previous.amount)) / abs(previous.amount)) * 100
-                    if abs(change_percent) >= 5:  # 5% threshold
-                        insights['price_changes'].append({
-                            'description': latest.description,
-                            'old_amount': previous.amount,
-                            'new_amount': latest.amount,
-                            'change_percent': change_percent,
-                            'last_occurrence': latest.date.isoformat()
-                        })
-                
-                # Check for missing payments (simple frequency check)
-                intervals = []
-                for i in range(1, len(transactions)):
-                    days_diff = (transactions[i].date - transactions[i-1].date).days
-                    intervals.append(days_diff)
-                
-                if intervals:
-                    avg_frequency = sum(intervals) / len(intervals)
-                    days_since_last = (datetime.now().date() - latest.date).days
-                    
-                    # Consider missing if 1.5x the expected frequency has passed
-                    if days_since_last > (avg_frequency * 1.5):
-                        days_overdue = days_since_last - int(avg_frequency)
-                        if days_since_last > (avg_frequency * 3):
-                            insights['stopped_payments'].append({
-                                'description': latest.description,
-                                'expected_amount': latest.amount,
-                                'last_occurrence': latest.date.isoformat()
-                            })
-                        else:
-                            insights['missing_payments'].append({
-                                'description': latest.description,
-                                'expected_amount': latest.amount,
-                                'days_overdue': days_overdue,
-                                'last_occurrence': latest.date.isoformat()
-                            })
-            
-            # Count active recurring (all manually marked ones)
-            insights['active_count'] += 1
-            insights['total_recurring'] += abs(transactions[-1].amount)
-        
-        return jsonify({
-            'success': True,
-            'insights': insights
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting recurring insights: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/finance-tracker/recurring-monthly-prediction')
-def recurring_monthly_prediction():
-    """Get monthly recurring cost tracking and next month prediction"""
-    try:
-        # Get manually marked recurring transactions
-        recurring_transactions = FinanceTransaction.query.filter_by(is_recurring=True).all()
-        
-        if not recurring_transactions:
-            return jsonify({
-                'success': True,
-                'monthly_tracking': {},
-                'next_month_prediction': 0,
-                'prediction_confidence': 0,
-                'total_recurring_items': 0
-            })
-        
-        # Group by description pattern
-        pattern_groups = defaultdict(list)
-        for transaction in recurring_transactions:
-            pattern = extract_description_keywords(transaction.description)
-            if pattern:
-                pattern_groups[pattern].append(transaction)
-        
-        monthly_tracking = {}
-        total_prediction = 0
-        
-        # Analyze each recurring pattern
-        for pattern, transactions in pattern_groups.items():
-            transactions.sort(key=lambda t: t.date)
-            
-            # Track monthly costs for this pattern
-            monthly_costs = defaultdict(list)
-            for transaction in transactions:
-                month_key = f"{transaction.date.year}-{transaction.date.month:02d}"
-                monthly_costs[month_key].append(abs(transaction.amount))
-            
-            # Calculate monthly averages (in case multiple transactions in same month)
-            monthly_averages = {}
-            for month, amounts in monthly_costs.items():
-                monthly_averages[month] = sum(amounts) / len(amounts)
-            
-            # Get recent trend for prediction
-            recent_months = sorted(monthly_averages.keys())[-3:]  # Last 3 months
-            if recent_months:
-                recent_amounts = [monthly_averages[month] for month in recent_months]
-                predicted_amount = sum(recent_amounts) / len(recent_amounts)  # Average of recent months
-                
-                # Detect trend (increasing/decreasing)
-                if len(recent_amounts) >= 2:
-                    trend = recent_amounts[-1] - recent_amounts[0]
-                    trend_percent = (trend / recent_amounts[0]) * 100 if recent_amounts[0] > 0 else 0
-                else:
-                    trend = 0
-                    trend_percent = 0
-                
-                total_prediction += predicted_amount
-                
-                # Store tracking data for this pattern
-                monthly_tracking[pattern] = {
-                    'description': transactions[-1].description,
-                    'monthly_costs': monthly_averages,
-                    'predicted_next_month': predicted_amount,
-                    'trend': trend,
-                    'trend_percent': trend_percent,
-                    'last_amount': abs(transactions[-1].amount),
-                    'frequency_months': len(recent_months)
-                }
-        
-        # Calculate prediction confidence based on data consistency
-        confidence = min(100, (len(pattern_groups) * 20))  # Higher confidence with more recurring items
-        
-        return jsonify({
-            'success': True,
-            'monthly_tracking': monthly_tracking,
-            'next_month_prediction': round(total_prediction, 2),
-            'prediction_confidence': confidence,
-            'total_recurring_items': len(pattern_groups)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting monthly recurring prediction: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance-tracker/auto-categorize', methods=['POST'])
