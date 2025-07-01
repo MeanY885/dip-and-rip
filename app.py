@@ -762,65 +762,66 @@ def update_current_monthly_record(investment_id, current_value):
 # Function to handle month advancement (called at midnight on 1st of each month)
 def advance_to_next_month():
     """Called at midnight on 1st of each month - create monthly snapshots for all investments"""
-    try:
-        from datetime import datetime
-        now = datetime.now()
-        logger.info(f"Month advanced to: {now.strftime('%B %Y')} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Get all investments
-        investments = Investment.query.all()
-        
-        if not investments:
-            logger.info("No investments found - skipping monthly snapshot creation")
-            return True
+    with app.app_context():
+        try:
+            from datetime import datetime
+            now = datetime.now()
+            logger.info(f"Month advanced to: {now.strftime('%B %Y')} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
             
-        snapshots_created = 0
-        snapshots_updated = 0
+            # Get all investments
+            investments = Investment.query.all()
         
-        for investment in investments:
-            try:
-                # Check if monthly record already exists for this investment in current month
-                existing_record = MonthlyRecord.query.filter_by(
-                    investment_id=investment.id,
-                    year=now.year,
-                    month=now.month
-                ).first()
+            if not investments:
+                logger.info("No investments found - skipping monthly snapshot creation")
+                return True
                 
-                if existing_record:
-                    # Update existing record with current value
-                    existing_record.value = investment.current_value
-                    existing_record.date = now.date()
-                    existing_record.notes = f"Auto-updated monthly snapshot"
-                    snapshots_updated += 1
-                    logger.info(f"Updated monthly snapshot for '{investment.name}': £{investment.current_value}")
-                else:
-                    # Create new monthly record
-                    new_record = MonthlyRecord(
+            snapshots_created = 0
+            snapshots_updated = 0
+            
+            for investment in investments:
+                try:
+                    # Check if monthly record already exists for this investment in current month
+                    existing_record = MonthlyRecord.query.filter_by(
                         investment_id=investment.id,
                         year=now.year,
-                        month=now.month,
-                        value=investment.current_value,
-                        date=now.date(),
-                        notes=f"Auto-created monthly snapshot"
-                    )
-                    db.session.add(new_record)
-                    snapshots_created += 1
-                    logger.info(f"Created monthly snapshot for '{investment.name}': £{investment.current_value}")
+                        month=now.month
+                    ).first()
                     
-            except Exception as e:
-                logger.error(f"Error creating monthly snapshot for investment '{investment.name}': {str(e)}")
-                continue
-        
-        # Commit all changes
-        db.session.commit()
-        
-        logger.info(f"Monthly snapshot process completed: {snapshots_created} created, {snapshots_updated} updated")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error in month advancement: {str(e)}")
-        db.session.rollback()
-        return False
+                    if existing_record:
+                        # Update existing record with current value
+                        existing_record.value = investment.current_value
+                        existing_record.date = now.date()
+                        existing_record.notes = f"Auto-updated monthly snapshot"
+                        snapshots_updated += 1
+                        logger.info(f"Updated monthly snapshot for '{investment.name}': £{investment.current_value}")
+                    else:
+                        # Create new monthly record
+                        new_record = MonthlyRecord(
+                            investment_id=investment.id,
+                            year=now.year,
+                            month=now.month,
+                            value=investment.current_value,
+                            date=now.date(),
+                            notes=f"Auto-created monthly snapshot"
+                        )
+                        db.session.add(new_record)
+                        snapshots_created += 1
+                        logger.info(f"Created monthly snapshot for '{investment.name}': £{investment.current_value}")
+                        
+                except Exception as e:
+                    logger.error(f"Error creating monthly snapshot for investment '{investment.name}': {str(e)}")
+                    continue
+            
+            # Commit all changes
+            db.session.commit()
+            
+            logger.info(f"Monthly snapshot process completed: {snapshots_created} created, {snapshots_updated} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in month advancement: {str(e)}")
+            db.session.rollback()
+            return False
 
 # Initialize APScheduler
 scheduler = BackgroundScheduler()
@@ -834,10 +835,25 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# Start the scheduler
+# Start the scheduler first
 try:
     scheduler.start()
     logger.info("APScheduler started successfully - monthly advancement scheduled")
+    logger.info(f"Scheduler state: {scheduler.state}")
+    
+    # Log scheduler jobs after starting
+    logger.info("Scheduled jobs:")
+    for job in scheduler.get_jobs():
+        next_run = job.next_run_time.isoformat() if job.next_run_time else "Not scheduled"
+        logger.info(f"  - {job.id}: {job.name} - Next run: {next_run}")
+    
+    # Log the next scheduled run for our specific job
+    job = scheduler.get_job('advance_month')
+    if job:
+        logger.info(f"Next monthly advancement scheduled for: {job.next_run_time}")
+    else:
+        logger.error("Monthly advancement job not found!")
+        
 except Exception as e:
     logger.error(f"Failed to start APScheduler: {str(e)}")
 
@@ -1953,6 +1969,31 @@ def trigger_monthly_snapshot():
         return jsonify({
             'success': False,
             'error': f'Error triggering monthly snapshot: {str(e)}'
+        }), 500
+
+@app.route('/api/finance/scheduler-status', methods=['GET'])
+def scheduler_status():
+    """Get scheduler status and next job run times"""
+    try:
+        jobs = []
+        for job in scheduler.get_jobs():
+            jobs.append({
+                'id': job.id,
+                'name': job.name,
+                'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None,
+                'func': str(job.func)
+            })
+        
+        return jsonify({
+            'success': True,
+            'scheduler_state': str(scheduler.state),
+            'jobs': jobs
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error getting scheduler status: {str(e)}'
         }), 500
 
 @app.route('/api/finance/preferences', methods=['GET', 'POST'])
