@@ -1183,7 +1183,9 @@
                 });
                 
                 // Update yearly and monthly data after a delay to reflect new order
+                console.log('Investment order saved, updating tables. New order:', investmentOrder);
                 setTimeout(() => {
+                    console.log('Reloading yearly and monthly tables...');
                     loadYearlyTrackingData();
                     loadMonthlyTrackingData();
                 }, 200);
@@ -1569,11 +1571,15 @@
             let investments = [...new Set(yearlyData.map(record => record.investmentName))];
             
             // Apply investment order if available
+            console.log('loadYearlyTrackingData - current investmentOrder:', investmentOrder);
+            console.log('loadYearlyTrackingData - investments before sorting:', investments);
             if (investmentOrder.length > 0) {
                 const investmentNameOrder = investmentOrder.map(id => {
                     const investment = investmentData.find(inv => inv.id === id);
                     return investment ? investment.name : null;
                 }).filter(name => name !== null);
+                
+                console.log('loadYearlyTrackingData - investmentNameOrder:', investmentNameOrder);
                 
                 investments.sort((a, b) => {
                     const aIndex = investmentNameOrder.indexOf(a);
@@ -1583,6 +1589,8 @@
                     if (bIndex === -1) return -1;
                     return aIndex - bIndex;
                 });
+                
+                console.log('loadYearlyTrackingData - investments after sorting:', investments);
             } else {
                 investments.sort();
             }
@@ -2002,11 +2010,15 @@
             let investments = [...new Set(monthlyData.map(record => record.investmentName))];
             
             // Apply investment order if available
+            console.log('loadMonthlyTrackingData - current investmentOrder:', investmentOrder);
+            console.log('loadMonthlyTrackingData - investments before sorting:', investments);
             if (investmentOrder.length > 0) {
                 const investmentNameOrder = investmentOrder.map(id => {
                     const investment = investmentData.find(inv => inv.id === id);
                     return investment ? investment.name : null;
                 }).filter(name => name !== null);
+                
+                console.log('loadMonthlyTrackingData - investmentNameOrder:', investmentNameOrder);
                 
                 investments.sort((a, b) => {
                     const aIndex = investmentNameOrder.indexOf(a);
@@ -2016,6 +2028,8 @@
                     if (bIndex === -1) return -1;
                     return aIndex - bIndex;
                 });
+                
+                console.log('loadMonthlyTrackingData - investments after sorting:', investments);
             } else {
                 investments.sort();
             }
