@@ -761,15 +761,65 @@ def update_current_monthly_record(investment_id, current_value):
 
 # Function to handle month advancement (called at midnight on 1st of each month)
 def advance_to_next_month():
-    """Called at midnight on 1st of each month - just log the month advancement"""
+    """Called at midnight on 1st of each month - create monthly snapshots for all investments"""
     try:
         from datetime import datetime
         now = datetime.now()
         logger.info(f"Month advanced to: {now.strftime('%B %Y')} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("New month started - monthly records will be created as investments are updated")
+        
+        # Get all investments
+        investments = Investment.query.all()
+        
+        if not investments:
+            logger.info("No investments found - skipping monthly snapshot creation")
+            return True
+            
+        snapshots_created = 0
+        snapshots_updated = 0
+        
+        for investment in investments:
+            try:
+                # Check if monthly record already exists for this investment in current month
+                existing_record = MonthlyRecord.query.filter_by(
+                    investment_id=investment.id,
+                    year=now.year,
+                    month=now.month
+                ).first()
+                
+                if existing_record:
+                    # Update existing record with current value
+                    existing_record.value = investment.current_value
+                    existing_record.date = now.date()
+                    existing_record.notes = f"Auto-updated monthly snapshot"
+                    snapshots_updated += 1
+                    logger.info(f"Updated monthly snapshot for '{investment.name}': £{investment.current_value}")
+                else:
+                    # Create new monthly record
+                    new_record = MonthlyRecord(
+                        investment_id=investment.id,
+                        year=now.year,
+                        month=now.month,
+                        value=investment.current_value,
+                        date=now.date(),
+                        notes=f"Auto-created monthly snapshot"
+                    )
+                    db.session.add(new_record)
+                    snapshots_created += 1
+                    logger.info(f"Created monthly snapshot for '{investment.name}': £{investment.current_value}")
+                    
+            except Exception as e:
+                logger.error(f"Error creating monthly snapshot for investment '{investment.name}': {str(e)}")
+                continue
+        
+        # Commit all changes
+        db.session.commit()
+        
+        logger.info(f"Monthly snapshot process completed: {snapshots_created} created, {snapshots_updated} updated")
         return True
+        
     except Exception as e:
         logger.error(f"Error in month advancement: {str(e)}")
+        db.session.rollback()
         return False
 
 # Initialize APScheduler
@@ -1881,6 +1931,29 @@ def finance_monthly_record_detail(record_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/trigger-monthly-snapshot', methods=['POST'])
+def trigger_monthly_snapshot():
+    """Manual endpoint to test monthly snapshot creation"""
+    try:
+        result = advance_to_next_month()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': 'Monthly snapshot process completed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Monthly snapshot process failed - check logs for details'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error triggering monthly snapshot: {str(e)}'
+        }), 500
 
 @app.route('/api/finance/preferences', methods=['GET', 'POST'])
 def finance_preferences():

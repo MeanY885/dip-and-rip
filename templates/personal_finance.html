@@ -2116,10 +2116,13 @@
                         cellContent = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
                     }
 
+                    // Add styling for current month data
+                    const currentMonthStyle = record.isCurrent ? 'font-weight: bold; background-color: #e8f5e8;' : '';
+                    
                     return `
-                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer;" 
+                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer; ${currentMonthStyle}" 
                             onclick="editMonthlyCellValue(${record.id}, '${investment}', ${year}, ${parseInt(monthNum)}, ${record.value})"
-                            title="Value: £${record.value.toLocaleString()} | Click to edit">
+                            title="Value: £${record.value.toLocaleString()}${record.isCurrent ? '*' : ''} | Click to edit">
                             ${cellContent}
                             <button class="cell-delete-btn" onclick="event.stopPropagation(); deleteMonthlyCellValue(${record.id})" title="Delete">×</button>
                         </td>
