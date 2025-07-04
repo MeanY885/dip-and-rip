@@ -183,6 +183,7 @@ class FinanceTransaction(db.Model):
     is_duplicate = db.Column(db.Boolean, default=False)
     confidence_score = db.Column(db.Float, nullable=True)  # Auto-categorization confidence
     is_recurring = db.Column(db.Boolean, default=False)  # Mark if this is a recurring transaction
+    needs_validation = db.Column(db.Boolean, default=False)  # Highlight for validation after import
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.Index('idx_date_amount', 'date', 'amount'),
@@ -2681,6 +2682,13 @@ def finance_upload():
                     predicted_category = best_pattern.category_id
                     confidence_score = score
             
+            # Determine if validation is needed for this transaction
+            needs_validation = (
+                predicted_category is None or  # No category predicted
+                confidence_score < 0.6 or      # Low confidence in prediction
+                abs(trans_data['amount']) > 500  # Large amount (configurable threshold)
+            )
+            
             # Create transaction
             transaction = FinanceTransaction(
                 date=trans_data['date'],
@@ -2692,7 +2700,8 @@ def finance_upload():
                 source_row=trans_data['source_row'],
                 hash_value=hash_value,
                 category_id=predicted_category,
-                confidence_score=confidence_score
+                confidence_score=confidence_score,
+                needs_validation=needs_validation
             )
             
             db.session.add(transaction)
@@ -2777,6 +2786,7 @@ def finance_transactions():
                 'category_color': t.category_ref.color if t.category_ref else '#6c757d',
                 'confidence_score': t.confidence_score,
                 'is_recurring': t.is_recurring,
+                'needs_validation': t.needs_validation,
                 'month': t.month,
                 'year': t.year
             } for t in transactions.items],
@@ -2890,6 +2900,7 @@ def categorize_transaction(transaction_id):
         # Update transaction category
         transaction.category_id = category_id
         transaction.confidence_score = 1.0  # Manual categorization is 100% confident
+        transaction.needs_validation = False  # Manual categorization validates the transaction
         
         # Learn from this categorization
         if category_id:
@@ -2923,6 +2934,25 @@ def categorize_transaction(transaction_id):
                 'category_id': transaction.category_id,
                 'confidence_score': transaction.confidence_score
             }
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance-tracker/transactions/<int:transaction_id>/validate', methods=['POST'])
+def validate_transaction(transaction_id):
+    """Mark a transaction as validated"""
+    try:
+        transaction = FinanceTransaction.query.get_or_404(transaction_id)
+        
+        # Mark as validated
+        transaction.needs_validation = False
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Transaction marked as validated'
         })
         
     except Exception as e:

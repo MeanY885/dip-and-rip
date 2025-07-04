@@ -474,6 +474,50 @@
             transform: scale(0.9);
         }
         
+        /* Validation styles */
+        .needs-validation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .validation-badge {
+            display: inline-block;
+            background: #ffc107;
+            color: #212529;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        
+        .validate-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .validate-btn:hover {
+            background: #218838;
+            transform: scale(1.05);
+        }
+        
+        .validate-btn:active {
+            transform: scale(0.95);
+        }
+        
         .delete-all-btn {
             background: #6c757d;
             color: white;
@@ -1632,21 +1676,35 @@
                     '<span class="transaction-type money-in">Money In</span>' : 
                     '<span class="transaction-type money-out">Money Out</span>';
                 
-                // Add color coding based on category
+                // Add color coding based on category and validation status
                 let rowStyle = '';
-                if (t.category_id && allCategories) {
+                let rowClass = '';
+                
+                if (t.needs_validation) {
+                    // Highlight transactions needing validation
+                    rowStyle = `style="border: 2px solid #ffc107; background-color: #fff3cd; box-shadow: 0 2px 4px rgba(255,193,7,0.3);"`;
+                    rowClass = 'needs-validation';
+                } else if (t.category_id && allCategories) {
                     const category = allCategories.find(c => c.id === t.category_id);
                     if (category && category.color) {
                         rowStyle = `style="border-left: 4px solid ${category.color}; background-color: ${category.color}15;"`;
                     }
                 }
                 
+                // Create validation badge and button
+                const validationBadge = t.needs_validation ? '<span class="validation-badge">⚠️ NEEDS VALIDATION</span>' : '';
+                const validationButton = t.needs_validation ? 
+                    `<button class="validate-btn" onclick="validateTransaction(${t.id})" title="Mark as validated">✅ Validate</button>` : '';
+                
                 html += `
-                    <tr data-transaction-id="${t.id}" ${rowStyle}>
+                    <tr data-transaction-id="${t.id}" class="${rowClass}" ${rowStyle}>
                         <td class="editable-date" onclick="editField(this, 'date', ${t.id})" title="Click to edit">${new Date(t.date).toLocaleDateString()}</td>
                         <td>${typeTag}</td>
                         <td class="editable-amount" onclick="editField(this, 'amount', ${t.id})" title="Click to edit">${formattedAmount}</td>
-                        <td class="editable-description" onclick="editField(this, 'description', ${t.id})" title="Click to edit">${t.description}</td>
+                        <td class="editable-description" onclick="editField(this, 'description', ${t.id})" title="Click to edit">
+                            ${t.description}
+                            ${validationBadge}
+                        </td>
                         <td>
                             <select class="category-select" onchange="updateTransactionCategory(${t.id}, this.value)" data-transaction-id="${t.id}">
                                 <option value="">Uncategorized</option>
@@ -1657,6 +1715,7 @@
                             <input type="checkbox" ${t.is_recurring ? 'checked' : ''} onchange="updateRecurring(${t.id}, this.checked)" title="Mark as recurring">
                         </td>
                         <td>
+                            ${validationButton}
                             <button class="delete-btn" onclick="deleteTransaction(${t.id})" title="Delete transaction">🗑️</button>
                         </td>
                     </tr>
@@ -2302,6 +2361,41 @@
         }
         
         // Delete transaction
+        async function validateTransaction(transactionId) {
+            try {
+                const response = await fetch(`/api/finance-tracker/transactions/${transactionId}/validate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Show success message
+                    const notification = document.createElement('div');
+                    notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 10px 15px; border-radius: 5px; z-index: 1000; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+                    notification.textContent = '✅ Transaction validated successfully';
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after 3 seconds
+                    setTimeout(() => {
+                        if (notification.parentNode) {
+                            notification.parentNode.removeChild(notification);
+                        }
+                    }, 3000);
+                    
+                    // Refresh transactions to update the display
+                    loadTransactions();
+                } else {
+                    alert('Error validating transaction: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error validating transaction: ' + error.message);
+            }
+        }
+
         async function deleteTransaction(transactionId) {
             if (!confirm('Are you sure you want to delete this transaction?')) {
                 return;
