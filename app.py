@@ -285,6 +285,26 @@ with app.app_context():
     except Exception as e:
         logger.warning(f"Migration check failed: {e}")
         # If migration fails, just continue - the table might be new
+    
+    # Handle migration for FinanceTransaction table - add needs_validation column if missing
+    try:
+        inspector = inspect(db.engine)
+        if 'finance_transaction' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('finance_transaction')]
+            
+            if 'needs_validation' not in columns:
+                logger.info("Adding needs_validation column to finance_transaction table...")
+                
+                migration_sql = "ALTER TABLE finance_transaction ADD COLUMN needs_validation BOOLEAN DEFAULT 0;"
+                
+                with db.engine.connect() as conn:
+                    conn.execute(text(migration_sql))
+                    conn.commit()
+                
+                logger.info("needs_validation column added successfully")
+                
+    except Exception as e:
+        logger.warning(f"FinanceTransaction migration check failed: {e}")
 
 class BTCBacktester:
     def __init__(self, lookback_days=365, investment_value=1000, buy_dip_percent=5, sell_gain_percent=10, transaction_fee_percent=0.1):
