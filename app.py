@@ -642,6 +642,183 @@ class BTCBacktester:
             }
         }
     
+    def get_automated_optimal_strategies(self):
+        """Get automated optimal strategies for all timeframes - lightweight calculation"""
+        logger.info("Calculating automated optimal strategies...")
+        
+        # Define timeframes in days
+        timeframes = {
+            '1d': 1,
+            '3d': 3,
+            '7d': 7,
+            '14d': 14,
+            '30d': 30,
+            '60d': 60,
+            '90d': 90,
+            '6m': 180,
+            '1y': 365
+        }
+        
+        # Store original settings
+        original_lookback = self.lookback_days
+        original_investment = self.investment_value
+        
+        # Use smaller ranges for automated analysis (performance optimization)
+        buy_range = (1, 10)
+        sell_range = (1, 15)
+        step = 1.0  # Larger step for faster calculation
+        
+        strategies = {}
+        all_strategies = []
+        
+        for timeframe_name, days in timeframes.items():
+            logger.info(f"Analyzing {timeframe_name} ({days} days)...")
+            
+            # Set lookback for this timeframe
+            self.lookback_days = days
+            self.investment_value = 1000  # Standard investment for comparison
+            
+            # Fetch data for this timeframe
+            if not self.fetch_data():
+                logger.warning(f"Failed to fetch data for {timeframe_name}")
+                continue
+            
+            # Quick optimization with limited parameter range
+            buy_percentages = np.arange(buy_range[0], buy_range[1] + step, step)
+            sell_percentages = np.arange(sell_range[0], sell_range[1] + step, step)
+            
+            best_result = None
+            best_return = -float('inf')
+            results = []
+            
+            for buy_pct in buy_percentages:
+                for sell_pct in sell_percentages:
+                    if sell_pct < buy_pct:
+                        continue
+                    
+                    result = self.run_backtest_with_params(buy_pct, sell_pct)
+                    if result:
+                        results.append(result)
+                        if result['total_return'] > best_return:
+                            best_return = result['total_return']
+                            best_result = result
+            
+            if best_result and results:
+                # Calculate confidence score based on consistency and performance
+                returns = [r['total_return'] for r in results]
+                avg_return = np.mean(returns)
+                std_return = np.std(returns) if len(returns) > 1 else 0
+                positive_results = sum(1 for r in returns if r > 0)
+                
+                # Confidence score: higher is better, considers consistency and positive performance
+                confidence = min(100, max(0, 
+                    (positive_results / len(returns)) * 100 * 
+                    (1 + (avg_return / (std_return + 1)) * 0.1)
+                ))
+                
+                # Buy & hold benchmark
+                if not self.data.empty:
+                    initial_price = self.data['Close'].iloc[0]
+                    final_price = self.data['Close'].iloc[-1]
+                    buy_hold_return = (final_price - initial_price) / initial_price * 100
+                else:
+                    buy_hold_return = 0
+                
+                strategy = {
+                    'timeframe': timeframe_name,
+                    'timeframe_days': days,
+                    'buy_percent': best_result['buy_dip_percent'],
+                    'sell_percent': best_result['sell_gain_percent'],
+                    'expected_return': best_result['total_return'],
+                    'confidence_score': confidence,
+                    'num_trades': best_result['num_trades'],
+                    'max_drawdown': best_result['max_drawdown'],
+                    'buy_hold_return': buy_hold_return,
+                    'outperformance': best_result['total_return'] - buy_hold_return,
+                    'last_updated': datetime.now().isoformat()
+                }
+                
+                strategies[timeframe_name] = strategy
+                all_strategies.append(strategy)
+        
+        # Calculate overall best strategy
+        overall_best = self._calculate_overall_best_strategy(all_strategies)
+        
+        # Restore original settings
+        self.lookback_days = original_lookback
+        self.investment_value = original_investment
+        
+        logger.info("Automated strategy calculation complete")
+        
+        return {
+            'timeframe_strategies': strategies,
+            'overall_best': overall_best,
+            'calculation_time': datetime.now().isoformat(),
+            'total_timeframes': len(strategies)
+        }
+    
+    def _calculate_overall_best_strategy(self, all_strategies):
+        """Calculate the overall best strategy across all timeframes"""
+        if not all_strategies:
+            return None
+        
+        # Weight strategies by timeframe importance (longer timeframes get higher weight)
+        timeframe_weights = {
+            '1d': 0.5, '3d': 0.7, '7d': 1.0, '14d': 1.2, '30d': 1.5,
+            '60d': 1.8, '90d': 2.0, '6m': 2.2, '1y': 2.5
+        }
+        
+        # Calculate weighted scores for each strategy combination
+        param_scores = {}
+        
+        for strategy in all_strategies:
+            timeframe = strategy['timeframe']
+            param_key = f"{strategy['buy_percent']:.0f}_{strategy['sell_percent']:.0f}"
+            weight = timeframe_weights.get(timeframe, 1.0)
+            
+            # Score based on return, confidence, and outperformance
+            score = (
+                strategy['expected_return'] * 0.4 +
+                strategy['confidence_score'] * 0.3 +
+                strategy['outperformance'] * 0.3
+            ) * weight
+            
+            if param_key not in param_scores:
+                param_scores[param_key] = {
+                    'buy_percent': strategy['buy_percent'],
+                    'sell_percent': strategy['sell_percent'],
+                    'total_score': 0,
+                    'weighted_return': 0,
+                    'weighted_confidence': 0,
+                    'timeframe_count': 0,
+                    'strategies': []
+                }
+            
+            param_scores[param_key]['total_score'] += score
+            param_scores[param_key]['weighted_return'] += strategy['expected_return'] * weight
+            param_scores[param_key]['weighted_confidence'] += strategy['confidence_score'] * weight
+            param_scores[param_key]['timeframe_count'] += 1
+            param_scores[param_key]['strategies'].append(strategy)
+        
+        # Find best overall strategy
+        best_param = max(param_scores.items(), key=lambda x: x[1]['total_score'])
+        best_data = best_param[1]
+        
+        # Calculate averages
+        total_weight = sum(timeframe_weights[s['timeframe']] for s in best_data['strategies'])
+        avg_return = best_data['weighted_return'] / total_weight
+        avg_confidence = best_data['weighted_confidence'] / total_weight
+        
+        return {
+            'buy_percent': best_data['buy_percent'],
+            'sell_percent': best_data['sell_percent'],
+            'average_return': avg_return,
+            'average_confidence': avg_confidence,
+            'timeframe_count': best_data['timeframe_count'],
+            'total_score': best_data['total_score'],
+            'strategies': best_data['strategies']
+        }
+    
     def calculate_signals(self):
         """Calculate buy/sell signals based on percentage moves"""
         if self.data is None or self.data.empty:
@@ -1695,6 +1872,39 @@ def dip_analysis():
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/optimal-strategy', methods=['GET'])
+def get_optimal_strategy():
+    """API endpoint for automated optimal strategy recommendations"""
+    try:
+        logger.info("Received optimal strategy request")
+        
+        # Create BTCBacktester instance with default settings
+        backtester = BTCBacktester(
+            lookback_days=365,  # Will be overridden for each timeframe
+            investment_value=1000,
+            transaction_fee_percent=0.1
+        )
+        
+        # Get automated optimal strategies
+        strategies = backtester.get_automated_optimal_strategies()
+        
+        if strategies is None:
+            return jsonify({'error': 'Failed to calculate optimal strategies. Could not fetch market data.'}), 500
+        
+        # Format response for frontend
+        formatted_response = {
+            'success': True,
+            'strategies': strategies,
+            'last_updated': datetime.now().isoformat(),
+            'cache_duration': 300  # 5 minutes cache recommendation
+        }
+        
+        return jsonify(formatted_response)
+        
+    except Exception as e:
+        logger.error(f"Error in optimal strategy route: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/backtest', methods=['POST'])
 def run_backtest():

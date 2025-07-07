@@ -425,6 +425,222 @@
             border-left: 4px solid #28a745;
         }
         
+        /* Smart Strategy Widget Styles */
+        .strategy-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .strategy-header h3 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        
+        .strategy-header p {
+            margin: 0 0 15px 0;
+            opacity: 0.9;
+        }
+        
+        .last-updated {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .auto-refresh-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #28a745;
+            margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .overall-strategy-section {
+            margin-bottom: 40px;
+        }
+        
+        .overall-strategy-section h4 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .overall-strategy-card {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .strategy-params {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .param-display {
+            text-align: center;
+        }
+        
+        .param-label {
+            display: block;
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .param-value {
+            display: block;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .apply-strategy-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .apply-strategy-btn:hover {
+            background: white;
+            color: #28a745;
+        }
+        
+        .timeframe-strategies h4 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 20px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .strategies-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .strategy-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .strategy-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .strategy-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+        }
+        
+        .strategy-timeframe {
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .param-row .param-label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .param-row .param-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .strategy-performance {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .performance-metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .metric-label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+        }
+        
+        .metric-value.return {
+            color: #28a745;
+        }
+        
+        .metric-value.confidence {
+            color: #007bff;
+        }
+        
+        .apply-btn {
+            width: 100%;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .apply-btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        
         .tabs {
             display: flex;
             border-bottom: 1px solid #ddd;
@@ -1041,6 +1257,7 @@
             <button class="tab" data-tab="data">📊 Data Viewer</button>
             <button class="tab" data-tab="backtest">🚀 Single Backtest</button>
             <button class="tab" data-tab="optimize">🎯 Find Best Parameters</button>
+            <button class="tab" data-tab="smart-strategy">🤖 Smart Strategy</button>
         </div>
         
         <!-- Trading Records Tab -->
@@ -1636,6 +1853,288 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Smart Strategy Tab -->
+        <div id="smart-strategy-tab" class="tab-content">
+            <div class="strategy-header">
+                <h3>🤖 Automated Strategy Recommendations</h3>
+                <p><strong>Real-time optimal parameters</strong> for all timeframes - automatically updated every 60 seconds</p>
+                <div class="last-updated">
+                    <span id="strategy-last-updated">Loading...</span>
+                    <span class="auto-refresh-indicator" id="strategy-refresh-status">●</span>
+                </div>
+            </div>
+            
+            <!-- Overall Best Strategy Section -->
+            <div class="overall-strategy-section">
+                <h4>🏆 Overall Best Strategy</h4>
+                <div class="overall-strategy-card" id="overall-strategy">
+                    <div class="strategy-params">
+                        <div class="param-display">
+                            <span class="param-label">Buy</span>
+                            <span class="param-value" id="overall-buy">--</span>
+                        </div>
+                        <div class="param-display">
+                            <span class="param-label">Sell</span>
+                            <span class="param-value" id="overall-sell">--</span>
+                        </div>
+                        <div class="param-display">
+                            <span class="param-label">Confidence</span>
+                            <span class="param-value confidence" id="overall-confidence">--</span>
+                        </div>
+                        <div class="param-display">
+                            <span class="param-label">Avg Return</span>
+                            <span class="param-value return" id="overall-return">--</span>
+                        </div>
+                    </div>
+                    <div class="strategy-actions">
+                        <button class="apply-strategy-btn" id="apply-overall-strategy" onclick="applyOverallStrategy()">
+                            🚀 Apply to Backtest
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Timeframe Strategies Grid -->
+            <div class="timeframe-strategies">
+                <h4>📊 Timeframe-Specific Strategies</h4>
+                <div class="strategies-grid">
+                    <!-- 1 Day -->
+                    <div class="strategy-card" data-timeframe="1d">
+                        <div class="strategy-timeframe">1 Day</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-1d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-1d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-1d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-1d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('1d')">Apply</button>
+                    </div>
+                    
+                    <!-- 3 Days -->
+                    <div class="strategy-card" data-timeframe="3d">
+                        <div class="strategy-timeframe">3 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-3d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-3d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-3d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-3d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('3d')">Apply</button>
+                    </div>
+                    
+                    <!-- 7 Days -->
+                    <div class="strategy-card" data-timeframe="7d">
+                        <div class="strategy-timeframe">7 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-7d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-7d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-7d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-7d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('7d')">Apply</button>
+                    </div>
+                    
+                    <!-- 14 Days -->
+                    <div class="strategy-card" data-timeframe="14d">
+                        <div class="strategy-timeframe">14 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-14d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-14d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-14d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-14d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('14d')">Apply</button>
+                    </div>
+                    
+                    <!-- 30 Days -->
+                    <div class="strategy-card" data-timeframe="30d">
+                        <div class="strategy-timeframe">30 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-30d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-30d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-30d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-30d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('30d')">Apply</button>
+                    </div>
+                    
+                    <!-- 60 Days -->
+                    <div class="strategy-card" data-timeframe="60d">
+                        <div class="strategy-timeframe">60 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-60d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-60d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-60d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-60d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('60d')">Apply</button>
+                    </div>
+                    
+                    <!-- 90 Days -->
+                    <div class="strategy-card" data-timeframe="90d">
+                        <div class="strategy-timeframe">90 Days</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-90d-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-90d-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-90d-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-90d-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('90d')">Apply</button>
+                    </div>
+                    
+                    <!-- 6 Months -->
+                    <div class="strategy-card" data-timeframe="6m">
+                        <div class="strategy-timeframe">6 Months</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-6m-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-6m-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-6m-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-6m-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('6m')">Apply</button>
+                    </div>
+                    
+                    <!-- 1 Year -->
+                    <div class="strategy-card" data-timeframe="1y">
+                        <div class="strategy-timeframe">1 Year</div>
+                        <div class="strategy-params">
+                            <div class="param-row">
+                                <span class="param-label">Buy:</span>
+                                <span class="param-value" id="strategy-1y-buy">--</span>
+                            </div>
+                            <div class="param-row">
+                                <span class="param-label">Sell:</span>
+                                <span class="param-value" id="strategy-1y-sell">--</span>
+                            </div>
+                        </div>
+                        <div class="strategy-performance">
+                            <div class="performance-metric">
+                                <span class="metric-label">Return:</span>
+                                <span class="metric-value return" id="strategy-1y-return">--</span>
+                            </div>
+                            <div class="performance-metric">
+                                <span class="metric-label">Confidence:</span>
+                                <span class="metric-value confidence" id="strategy-1y-confidence">--</span>
+                            </div>
+                        </div>
+                        <button class="apply-btn" onclick="applyStrategy('1y')">Apply</button>
                     </div>
                 </div>
             </div>
@@ -4150,6 +4649,209 @@
                 });
             }
         });
+
+        // Smart Strategy Functionality
+        let smartStrategyData = null;
+        let smartStrategyRefreshInterval = null;
+
+        function loadSmartStrategies() {
+            console.log('Loading smart strategies...');
+            updateStrategyRefreshStatus('loading');
+            
+            fetch('/api/optimal-strategy')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        smartStrategyData = data.strategies;
+                        displaySmartStrategies(data.strategies);
+                        updateStrategyLastUpdated();
+                        updateStrategyRefreshStatus('connected');
+                        console.log('Smart strategies loaded successfully');
+                    } else {
+                        console.error('Failed to load smart strategies:', data.error);
+                        updateStrategyRefreshStatus('error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading smart strategies:', error);
+                    updateStrategyRefreshStatus('error');
+                });
+        }
+
+        function displaySmartStrategies(strategies) {
+            // Display overall best strategy
+            if (strategies.overall_best) {
+                const overall = strategies.overall_best;
+                document.getElementById('overall-buy').textContent = `${overall.buy_percent}%`;
+                document.getElementById('overall-sell').textContent = `${overall.sell_percent}%`;
+                document.getElementById('overall-confidence').textContent = `${overall.average_confidence.toFixed(1)}%`;
+                document.getElementById('overall-return').textContent = `${overall.average_return > 0 ? '+' : ''}${overall.average_return.toFixed(2)}%`;
+            }
+
+            // Display timeframe-specific strategies
+            const timeframes = ['1d', '3d', '7d', '14d', '30d', '60d', '90d', '6m', '1y'];
+            
+            timeframes.forEach(timeframe => {
+                const strategy = strategies.timeframe_strategies[timeframe];
+                if (strategy) {
+                    document.getElementById(`strategy-${timeframe}-buy`).textContent = `${strategy.buy_percent}%`;
+                    document.getElementById(`strategy-${timeframe}-sell`).textContent = `${strategy.sell_percent}%`;
+                    document.getElementById(`strategy-${timeframe}-return`).textContent = 
+                        `${strategy.expected_return > 0 ? '+' : ''}${strategy.expected_return.toFixed(2)}%`;
+                    document.getElementById(`strategy-${timeframe}-confidence`).textContent = 
+                        `${strategy.confidence_score.toFixed(1)}%`;
+                    
+                    // Update return color
+                    const returnElement = document.getElementById(`strategy-${timeframe}-return`);
+                    returnElement.style.color = strategy.expected_return >= 0 ? '#28a745' : '#dc3545';
+                }
+            });
+        }
+
+        function updateStrategyLastUpdated() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('strategy-last-updated').textContent = `Last updated: ${timeString}`;
+        }
+
+        function updateStrategyRefreshStatus(status) {
+            const indicator = document.getElementById('strategy-refresh-status');
+            
+            switch(status) {
+                case 'connected':
+                    indicator.style.backgroundColor = '#28a745';
+                    indicator.title = 'Connected - Auto-refreshing every 5 minutes';
+                    break;
+                case 'loading':
+                    indicator.style.backgroundColor = '#ffc107';
+                    indicator.title = 'Loading strategies...';
+                    break;
+                case 'error':
+                    indicator.style.backgroundColor = '#dc3545';
+                    indicator.title = 'Error loading strategies';
+                    break;
+            }
+        }
+
+        function applyStrategy(timeframe) {
+            if (!smartStrategyData || !smartStrategyData.timeframe_strategies[timeframe]) {
+                alert('Strategy data not available for ' + timeframe);
+                return;
+            }
+            
+            const strategy = smartStrategyData.timeframe_strategies[timeframe];
+            
+            // Switch to backtest tab
+            switchTab('backtest');
+            
+            // Apply parameters with visual feedback
+            setTimeout(() => {
+                document.getElementById('buy_dip_percent').value = strategy.buy_percent;
+                document.getElementById('sell_gain_percent').value = strategy.sell_percent;
+                document.getElementById('lookback_days').value = strategy.timeframe_days;
+                
+                // Visual feedback
+                const buyInput = document.getElementById('buy_dip_percent');
+                const sellInput = document.getElementById('sell_gain_percent');
+                const lookbackInput = document.getElementById('lookback_days');
+                
+                [buyInput, sellInput, lookbackInput].forEach(input => {
+                    input.style.background = '#d4edda';
+                    input.style.border = '2px solid #28a745';
+                });
+                
+                setTimeout(() => {
+                    [buyInput, sellInput, lookbackInput].forEach(input => {
+                        input.style.background = '';
+                        input.style.border = '';
+                    });
+                }, 3000);
+                
+                // Show notification
+                alert(`Applied ${timeframe} strategy: Buy ${strategy.buy_percent}% / Sell ${strategy.sell_percent}%`);
+            }, 200);
+        }
+
+        function applyOverallStrategy() {
+            if (!smartStrategyData || !smartStrategyData.overall_best) {
+                alert('Overall strategy data not available');
+                return;
+            }
+            
+            const strategy = smartStrategyData.overall_best;
+            
+            // Switch to backtest tab
+            switchTab('backtest');
+            
+            // Apply parameters with visual feedback
+            setTimeout(() => {
+                document.getElementById('buy_dip_percent').value = strategy.buy_percent;
+                document.getElementById('sell_gain_percent').value = strategy.sell_percent;
+                
+                // Visual feedback
+                const buyInput = document.getElementById('buy_dip_percent');
+                const sellInput = document.getElementById('sell_gain_percent');
+                
+                [buyInput, sellInput].forEach(input => {
+                    input.style.background = '#d4edda';
+                    input.style.border = '2px solid #28a745';
+                });
+                
+                setTimeout(() => {
+                    [buyInput, sellInput].forEach(input => {
+                        input.style.background = '';
+                        input.style.border = '';
+                    });
+                }, 3000);
+                
+                // Show notification
+                alert(`Applied overall best strategy: Buy ${strategy.buy_percent}% / Sell ${strategy.sell_percent}%`);
+            }, 200);
+        }
+
+        function startSmartStrategyAutoRefresh() {
+            // Load immediately
+            loadSmartStrategies();
+            
+            // Set up auto-refresh every 5 minutes (300000ms)
+            smartStrategyRefreshInterval = setInterval(loadSmartStrategies, 300000);
+            
+            console.log('Smart strategy auto-refresh started (5 minute intervals)');
+        }
+
+        function stopSmartStrategyAutoRefresh() {
+            if (smartStrategyRefreshInterval) {
+                clearInterval(smartStrategyRefreshInterval);
+                smartStrategyRefreshInterval = null;
+                console.log('Smart strategy auto-refresh stopped');
+            }
+        }
+
+        // Initialize Smart Strategy when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Start auto-refresh when Smart Strategy tab is first accessed
+            const smartStrategyTab = document.querySelector('[data-tab="smart-strategy"]');
+            if (smartStrategyTab) {
+                smartStrategyTab.addEventListener('click', function() {
+                    if (!smartStrategyRefreshInterval) {
+                        startSmartStrategyAutoRefresh();
+                    }
+                }, { once: true }); // Only start once
+            }
+        });
+
+        // Enhanced tab switching to handle Smart Strategy auto-refresh
+        const originalSwitchTab = window.switchTab;
+        window.switchTab = function(tabName) {
+            if (originalSwitchTab) {
+                originalSwitchTab(tabName);
+            }
+            
+            // Handle Smart Strategy tab activation
+            if (tabName === 'smart-strategy' && !smartStrategyRefreshInterval) {
+                startSmartStrategyAutoRefresh();
+            }
+        };
 
     </script>
 </body>
