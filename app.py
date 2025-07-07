@@ -506,6 +506,142 @@ class BTCBacktester:
             'data_period': f"{self.data.index[0].strftime('%Y-%m-%d')} to {self.data.index[-1].strftime('%Y-%m-%d')}"
         }
     
+    def optimize_parameters_multi_timeframe(self, buy_range=(1, 15), sell_range=(1, 25), step=0.5):
+        """Find optimal buy/sell percentages across multiple timeframes"""
+        logger.info("Starting multi-timeframe parameter optimization...")
+        
+        # Define timeframes in days
+        timeframes = {
+            '1d': 1,
+            '3d': 3,
+            '7d': 7,
+            '14d': 14,
+            '30d': 30,
+            '60d': 60,
+            '90d': 90,
+            '6m': 180,
+            '1y': 365
+        }
+        
+        # Store original lookback_days
+        original_lookback = self.lookback_days
+        
+        multi_results = {}
+        
+        # Generate parameter combinations
+        buy_percentages = np.arange(buy_range[0], buy_range[1] + step, step)
+        sell_percentages = np.arange(sell_range[0], sell_range[1] + step, step)
+        
+        for timeframe_name, days in timeframes.items():
+            logger.info(f"Optimizing for {timeframe_name} ({days} days)...")
+            
+            # Set lookback for this timeframe
+            self.lookback_days = days
+            
+            # Fetch data for this timeframe
+            if not self.fetch_data():
+                logger.warning(f"Failed to fetch data for {timeframe_name}")
+                continue
+                
+            results = []
+            total_combinations = len(buy_percentages) * len(sell_percentages)
+            
+            for i, (buy_pct, sell_pct) in enumerate(itertools.product(buy_percentages, sell_percentages)):
+                if sell_pct < buy_pct:
+                    continue
+                    
+                result = self.run_backtest_with_params(buy_pct, sell_pct)
+                if result:
+                    results.append(result)
+            
+            # Calculate buy & hold benchmark for this timeframe
+            if not self.data.empty:
+                initial_price = self.data['Close'].iloc[0]
+                final_price = self.data['Close'].iloc[-1]
+                buy_hold_return = (final_price - initial_price) / initial_price * 100
+            else:
+                buy_hold_return = 0
+            
+            # Sort by total return (descending)
+            results.sort(key=lambda x: x['total_return'], reverse=True)
+            
+            multi_results[timeframe_name] = {
+                'results': results,
+                'buy_hold_return': buy_hold_return,
+                'total_tested': len(results),
+                'data_period': f"{self.data.index[0].strftime('%Y-%m-%d')} to {self.data.index[-1].strftime('%Y-%m-%d')}" if not self.data.empty else "No data",
+                'timeframe_days': days
+            }
+            
+            logger.info(f"Completed {timeframe_name}: {len(results)} combinations tested")
+        
+        # Restore original lookback_days
+        self.lookback_days = original_lookback
+        
+        # Calculate parameter consistency across timeframes
+        consistency_analysis = self._calculate_parameter_consistency(multi_results)
+        
+        logger.info("Multi-timeframe optimization complete")
+        
+        return {
+            'timeframes': multi_results,
+            'consistency': consistency_analysis,
+            'total_timeframes': len(multi_results)
+        }
+    
+    def _calculate_parameter_consistency(self, multi_results):
+        """Calculate consistency scores for parameter combinations across timeframes"""
+        param_performance = {}
+        
+        # Collect all parameter combinations and their performance
+        for timeframe, data in multi_results.items():
+            if not data['results']:
+                continue
+                
+            for result in data['results']:
+                param_key = f"{result['buy_dip_percent']:.1f}_{result['sell_gain_percent']:.1f}"
+                
+                if param_key not in param_performance:
+                    param_performance[param_key] = {
+                        'buy_pct': result['buy_dip_percent'],
+                        'sell_pct': result['sell_gain_percent'],
+                        'timeframes': {},
+                        'avg_return': 0,
+                        'consistency_score': 0,
+                        'positive_timeframes': 0
+                    }
+                
+                param_performance[param_key]['timeframes'][timeframe] = {
+                    'return': result['total_return'],
+                    'rank': data['results'].index(result) + 1,
+                    'total_tested': len(data['results'])
+                }
+        
+        # Calculate consistency metrics
+        for param_key, data in param_performance.items():
+            returns = [tf['return'] for tf in data['timeframes'].values()]
+            ranks = [tf['rank'] for tf in data['timeframes'].values()]
+            
+            if returns:
+                data['avg_return'] = np.mean(returns)
+                data['std_return'] = np.std(returns)
+                data['avg_rank'] = np.mean(ranks)
+                data['positive_timeframes'] = sum(1 for r in returns if r > 0)
+                
+                # Consistency score (lower is better for ranks, higher is better for returns)
+                data['consistency_score'] = (data['avg_return'] / (data['std_return'] + 1)) * (data['positive_timeframes'] / len(returns))
+        
+        # Sort by consistency score
+        sorted_params = sorted(param_performance.items(), key=lambda x: x[1]['consistency_score'], reverse=True)
+        
+        return {
+            'top_consistent_params': sorted_params[:10],
+            'analysis_summary': {
+                'total_params_tested': len(param_performance),
+                'timeframes_analyzed': len(multi_results)
+            }
+        }
+    
     def calculate_signals(self):
         """Calculate buy/sell signals based on percentage moves"""
         if self.data is None or self.data.empty:
@@ -1638,6 +1774,43 @@ def optimize_parameters():
         
     except Exception as e:
         logger.error(f"Error in optimization route: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+@app.route('/optimize_multi_timeframe', methods=['POST'])
+def optimize_parameters_multi_timeframe():
+    try:
+        data = request.json
+        logger.info(f"Received multi-timeframe optimization request: {data}")
+        
+        backtester = BTCBacktester(
+            lookback_days=int(data.get('lookback_days', 365)),  # This will be overridden for each timeframe
+            investment_value=float(data.get('investment_value', 1000)),
+            transaction_fee_percent=float(data.get('transaction_fee_percent', 0.1))
+        )
+        
+        # Get optimization ranges
+        buy_min = float(data.get('buy_min', 1))
+        buy_max = float(data.get('buy_max', 15))
+        sell_min = float(data.get('sell_min', 1))
+        sell_max = float(data.get('sell_max', 25))
+        step = float(data.get('step', 0.5))
+        
+        optimization_results = backtester.optimize_parameters_multi_timeframe(
+            buy_range=(buy_min, buy_max),
+            sell_range=(sell_min, sell_max),
+            step=step
+        )
+        
+        if optimization_results is None:
+            return jsonify({'error': 'Failed to optimize parameters across timeframes. Could not fetch market data.'}), 500
+        
+        return jsonify({
+            'success': True,
+            'multi_optimization': optimization_results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in multi-timeframe optimization route: {str(e)}")
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/test-data')

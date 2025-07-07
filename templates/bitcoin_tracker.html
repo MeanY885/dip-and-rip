@@ -307,6 +307,124 @@
             background-color: #218838;
         }
         
+        /* Toggle Switch Styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin: 0 10px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #007bff;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .toggle-description {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+        
+        /* Timeframe Tabs Styles */
+        .timeframe-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            border-bottom: 2px solid #ddd;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .timeframe-tab {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 8px;
+            background: #f8f9fa;
+            border: none;
+            border-right: 1px solid #ddd;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .timeframe-tab:last-child {
+            border-right: none;
+        }
+        
+        .timeframe-tab:hover {
+            background: #e9ecef;
+        }
+        
+        .timeframe-tab.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .timeframe-content {
+            display: none;
+            padding: 20px;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .timeframe-content.active {
+            display: block;
+        }
+        
+        .timeframe-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .consistency-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
         .tabs {
             display: flex;
             border-bottom: 1px solid #ddd;
@@ -1180,6 +1298,17 @@
             <form id="optimizeForm">
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="multi_timeframe_toggle">🚀 Multi-Timeframe Analysis:</label>
+                        <label class="switch">
+                            <input type="checkbox" id="multi_timeframe_toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="toggle-description">Optimize across 9 timeframes (1d, 3d, 7d, 14d, 30d, 60d, 90d, 6m, 1y)</span>
+                    </div>
+                </div>
+                
+                <div class="form-row" id="single_timeframe_row">
+                    <div class="form-group">
                         <label for="opt_lookback_days">📅 Lookback Days:</label>
                         <input type="number" id="opt_lookback_days" value="365" min="30" max="1825">
                     </div>
@@ -1259,6 +1388,256 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+        </div>
+        
+        <div id="multi-timeframe-results" style="display: none;">
+            <h2>🚀 Multi-Timeframe Optimization Results</h2>
+            <div id="multi-optimization-summary"></div>
+            
+            <!-- Consistency Analysis Section -->
+            <div class="consistency-section" style="margin-bottom: 30px;">
+                <h3>📊 Parameter Consistency Analysis</h3>
+                <div id="consistency-summary"></div>
+                <div class="consistency-results">
+                    <table class="optimization-table" id="consistency-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Buy %</th>
+                                <th>Sell %</th>
+                                <th>Avg Return %</th>
+                                <th>Consistency Score</th>
+                                <th>Positive Timeframes</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Timeframe Tabs -->
+            <div class="timeframe-tabs">
+                <button class="timeframe-tab active" data-timeframe="1d">1 Day</button>
+                <button class="timeframe-tab" data-timeframe="3d">3 Days</button>
+                <button class="timeframe-tab" data-timeframe="7d">7 Days</button>
+                <button class="timeframe-tab" data-timeframe="14d">14 Days</button>
+                <button class="timeframe-tab" data-timeframe="30d">30 Days</button>
+                <button class="timeframe-tab" data-timeframe="60d">60 Days</button>
+                <button class="timeframe-tab" data-timeframe="90d">90 Days</button>
+                <button class="timeframe-tab" data-timeframe="6m">6 Months</button>
+                <button class="timeframe-tab" data-timeframe="1y">1 Year</button>
+            </div>
+            
+            <!-- Timeframe Results -->
+            <div id="timeframe-results-container">
+                <div id="timeframe-1d" class="timeframe-content active">
+                    <h4>1 Day Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-3d" class="timeframe-content">
+                    <h4>3 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-7d" class="timeframe-content">
+                    <h4>7 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-14d" class="timeframe-content">
+                    <h4>14 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-30d" class="timeframe-content">
+                    <h4>30 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-60d" class="timeframe-content">
+                    <h4>60 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-90d" class="timeframe-content">
+                    <h4>90 Days Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-6m" class="timeframe-content">
+                    <h4>6 Months Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="timeframe-1y" class="timeframe-content">
+                    <h4>1 Year Results</h4>
+                    <div class="timeframe-summary"></div>
+                    <div class="optimization-results">
+                        <table class="optimization-table timeframe-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Buy %</th>
+                                    <th>Sell %</th>
+                                    <th>Final Value</th>
+                                    <th>Return %</th>
+                                    <th>Trades</th>
+                                    <th>Fees</th>
+                                    <th>Max Drawdown</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -3272,8 +3651,10 @@
                     e.preventDefault();
                     
                     const button = document.getElementById('runOptimization');
+                    const isMultiTimeframe = document.getElementById('multi_timeframe_toggle').checked;
+                    
                     button.disabled = true;
-                    button.textContent = '⏳ Optimizing... This may take a minute...';
+                    button.textContent = isMultiTimeframe ? '⏳ Multi-Timeframe Optimizing... This may take several minutes...' : '⏳ Optimizing... This may take a minute...';
                     
                     const formData = {
                         lookback_days: document.getElementById('opt_lookback_days').value,
@@ -3287,7 +3668,8 @@
                     };
                     
                     try {
-                        const response = await fetch('/optimize', {
+                        const endpoint = isMultiTimeframe ? '/optimize_multi_timeframe' : '/optimize';
+                        const response = await fetch(endpoint, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -3298,18 +3680,28 @@
                         const data = await response.json();
                         
                         if (data.success) {
-                            displayOptimizationResults(data.optimization);
+                            if (isMultiTimeframe) {
+                                displayMultiTimeframeResults(data.multi_optimization);
+                                document.getElementById('optimization-results').style.display = 'none';
+                                document.getElementById('multi-timeframe-results').style.display = 'block';
+                            } else {
+                                displayOptimizationResults(data.optimization);
+                                document.getElementById('multi-timeframe-results').style.display = 'none';
+                                document.getElementById('optimization-results').style.display = 'block';
+                            }
                             document.getElementById('backtesterError').style.display = 'none';
                             document.getElementById('backtesterResults').style.display = 'none';
                         } else {
                             document.getElementById('backtesterError').textContent = data.error || 'An error occurred';
                             document.getElementById('backtesterError').style.display = 'block';
                             document.getElementById('optimization-results').style.display = 'none';
+                            document.getElementById('multi-timeframe-results').style.display = 'none';
                         }
                     } catch (error) {
                         document.getElementById('backtesterError').textContent = 'Network error: ' + error.message;
                         document.getElementById('backtesterError').style.display = 'block';
                         document.getElementById('optimization-results').style.display = 'none';
+                        document.getElementById('multi-timeframe-results').style.display = 'none';
                     }
                     
                     button.disabled = false;
@@ -3601,6 +3993,163 @@
                 }, 2000);
             }, 200);
         }
+
+        function displayMultiTimeframeResults(multiOptimization) {
+            // Display consistency analysis
+            displayConsistencyAnalysis(multiOptimization.consistency);
+            
+            // Display timeframe-specific results
+            const timeframes = ['1d', '3d', '7d', '14d', '30d', '60d', '90d', '6m', '1y'];
+            timeframes.forEach(timeframe => {
+                if (multiOptimization.timeframes[timeframe]) {
+                    displayTimeframeResults(timeframe, multiOptimization.timeframes[timeframe]);
+                }
+            });
+            
+            // Initialize timeframe tabs
+            initializeTimeframeTabs();
+            
+            // Show multi-timeframe results
+            document.getElementById('multi-timeframe-results').style.display = 'block';
+        }
+
+        function displayConsistencyAnalysis(consistency) {
+            const summaryHtml = `
+                <div class="metrics-grid">
+                    <div class="metric positive">
+                        <div class="metric-value">${consistency.analysis_summary.total_params_tested}</div>
+                        <div class="metric-label">Parameter Combinations</div>
+                        <div class="metric-description">Tested across all timeframes</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${consistency.analysis_summary.timeframes_analyzed}</div>
+                        <div class="metric-label">Timeframes Analyzed</div>
+                        <div class="metric-description">1d, 3d, 7d, 14d, 30d, 60d, 90d, 6m, 1y</div>
+                    </div>
+                    <div class="metric positive">
+                        <div class="metric-value positive">${consistency.top_consistent_params[0][1].consistency_score.toFixed(3)}</div>
+                        <div class="metric-label">Best Consistency Score</div>
+                        <div class="metric-description">Buy ${consistency.top_consistent_params[0][1].buy_pct}% / Sell ${consistency.top_consistent_params[0][1].sell_pct}%</div>
+                    </div>
+                    <div class="metric positive">
+                        <div class="metric-value positive">${consistency.top_consistent_params[0][1].positive_timeframes}/${consistency.analysis_summary.timeframes_analyzed}</div>
+                        <div class="metric-label">Positive Timeframes</div>
+                        <div class="metric-description">Most consistent strategy</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('consistency-summary').innerHTML = summaryHtml;
+
+            const tableBody = document.querySelector('#consistency-table tbody');
+            tableBody.innerHTML = consistency.top_consistent_params.slice(0, 10).map((param, index) => `
+                <tr class="${index === 0 ? 'best-result' : ''}">
+                    <td>${index + 1}</td>
+                    <td>${param[1].buy_pct}%</td>
+                    <td>${param[1].sell_pct}%</td>
+                    <td style="color: ${param[1].avg_return >= 0 ? '#28a745' : '#dc3545'}">
+                        ${param[1].avg_return > 0 ? '+' : ''}${param[1].avg_return.toFixed(2)}%
+                    </td>
+                    <td>${param[1].consistency_score.toFixed(3)}</td>
+                    <td>${param[1].positive_timeframes}/${consistency.analysis_summary.timeframes_analyzed}</td>
+                    <td>
+                        <button onclick="useParameters(${param[1].buy_pct}, ${param[1].sell_pct})" 
+                                style="padding: 5px 10px; font-size: 12px;">
+                            Use These
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function displayTimeframeResults(timeframe, data) {
+            const timeframeContainer = document.getElementById(`timeframe-${timeframe}`);
+            if (!timeframeContainer || !data.results || data.results.length === 0) return;
+            
+            // Update summary
+            const summaryElement = timeframeContainer.querySelector('.timeframe-summary');
+            summaryElement.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric positive">
+                        <div class="metric-value positive">${data.results[0].total_return.toFixed(2)}%</div>
+                        <div class="metric-label">Best Return</div>
+                        <div class="metric-description">Buy ${data.results[0].buy_dip_percent}% / Sell ${data.results[0].sell_gain_percent}%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${data.buy_hold_return.toFixed(2)}%</div>
+                        <div class="metric-label">Buy & Hold</div>
+                        <div class="metric-description">${data.timeframe_days} days</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${data.total_tested}</div>
+                        <div class="metric-label">Combinations</div>
+                        <div class="metric-description">Tested</div>
+                    </div>
+                    <div class="metric positive">
+                        <div class="metric-value positive">+${(data.results[0].total_return - data.buy_hold_return).toFixed(2)}%</div>
+                        <div class="metric-label">Outperformance</div>
+                        <div class="metric-description">vs Buy & Hold</div>
+                    </div>
+                </div>
+            `;
+            
+            // Update table
+            const tableBody = timeframeContainer.querySelector('.timeframe-table tbody');
+            tableBody.innerHTML = data.results.slice(0, 15).map((result, index) => `
+                <tr class="${index === 0 ? 'best-result' : ''}">
+                    <td>${index + 1}</td>
+                    <td>${result.buy_dip_percent}%</td>
+                    <td>${result.sell_gain_percent}%</td>
+                    <td>£${result.final_value.toLocaleString()}</td>
+                    <td style="color: ${result.total_return >= 0 ? '#28a745' : '#dc3545'}">
+                        ${result.total_return > 0 ? '+' : ''}${result.total_return.toFixed(2)}%
+                    </td>
+                    <td>${result.num_trades}</td>
+                    <td>£${result.total_fees_paid.toFixed(2)}</td>
+                    <td style="color: #dc3545">${result.max_drawdown.toFixed(2)}%</td>
+                    <td>
+                        <button onclick="useParameters(${result.buy_dip_percent}, ${result.sell_gain_percent})" 
+                                style="padding: 5px 10px; font-size: 12px;">
+                            Use These
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function initializeTimeframeTabs() {
+            const tabs = document.querySelectorAll('.timeframe-tab');
+            const contents = document.querySelectorAll('.timeframe-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const timeframe = this.getAttribute('data-timeframe');
+                    
+                    // Remove active class from all tabs and contents
+                    tabs.forEach(t => t.classList.remove('active'));
+                    contents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    this.classList.add('active');
+                    document.getElementById(`timeframe-${timeframe}`).classList.add('active');
+                });
+            });
+        }
+
+        // Initialize multi-timeframe toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggle = document.getElementById('multi_timeframe_toggle');
+            const singleTimeframeRow = document.getElementById('single_timeframe_row');
+            
+            if (toggle && singleTimeframeRow) {
+                toggle.addEventListener('change', function() {
+                    if (this.checked) {
+                        singleTimeframeRow.style.display = 'none';
+                    } else {
+                        singleTimeframeRow.style.display = 'flex';
+                    }
+                });
+            }
+        });
 
     </script>
 </body>
