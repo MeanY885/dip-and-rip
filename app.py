@@ -984,6 +984,14 @@ class BTCBacktester:
         if zero_count > 0:
             logger.warning(f"Found {zero_count} zero values in Close data!")
             logger.warning(f"Zero value indices: {self.data[self.data['Close'] == 0].index.tolist()}")
+            
+        # Convert data to native Python types to avoid numpy serialization issues
+        logger.info("Converting data to native Python types for Plotly compatibility...")
+        chart_x_data = [x.isoformat() if hasattr(x, 'isoformat') else str(x) for x in self.data.index]
+        chart_y_data = [float(y) for y in self.data['Close'].astype(float)]
+        logger.info(f"Converted x data sample: {chart_x_data[:3]}")
+        logger.info(f"Converted y data sample: {chart_y_data[:3]}")
+        logger.info(f"Converted y data types: {[type(y) for y in chart_y_data[:3]]}")
         
         fig = make_subplots(
             rows=2, cols=1,
@@ -992,10 +1000,10 @@ class BTCBacktester:
             row_heights=[0.6, 0.4]
         )
         
-        # Price chart
+        # Price chart using converted data
         price_trace = go.Scatter(
-            x=self.data.index,
-            y=self.data['Close'],
+            x=chart_x_data,
+            y=chart_y_data,
             name='BTC Price',
             line=dict(color='orange', width=2),
             hovertemplate='<b>Price:</b> £%{y:,.2f}<br><b>Date:</b> %{x}<extra></extra>'
@@ -1013,8 +1021,8 @@ class BTCBacktester:
         buy_signals = self.data[self.data['Buy_Signal']]
         if not buy_signals.empty:
             fig.add_trace(go.Scatter(
-                x=buy_signals.index,
-                y=buy_signals['Close'],
+                x=[x.isoformat() if hasattr(x, 'isoformat') else str(x) for x in buy_signals.index],
+                y=[float(y) for y in buy_signals['Close'].astype(float)],
                 mode='markers',
                 name='Buy Signals',
                 marker=dict(color='lightgreen', size=8, symbol='triangle-up'),
@@ -1025,8 +1033,8 @@ class BTCBacktester:
         sell_signals = self.data[self.data['Sell_Signal']]
         if not sell_signals.empty:
             fig.add_trace(go.Scatter(
-                x=sell_signals.index,
-                y=sell_signals['Close'],
+                x=[x.isoformat() if hasattr(x, 'isoformat') else str(x) for x in sell_signals.index],
+                y=[float(y) for y in sell_signals['Close'].astype(float)],
                 mode='markers',
                 name='Sell Signals',
                 marker=dict(color='lightcoral', size=8, symbol='triangle-down'),
@@ -1064,18 +1072,18 @@ class BTCBacktester:
                     meta=[t['fee'] for t in sell_trades]
                 ), row=1, col=1)
         
-        # Portfolio values
+        # Portfolio values using converted data
         fig.add_trace(go.Scatter(
-            x=self.data.index,
-            y=self.data['Strategy_Value'],
+            x=chart_x_data,
+            y=[float(y) for y in self.data['Strategy_Value'].astype(float)],
             name='Dip & Rip Strategy',
             line=dict(color='blue', width=3),
             hovertemplate='<b>Strategy Value:</b> £%{y:,.2f}<br><b>Date:</b> %{x}<extra></extra>'
         ), row=2, col=1)
         
         fig.add_trace(go.Scatter(
-            x=self.data.index,
-            y=self.data['Buy_Hold_Value'],
+            x=chart_x_data,
+            y=[float(y) for y in self.data['Buy_Hold_Value'].astype(float)],
             name='Buy & Hold',
             line=dict(color='gray', width=2, dash='dash'),
             hovertemplate='<b>Buy & Hold Value:</b> £%{y:,.2f}<br><b>Date:</b> %{x}<extra></extra>'
@@ -1120,7 +1128,7 @@ class BTCBacktester:
             logger.info("BTC Price trace found in chart JSON")
             # Look for actual y values in the JSON
             import re
-            btc_price_section = re.search(r'"name":"BTC Price".*?"y":\[(.*?)\]', chart_json)
+            btc_price_section = re.search(r'"name":"BTC Price".*?"y":\[(.*?)\]', chart_json, re.DOTALL)
             if btc_price_section:
                 y_values_str = btc_price_section.group(1)
                 logger.info(f"BTC Price y values preview: {y_values_str[:100]}...")
@@ -1128,6 +1136,27 @@ class BTCBacktester:
                 logger.warning("BTC Price trace found but no y values detected in JSON")
         else:
             logger.warning("BTC Price trace NOT found in chart JSON")
+            # Debug: Let's see what trace names ARE in the JSON
+            import re
+            trace_names = re.findall(r'"name":"([^"]+)"', chart_json)
+            logger.warning(f"Traces found in JSON: {trace_names}")
+            
+            # Let's also see a sample of the JSON structure around traces
+            logger.warning(f"JSON preview (first 500 chars): {chart_json[:500]}")
+            
+            # Check if there are any traces at all
+            if '"data":[' in chart_json:
+                logger.info("JSON contains data array")
+            else:
+                logger.error("JSON does not contain data array!")
+                
+            # Check for specific pandas/numpy serialization issues
+            if 'np.float64' in chart_json:
+                logger.error("Found np.float64 in JSON - serialization issue!")
+            if 'NaN' in chart_json:
+                logger.error("Found NaN in JSON!")
+            if 'Infinity' in chart_json:
+                logger.error("Found Infinity in JSON!")
             
         return chart_json
 
