@@ -373,6 +373,9 @@ class BTCBacktester:
                         continue
                     
                     df_data = []
+                    logger.info(f"Processing {len(pair_data)} rows for {kraken_pair}")
+                    logger.info(f"Sample raw data: {pair_data[0] if pair_data else 'No data'}")
+                    
                     for row in pair_data:
                         df_data.append({
                             'timestamp': int(row[0]),
@@ -390,6 +393,8 @@ class BTCBacktester:
                     df = df.sort_index()
                     
                     logger.info(f"Successfully fetched {len(df)} rows of data for {display_name}")
+                    logger.info(f"Price range: £{df['Close'].min():.2f} to £{df['Close'].max():.2f}")
+                    logger.info(f"First few prices: {df['Close'].head(3).tolist()}")
                     self.data = df
                     return True
                     
@@ -853,6 +858,10 @@ class BTCBacktester:
         if len(self.data) > self.lookback_days:
             self.data = self.data.tail(self.lookback_days)
             logger.info(f"Filtered data to most recent {self.lookback_days} days ({len(self.data)} rows)")
+            logger.info(f"Filtered price range: £{self.data['Close'].min():.2f} to £{self.data['Close'].max():.2f}")
+        else:
+            logger.info(f"Using all available data: {len(self.data)} rows")
+            logger.info(f"Available price range: £{self.data['Close'].min():.2f} to £{self.data['Close'].max():.2f}")
         
         self.calculate_signals()
         
