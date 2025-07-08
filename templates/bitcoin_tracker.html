@@ -1473,7 +1473,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="lookback_days">📅 Lookback Days:</label>
-                        <input type="number" id="lookback_days" value="365" min="30" max="1825">
+                        <input type="number" id="lookback_days" value="365" min="1" max="1825">
                     </div>
                     
                     <div class="form-group">
@@ -1527,7 +1527,7 @@
                 <div class="form-row" id="single_timeframe_row">
                     <div class="form-group">
                         <label for="opt_lookback_days">📅 Lookback Days:</label>
-                        <input type="number" id="opt_lookback_days" value="365" min="30" max="1825">
+                        <input type="number" id="opt_lookback_days" value="365" min="1" max="1825">
                     </div>
                     
                     <div class="form-group">
@@ -4767,8 +4767,12 @@
                     });
                 }, 3000);
                 
-                // Show notification
-                alert(`Applied ${timeframe} strategy: Buy ${strategy.buy_percent}% / Sell ${strategy.sell_percent}%`);
+                // Show notification with warning for very short timeframes
+                let message = `Applied ${timeframe} strategy: Buy ${strategy.buy_percent}% / Sell ${strategy.sell_percent}%`;
+                if (strategy.timeframe_days < 7) {
+                    message += `\n\nNote: Very short timeframes (${strategy.timeframe_days} days) may have limited data. Consider longer periods for more reliable results.`;
+                }
+                alert(message);
             }, 200);
         }
 

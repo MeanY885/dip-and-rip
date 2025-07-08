@@ -321,7 +321,13 @@ class BTCBacktester:
         try:
             url = "https://api.kraken.com/0/public/OHLC"
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=self.lookback_days + 30)
+            
+            # For short timeframes, ensure we fetch enough data for analysis
+            # Minimum 60 days total to ensure sufficient data points
+            buffer_days = max(30, 60 - self.lookback_days) if self.lookback_days < 30 else 30
+            total_days = self.lookback_days + buffer_days
+            
+            start_date = end_date - timedelta(days=total_days)
             since = int(start_date.timestamp())
             
             logger.info(f"Fetching Kraken data from {start_date} to {end_date}")
@@ -360,8 +366,10 @@ class BTCBacktester:
                             pair_data = data['result'][key]
                             break
                     
-                    if not pair_data or len(pair_data) < 10:
-                        logger.warning(f"Insufficient data for {kraken_pair}")
+                    # Adjust minimum data requirement based on lookback period
+                    min_data_points = max(5, min(10, self.lookback_days))
+                    if not pair_data or len(pair_data) < min_data_points:
+                        logger.warning(f"Insufficient data for {kraken_pair}: got {len(pair_data) if pair_data else 0}, need {min_data_points}")
                         continue
                     
                     df_data = []
@@ -1912,19 +1920,43 @@ def run_backtest():
         data = request.json
         logger.info(f"Received backtest request: {data}")
         
+        # Input validation
+        lookback_days = int(data.get('lookback_days', 365))
+        investment_value = float(data.get('investment_value', 1000))
+        buy_dip_percent = float(data.get('buy_dip_percent', 5))
+        sell_gain_percent = float(data.get('sell_gain_percent', 10))
+        transaction_fee_percent = float(data.get('transaction_fee_percent', 0.1))
+        
+        # Validate input ranges
+        if lookback_days < 1:
+            return jsonify({'error': 'Lookback days must be at least 1 day.'}), 400
+        if lookback_days > 1825:  # 5 years
+            return jsonify({'error': 'Lookback days cannot exceed 5 years (1825 days).'}), 400
+        if investment_value <= 0:
+            return jsonify({'error': 'Investment value must be positive.'}), 400
+        if buy_dip_percent <= 0 or sell_gain_percent <= 0:
+            return jsonify({'error': 'Buy and sell percentages must be positive.'}), 400
+        if sell_gain_percent < buy_dip_percent:
+            return jsonify({'error': 'Sell percentage must be greater than or equal to buy percentage.'}), 400
+        
         backtester = BTCBacktester(
-            lookback_days=int(data.get('lookback_days', 365)),
-            investment_value=float(data.get('investment_value', 1000)),
-            buy_dip_percent=float(data.get('buy_dip_percent', 5)),
-            sell_gain_percent=float(data.get('sell_gain_percent', 10)),
-            transaction_fee_percent=float(data.get('transaction_fee_percent', 0.1))
+            lookback_days=lookback_days,
+            investment_value=investment_value,
+            buy_dip_percent=buy_dip_percent,
+            sell_gain_percent=sell_gain_percent,
+            transaction_fee_percent=transaction_fee_percent
         )
         
         results = backtester.backtest()
         
         if results is None:
-            logger.error("Backtest returned None")
-            return jsonify({'error': 'Failed to fetch market data from Kraken. Please try again in a few minutes.'}), 500
+            # Enhanced error message for short timeframes
+            if lookback_days < 7:
+                logger.error(f"Backtest failed for short timeframe: {lookback_days} days")
+                return jsonify({'error': f'Insufficient market data for {lookback_days} day analysis. Very short timeframes may not have enough trading activity for meaningful results. Try 7+ days.'}), 500
+            else:
+                logger.error("Backtest returned None")
+                return jsonify({'error': 'Failed to fetch market data from Kraken. Please try again in a few minutes.'}), 500
         
         chart_json = backtester.create_chart(results)
         
@@ -1955,10 +1987,23 @@ def optimize_parameters():
         data = request.json
         logger.info(f"Received optimization request: {data}")
         
+        # Input validation
+        lookback_days = int(data.get('lookback_days', 365))
+        investment_value = float(data.get('investment_value', 1000))
+        transaction_fee_percent = float(data.get('transaction_fee_percent', 0.1))
+        
+        # Validate input ranges
+        if lookback_days < 1:
+            return jsonify({'error': 'Lookback days must be at least 1 day.'}), 400
+        if lookback_days > 1825:  # 5 years
+            return jsonify({'error': 'Lookback days cannot exceed 5 years (1825 days).'}), 400
+        if investment_value <= 0:
+            return jsonify({'error': 'Investment value must be positive.'}), 400
+        
         backtester = BTCBacktester(
-            lookback_days=int(data.get('lookback_days', 365)),
-            investment_value=float(data.get('investment_value', 1000)),
-            transaction_fee_percent=float(data.get('transaction_fee_percent', 0.1))
+            lookback_days=lookback_days,
+            investment_value=investment_value,
+            transaction_fee_percent=transaction_fee_percent
         )
         
         # Get optimization ranges
@@ -1975,7 +2020,11 @@ def optimize_parameters():
         )
         
         if optimization_results is None:
-            return jsonify({'error': 'Failed to optimize parameters. Could not fetch market data.'}), 500
+            # Enhanced error message for short timeframes
+            if lookback_days < 7:
+                return jsonify({'error': f'Insufficient market data for {lookback_days} day optimization. Very short timeframes may not have enough trading activity for meaningful optimization. Try 7+ days.'}), 500
+            else:
+                return jsonify({'error': 'Failed to optimize parameters. Could not fetch market data.'}), 500
         
         return jsonify({
             'success': True,
