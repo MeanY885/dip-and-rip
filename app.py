@@ -965,6 +965,26 @@ class BTCBacktester:
     
     def create_chart(self, results):
         """Create enhanced interactive chart with subplots"""
+        logger.info(f"Creating chart with data shape: {self.data.shape}")
+        logger.info(f"Chart data date range: {self.data.index.min()} to {self.data.index.max()}")
+        logger.info(f"Chart price range: £{self.data['Close'].min():.2f} to £{self.data['Close'].max():.2f}")
+        logger.info(f"Chart data sample: {self.data[['Close']].head(3).to_dict()}")
+        
+        # Enhanced debugging for chart data issues
+        logger.info(f"Data index type: {type(self.data.index)}")
+        logger.info(f"Close column dtype: {self.data['Close'].dtype}")
+        logger.info(f"Data index sample: {self.data.index[:3].tolist()}")
+        logger.info(f"Close values sample: {self.data['Close'][:3].tolist()}")
+        logger.info(f"Data contains NaN: Close={self.data['Close'].isna().sum()}, Index={self.data.index.isna().sum() if hasattr(self.data.index, 'isna') else 'N/A'}")
+        logger.info(f"Data contains Inf: Close={np.isinf(self.data['Close']).sum()}")
+        
+        # Check for zero values specifically
+        zero_count = (self.data['Close'] == 0).sum()
+        logger.info(f"Zero values in Close: {zero_count}")
+        if zero_count > 0:
+            logger.warning(f"Found {zero_count} zero values in Close data!")
+            logger.warning(f"Zero value indices: {self.data[self.data['Close'] == 0].index.tolist()}")
+        
         fig = make_subplots(
             rows=2, cols=1,
             subplot_titles=('BTC Price with Trading Signals', 'Portfolio Value Comparison'),
@@ -973,13 +993,21 @@ class BTCBacktester:
         )
         
         # Price chart
-        fig.add_trace(go.Scatter(
+        price_trace = go.Scatter(
             x=self.data.index,
             y=self.data['Close'],
             name='BTC Price',
             line=dict(color='orange', width=2),
             hovertemplate='<b>Price:</b> £%{y:,.2f}<br><b>Date:</b> %{x}<extra></extra>'
-        ), row=1, col=1)
+        )
+        
+        # Debug the actual trace data
+        logger.info(f"Price trace x data length: {len(price_trace.x)}")
+        logger.info(f"Price trace y data length: {len(price_trace.y)}")
+        logger.info(f"Price trace y sample: {list(price_trace.y[:3])}")
+        logger.info(f"Price trace y min/max: {min(price_trace.y):.2f} / {max(price_trace.y):.2f}")
+        
+        fig.add_trace(price_trace, row=1, col=1)
         
         # Buy signals (potential)
         buy_signals = self.data[self.data['Buy_Signal']]
@@ -1073,7 +1101,35 @@ class BTCBacktester:
         fig.update_yaxes(title_text="Price (£)", row=1, col=1)
         fig.update_yaxes(title_text="Portfolio Value (£)", row=2, col=1)
         
-        return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        # Debug figure structure before JSON conversion
+        logger.info(f"Figure has {len(fig.data)} traces")
+        for i, trace in enumerate(fig.data):
+            logger.info(f"Trace {i}: name='{trace.name}', type='{trace.type}', y_data_length={len(trace.y) if hasattr(trace, 'y') and trace.y is not None else 'None'}")
+            if hasattr(trace, 'y') and trace.y is not None and len(trace.y) > 0:
+                logger.info(f"  Y data sample: {list(trace.y[:3])}")
+                if hasattr(trace.y, '__iter__') and len([y for y in trace.y if y != 0]) > 0:
+                    non_zero_y = [y for y in trace.y if y != 0]
+                    logger.info(f"  Non-zero Y range: {min(non_zero_y):.2f} to {max(non_zero_y):.2f}")
+        
+        # Log chart JSON structure before returning
+        chart_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        logger.info(f"Chart JSON length: {len(chart_json)} characters")
+        
+        # Check if price data exists in JSON with more details
+        if '"name":"BTC Price"' in chart_json:
+            logger.info("BTC Price trace found in chart JSON")
+            # Look for actual y values in the JSON
+            import re
+            btc_price_section = re.search(r'"name":"BTC Price".*?"y":\[(.*?)\]', chart_json)
+            if btc_price_section:
+                y_values_str = btc_price_section.group(1)
+                logger.info(f"BTC Price y values preview: {y_values_str[:100]}...")
+            else:
+                logger.warning("BTC Price trace found but no y values detected in JSON")
+        else:
+            logger.warning("BTC Price trace NOT found in chart JSON")
+            
+        return chart_json
 
 # Helper function to update monthly investment records
 def update_current_monthly_record(investment_id, current_value):
