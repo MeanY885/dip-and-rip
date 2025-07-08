@@ -408,12 +408,15 @@ class BTCBacktester:
         """Run backtest with specific parameters (for optimization)"""
         if self.data is None or self.data.empty:
             return None
+        
+        # Filter data to the requested lookback period (keeping most recent data)
+        filtered_data = self.data.tail(self.lookback_days) if len(self.data) > self.lookback_days else self.data
             
         # Calculate signals with given parameters
         buy_dip_decimal = buy_dip_percent / 100
         sell_gain_decimal = sell_gain_percent / 100
         
-        returns = self.data['Close'].pct_change()
+        returns = filtered_data['Close'].pct_change()
         buy_signals = returns <= -buy_dip_decimal
         sell_signals = returns >= sell_gain_decimal
         
@@ -425,7 +428,7 @@ class BTCBacktester:
         num_trades = 0
         portfolio_values = []
         
-        for i, (date, row) in enumerate(self.data.iterrows()):
+        for i, (date, row) in enumerate(filtered_data.iterrows()):
             price = row['Close']
             
             # Buy signal
@@ -846,6 +849,11 @@ class BTCBacktester:
             logger.error("Failed to fetch data for backtest")
             return None
             
+        # Filter data to the requested lookback period (keeping most recent data)
+        if len(self.data) > self.lookback_days:
+            self.data = self.data.tail(self.lookback_days)
+            logger.info(f"Filtered data to most recent {self.lookback_days} days ({len(self.data)} rows)")
+        
         self.calculate_signals()
         
         cash = self.investment_value
