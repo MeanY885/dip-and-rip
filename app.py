@@ -1203,6 +1203,45 @@ def update_current_monthly_record(investment_id, current_value):
         logger.error(f"Error updating monthly record for investment {investment_id}: {str(e)}")
         return False
 
+def update_current_yearly_record(investment_id, current_value):
+    """Update or create yearly record for current year when investment value changes"""
+    try:
+        from datetime import datetime
+        
+        # Get current date
+        now = datetime.now()
+        current_year = now.year
+        
+        # Check if yearly record already exists for this investment in current year
+        existing_record = YearlyRecord.query.filter_by(
+            investment_id=investment_id,
+            year=current_year
+        ).first()
+        
+        if existing_record:
+            # Update existing record
+            existing_record.value = current_value
+            existing_record.date = now.date()
+            logger.info(f"Updated yearly record for investment {investment_id}: {current_value}")
+        else:
+            # Create new yearly record
+            new_record = YearlyRecord(
+                investment_id=investment_id,
+                year=current_year,
+                value=current_value,
+                date=now.date(),
+                notes=f"Auto-updated from current value"
+            )
+            db.session.add(new_record)
+            logger.info(f"Created new yearly record for investment {investment_id}: {current_value}")
+        
+        # Don't commit here - let the calling function handle the transaction
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error updating yearly record for investment {investment_id}: {str(e)}")
+        return False
+
 # Function to handle month advancement (called at midnight on 1st of each month)
 def advance_to_next_month():
     """Called at midnight on 1st of each month - create monthly snapshots for all investments"""
@@ -1267,6 +1306,67 @@ def advance_to_next_month():
             db.session.rollback()
             return False
 
+def advance_to_next_year():
+    """Called at midnight on 1st of January - create yearly snapshots for all investments"""
+    with app.app_context():
+        try:
+            from datetime import datetime
+            now = datetime.now()
+            logger.info(f"Year advanced to: {now.year} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Get all investments
+            investments = Investment.query.all()
+        
+            if not investments:
+                logger.info("No investments found - skipping yearly snapshot creation")
+                return True
+                
+            snapshots_created = 0
+            snapshots_updated = 0
+            
+            for investment in investments:
+                try:
+                    # Check if yearly record already exists for this investment in current year
+                    existing_record = YearlyRecord.query.filter_by(
+                        investment_id=investment.id,
+                        year=now.year
+                    ).first()
+                    
+                    if existing_record:
+                        # Update existing record with current value
+                        existing_record.value = investment.current_value
+                        existing_record.date = now.date()
+                        existing_record.notes = f"Auto-updated yearly snapshot"
+                        snapshots_updated += 1
+                        logger.info(f"Updated yearly snapshot for '{investment.name}': £{investment.current_value}")
+                    else:
+                        # Create new yearly record
+                        new_record = YearlyRecord(
+                            investment_id=investment.id,
+                            year=now.year,
+                            value=investment.current_value,
+                            date=now.date(),
+                            notes=f"Auto-created yearly snapshot"
+                        )
+                        db.session.add(new_record)
+                        snapshots_created += 1
+                        logger.info(f"Created yearly snapshot for '{investment.name}': £{investment.current_value}")
+                        
+                except Exception as e:
+                    logger.error(f"Error creating yearly snapshot for investment '{investment.name}': {str(e)}")
+                    continue
+            
+            # Commit all changes
+            db.session.commit()
+            
+            logger.info(f"Yearly snapshot process completed: {snapshots_created} created, {snapshots_updated} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in year advancement: {str(e)}")
+            db.session.rollback()
+            return False
+
 # Initialize APScheduler
 scheduler = BackgroundScheduler()
 
@@ -1276,6 +1376,15 @@ scheduler.add_job(
     trigger=CronTrigger(day=1, hour=0, minute=0),
     id='advance_month',
     name='Advance to next month',
+    replace_existing=True
+)
+
+# Schedule year advancement job to run at midnight on 1st of January
+scheduler.add_job(
+    func=advance_to_next_year,
+    trigger=CronTrigger(month=1, day=1, hour=0, minute=0),
+    id='advance_year',
+    name='Advance to next year',
     replace_existing=True
 )
 
@@ -2294,8 +2403,9 @@ def finance_investment_detail(investment_id):
             if 'currentValue' in data:
                 new_value = float(data['currentValue'])
                 investment.current_value = new_value
-                # Automatically update monthly record with new current value
+                # Automatically update monthly and yearly records with new current value
                 update_current_monthly_record(investment.id, new_value)
+                update_current_yearly_record(investment.id, new_value)
             if 'name' in data:
                 investment.name = data['name']
             if 'startInvestment' in data:
@@ -2503,6 +2613,92 @@ def finance_monthly_record_detail(record_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/finance/yearly-records', methods=['GET', 'POST'])
+def finance_yearly_records():
+    if request.method == 'GET':
+        # Get all yearly records
+        records = YearlyRecord.query.join(Investment).order_by(YearlyRecord.year.desc()).all()
+        
+        # Get current year for indicator
+        now = datetime.now()
+        current_year = now.year
+        
+        return jsonify({
+            'success': True,
+            'data': [{
+                'id': record.id,
+                'investmentId': record.investment_id,
+                'investmentName': record.investment_ref.name,
+                'year': record.year,
+                'value': record.value,
+                'valueDisplay': f"{record.value}*" if record.year == current_year else str(record.value),
+                'isCurrent': record.year == current_year,
+                'notes': record.notes or '',
+                'date': record.date.isoformat()
+            } for record in records]
+        })
+    
+    elif request.method == 'POST':
+        # Create or update yearly record
+        try:
+            data = request.json
+            
+            # Check if record already exists
+            existing_record = YearlyRecord.query.filter_by(
+                investment_id=data['investmentId'],
+                year=data['year']
+            ).first()
+            
+            if existing_record:
+                # Update existing record
+                existing_record.value = float(data['value'])
+                existing_record.notes = data.get('notes', '')
+                existing_record.date = datetime.strptime(f"{data['year']}-01-01", '%Y-%m-%d').date()
+                record = existing_record
+            else:
+                # Create new record
+                record = YearlyRecord(
+                    investment_id=data['investmentId'],
+                    year=data['year'],
+                    value=float(data['value']),
+                    notes=data.get('notes', ''),
+                    date=datetime.strptime(f"{data['year']}-01-01", '%Y-%m-%d').date()
+                )
+                db.session.add(record)
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id': record.id,
+                    'investmentId': record.investment_id,
+                    'investmentName': record.investment_ref.name,
+                    'year': record.year,
+                    'value': record.value,
+                    'notes': record.notes or '',
+                    'date': record.date.isoformat()
+                }
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/yearly-records/<int:record_id>', methods=['DELETE'])
+def finance_yearly_record_detail(record_id):
+    record = YearlyRecord.query.get_or_404(record_id)
+    
+    try:
+        db.session.delete(record)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 @app.route('/api/finance/trigger-monthly-snapshot', methods=['POST'])
 def trigger_monthly_snapshot():
     """Manual endpoint to test monthly snapshot creation"""
@@ -2524,6 +2720,29 @@ def trigger_monthly_snapshot():
         return jsonify({
             'success': False,
             'error': f'Error triggering monthly snapshot: {str(e)}'
+        }), 500
+
+@app.route('/api/finance/trigger-yearly-snapshot', methods=['POST'])
+def trigger_yearly_snapshot():
+    """Manual endpoint to test yearly snapshot creation"""
+    try:
+        result = advance_to_next_year()
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': 'Yearly snapshot process completed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Yearly snapshot process failed - check logs for details'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error triggering yearly snapshot: {str(e)}'
         }), 500
 
 @app.route('/api/finance/scheduler-status', methods=['GET'])
