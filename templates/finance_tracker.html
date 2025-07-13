@@ -1405,28 +1405,24 @@
                                     const spending = categorySpending.find(cs => cs.name === categoryName);
                                     const spent = spending ? Math.abs(spending.amount) : 0;
                                     const budget = category.budget;
-                                    const value = context.parsed.x;
+                                    const remaining = Math.max(0, budget - spent);
+                                    const overspend = Math.max(0, spent - budget);
                                     
-                                    if (context.dataset.label === 'Remaining Budget') {
-                                        const remaining = budget - spent;
-                                        const remainingPercent = budget > 0 ? ((remaining / budget) * 100).toFixed(1) : 0;
-                                        return `Remaining: £${value.toFixed(2)} (${remainingPercent}% of budget left)`;
-                                    } else if (context.dataset.label === 'Spent') {
-                                        const spentPercent = budget > 0 ? ((spent / budget) * 100).toFixed(1) : 0;
-                                        return `Spent: £${value.toFixed(2)} (${spentPercent}% of £${budget} budget)`;
-                                    } else if (context.dataset.label === 'Over Budget') {
-                                        const overPercent = budget > 0 ? (((spent - budget) / budget) * 100).toFixed(1) : 0;
-                                        return `Over Budget: £${value.toFixed(2)} (${overPercent}% over!)`;
+                                    // Only show one consolidated tooltip per category
+                                    if (context.dataset.label === 'Spent' || (context.dataset.label === 'Remaining Budget' && remaining > 0) || (context.dataset.label === 'Over Budget' && overspend > 0)) {
+                                        if (overspend > 0) {
+                                            return `Budget: £${budget.toFixed(2)} / Overspend: £${overspend.toFixed(2)}`;
+                                        } else {
+                                            return `Spent: £${spent.toFixed(2)} / Remaining: £${remaining.toFixed(2)}`;
+                                        }
                                     }
                                     
-                                    return `${context.dataset.label}: £${value.toFixed(2)}`;
+                                    // Hide tooltip for other dataset segments
+                                    return '';
                                 },
                                 afterLabel: function(context) {
-                                    const categoryName = context.label;
-                                    const category = categoriesWithBudgets.find(cat => cat.name === categoryName);
-                                    const spending = categorySpending.find(cs => cs.name === categoryName);
-                                    const spent = spending ? Math.abs(spending.amount) : 0;
-                                    return `Total spent: £${spent.toFixed(2)} / Budget: £${category.budget.toFixed(2)}`;
+                                    // Remove afterLabel for cleaner display
+                                    return '';
                                 }
                             }
                         }
