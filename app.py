@@ -1475,6 +1475,89 @@ def get_current_btc_price():
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
+def price_to_percentage(target_price, current_price, is_sell=False):
+    """Convert absolute price to percentage change"""
+    try:
+        if current_price <= 0 or target_price <= 0:
+            return 0
+        
+        if is_sell:
+            # For sell: percentage gain from buy price
+            # Assuming current_price is the buy price reference
+            percentage = ((target_price - current_price) / current_price) * 100
+        else:
+            # For buy: percentage dip from current price  
+            percentage = ((current_price - target_price) / current_price) * 100
+        
+        return round(percentage, 2)
+    except:
+        return 0
+
+def percentage_to_price(percentage, current_price, is_sell=False):
+    """Convert percentage to absolute price"""
+    try:
+        if current_price <= 0 or percentage < 0:
+            return 0
+        
+        if is_sell:
+            # For sell: current_price + percentage gain
+            target_price = current_price * (1 + percentage / 100)
+        else:
+            # For buy: current_price - percentage dip
+            target_price = current_price * (1 - percentage / 100)
+        
+        return round(target_price, 2)
+    except:
+        return 0
+
+def calculate_profit_preview(buy_price, sell_price, investment_amount, fee_percent):
+    """Calculate potential profit for price pair"""
+    try:
+        if buy_price <= 0 or sell_price <= 0 or investment_amount <= 0:
+            return {
+                'success': False,
+                'error': 'Invalid input values'
+            }
+        
+        if sell_price <= buy_price:
+            return {
+                'success': False,
+                'error': 'Sell price must be higher than buy price'
+            }
+        
+        # Calculate transaction costs
+        buy_fee = investment_amount * (fee_percent / 100)
+        cash_after_buy_fee = investment_amount - buy_fee
+        btc_amount = cash_after_buy_fee / buy_price
+        
+        # Calculate sell transaction
+        gross_sell_value = btc_amount * sell_price
+        sell_fee = gross_sell_value * (fee_percent / 100)
+        net_sell_value = gross_sell_value - sell_fee
+        
+        # Calculate profit
+        total_fees = buy_fee + sell_fee
+        profit = net_sell_value - investment_amount
+        profit_percentage = (profit / investment_amount) * 100
+        
+        return {
+            'success': True,
+            'investment': investment_amount,
+            'buy_price': buy_price,
+            'sell_price': sell_price,
+            'btc_amount': round(btc_amount, 8),
+            'total_fees': round(total_fees, 2),
+            'gross_profit': round(gross_sell_value - cash_after_buy_fee, 2),
+            'net_profit': round(profit, 2),
+            'profit_percentage': round(profit_percentage, 2),
+            'final_value': round(net_sell_value, 2)
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
 # Utility function to fetch historical data for data viewer
 def fetch_historical_data(days=365):
     """Fetch historical BTC data for data viewer"""
@@ -2134,9 +2217,32 @@ def run_backtest():
         # Input validation
         lookback_days = int(data.get('lookback_days', 365))
         investment_value = float(data.get('investment_value', 1000))
-        buy_dip_percent = float(data.get('buy_dip_percent', 5))
-        sell_gain_percent = float(data.get('sell_gain_percent', 10))
         transaction_fee_percent = float(data.get('transaction_fee_percent', 0.1))
+        
+        # Handle both percentage and price input modes
+        input_mode = data.get('input_mode', 'percentage')
+        
+        if input_mode == 'price':
+            # Convert price inputs to percentages
+            buy_price = float(data.get('buy_price_gbp', 0))
+            sell_price = float(data.get('sell_price_gbp', 0))
+            current_price = float(data.get('current_btc_price', 0))
+            
+            if buy_price <= 0 or sell_price <= 0 or current_price <= 0:
+                return jsonify({'error': 'All price values must be positive when using price mode.'}), 400
+            
+            if sell_price <= buy_price:
+                return jsonify({'error': 'Sell price must be higher than buy price.'}), 400
+            
+            # Convert to percentages
+            buy_dip_percent = price_to_percentage(buy_price, current_price, False)
+            sell_gain_percent = price_to_percentage(sell_price, buy_price, True)
+            
+            logger.info(f"Price mode: £{buy_price} -> £{sell_price} = {buy_dip_percent}% dip, {sell_gain_percent}% gain")
+        else:
+            # Use percentage inputs directly
+            buy_dip_percent = float(data.get('buy_dip_percent', 5))
+            sell_gain_percent = float(data.get('sell_gain_percent', 10))
         
         # Validate input ranges
         if lookback_days < 1:
@@ -2217,11 +2323,40 @@ def optimize_parameters():
             transaction_fee_percent=transaction_fee_percent
         )
         
-        # Get optimization ranges
-        buy_min = float(data.get('buy_min', 1))
-        buy_max = float(data.get('buy_max', 15))
-        sell_min = float(data.get('sell_min', 1))
-        sell_max = float(data.get('sell_max', 25))
+        # Handle both percentage and price input modes for optimization ranges
+        input_mode = data.get('opt_input_mode', 'percentage')
+        
+        if input_mode == 'price':
+            # Convert price ranges to percentage ranges
+            buy_price_min = float(data.get('buy_price_min', 0))
+            buy_price_max = float(data.get('buy_price_max', 0))
+            sell_price_min = float(data.get('sell_price_min', 0))
+            sell_price_max = float(data.get('sell_price_max', 0))
+            current_price = float(data.get('current_btc_price', 0))
+            
+            if buy_price_min <= 0 or buy_price_max <= 0 or sell_price_min <= 0 or sell_price_max <= 0 or current_price <= 0:
+                return jsonify({'error': 'All price values must be positive when using price mode.'}), 400
+            
+            if buy_price_min >= buy_price_max or sell_price_min >= sell_price_max:
+                return jsonify({'error': 'Price range maximums must be greater than minimums.'}), 400
+            
+            # Convert price ranges to percentage ranges
+            buy_max = price_to_percentage(buy_price_min, current_price, False)  # Lower price = higher dip %
+            buy_min = price_to_percentage(buy_price_max, current_price, False)  # Higher price = lower dip %
+            
+            # For sell prices, use buy_price_min as reference (assuming worst-case buy scenario)
+            sell_min = price_to_percentage(sell_price_min, buy_price_max, True)
+            sell_max = price_to_percentage(sell_price_max, buy_price_min, True)
+            
+            logger.info(f"Price mode optimization: Buy £{buy_price_min}-£{buy_price_max} = {buy_min}%-{buy_max}% dip")
+            logger.info(f"Price mode optimization: Sell £{sell_price_min}-£{sell_price_max} = {sell_min}%-{sell_max}% gain")
+        else:
+            # Use percentage inputs directly
+            buy_min = float(data.get('buy_min', 1))
+            buy_max = float(data.get('buy_max', 15))
+            sell_min = float(data.get('sell_min', 1))
+            sell_max = float(data.get('sell_max', 25))
+        
         step = float(data.get('step', 0.5))
         
         optimization_results = backtester.optimize_parameters(
@@ -3015,6 +3150,64 @@ def bitcoin_current_price():
             })
         else:
             return jsonify({'success': False, 'error': 'Could not fetch current price'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/price-to-percentage', methods=['POST'])
+def bitcoin_price_to_percentage():
+    """Convert absolute price to percentage change"""
+    try:
+        data = request.json
+        target_price = float(data.get('target_price', 0))
+        current_price = float(data.get('current_price', 0))
+        is_sell = data.get('is_sell', False)
+        
+        percentage = price_to_percentage(target_price, current_price, is_sell)
+        
+        return jsonify({
+            'success': True,
+            'percentage': percentage,
+            'target_price': target_price,
+            'current_price': current_price,
+            'is_sell': is_sell
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/percentage-to-price', methods=['POST'])
+def bitcoin_percentage_to_price():
+    """Convert percentage to absolute price"""
+    try:
+        data = request.json
+        percentage = float(data.get('percentage', 0))
+        current_price = float(data.get('current_price', 0))
+        is_sell = data.get('is_sell', False)
+        
+        target_price = percentage_to_price(percentage, current_price, is_sell)
+        
+        return jsonify({
+            'success': True,
+            'target_price': target_price,
+            'percentage': percentage,
+            'current_price': current_price,
+            'is_sell': is_sell
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/profit-preview', methods=['POST'])
+def bitcoin_profit_preview():
+    """Calculate potential profit for price pair"""
+    try:
+        data = request.json
+        buy_price = float(data.get('buy_price', 0))
+        sell_price = float(data.get('sell_price', 0))
+        investment_amount = float(data.get('investment_amount', 1000))
+        fee_percent = float(data.get('fee_percent', 0.1))
+        
+        result = calculate_profit_preview(buy_price, sell_price, investment_amount, fee_percent)
+        
+        return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
