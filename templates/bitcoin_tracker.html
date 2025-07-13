@@ -1576,15 +1576,20 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="buy_threshold">📉 Buy Threshold:</label>
-                        <input type="text" id="buy_threshold" placeholder="5% or £87200" class="smart-input">
+                        <input type="text" id="buy_threshold" value="5%" placeholder="5% or £87200" class="smart-input">
                         <span class="conversion-display" id="buy_conversion_display"></span>
                     </div>
                     
                     <div class="form-group">
                         <label for="sell_threshold">📈 Sell Threshold:</label>
-                        <input type="text" id="sell_threshold" placeholder="10% or £87500" class="smart-input">
+                        <input type="text" id="sell_threshold" value="10%" placeholder="10% or £87500" class="smart-input">
                         <span class="conversion-display" id="sell_conversion_display"></span>
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="transaction_fee_percent">💸 Transaction Fee (%):</label>
+                    <input type="number" id="transaction_fee_percent" value="0.1" min="0" max="2" step="0.01">
                 </div>
 
                 <!-- Profit Preview -->
@@ -1593,11 +1598,6 @@
                     <div class="profit-display" id="profit_calculation">
                         Enter thresholds to see profit calculation
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="transaction_fee_percent">💸 Transaction Fee (%):</label>
-                    <input type="number" id="transaction_fee_percent" value="0.1" min="0" max="2" step="0.01">
                 </div>
                 
                 <button type="submit" id="runBacktest">🔍 Run Backtest</button>
@@ -5025,6 +5025,10 @@
             document.getElementById('buy_threshold').addEventListener('input', handleSmartInputChange);
             document.getElementById('sell_threshold').addEventListener('input', handleSmartInputChange);
             
+            // Add event listeners for investment value and transaction fee to update profit preview
+            document.getElementById('investment_value').addEventListener('input', updateProfitPreview);
+            document.getElementById('transaction_fee_percent').addEventListener('input', updateProfitPreview);
+            
             // Add event listeners for optimization smart inputs
             document.getElementById('buy_range_min').addEventListener('input', handleOptSmartInputChange);
             document.getElementById('buy_range_max').addEventListener('input', handleOptSmartInputChange);
@@ -5037,6 +5041,20 @@
 
             // Load current BTC price on initialization
             refreshCurrentPrice();
+            
+            // Process initial values in smart inputs
+            setTimeout(() => {
+                const buyThresholdInput = document.getElementById('buy_threshold');
+                const sellThresholdInput = document.getElementById('sell_threshold');
+                
+                if (buyThresholdInput.value) {
+                    handleSmartInputChange({ target: buyThresholdInput });
+                }
+                
+                if (sellThresholdInput.value) {
+                    handleSmartInputChange({ target: sellThresholdInput });
+                }
+            }, 100);
         }
 
         // Parse smart input to determine if it's percentage or price
@@ -5134,14 +5152,22 @@
                     document.getElementById('current_btc_price_display').textContent = formattedPrice;
                     document.getElementById('opt_current_btc_price_display').textContent = formattedPrice;
                     
-                    // Update conversions if in price mode
-                    if (document.getElementById('price_mode').checked) {
-                        calculatePercentageFromPrice();
-                        calculateProfitPreview();
+                    // Update conversion displays and profit preview with new price
+                    const buyThresholdInput = document.getElementById('buy_threshold');
+                    const sellThresholdInput = document.getElementById('sell_threshold');
+                    
+                    if (buyThresholdInput.value) {
+                        const buyParsed = parseSmartInput(buyThresholdInput.value);
+                        updateConversionDisplay('buy_threshold', buyParsed);
                     }
-                    if (document.getElementById('opt_price_mode').checked) {
-                        calculateOptPercentageFromPrice();
+                    
+                    if (sellThresholdInput.value) {
+                        const sellParsed = parseSmartInput(sellThresholdInput.value);
+                        updateConversionDisplay('sell_threshold', sellParsed);
                     }
+                    
+                    // Update profit preview with new price
+                    updateProfitPreview();
                 } else {
                     console.error('Failed to fetch BTC price:', data.error);
                 }
