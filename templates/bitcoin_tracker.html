@@ -1235,27 +1235,32 @@
             opacity: 0.8;
         }
 
-        /* Price Mode Styles */
-        .input-mode-toggle {
-            display: flex;
-            gap: 15px;
-            margin: 10px 0;
-        }
-
-        .input-mode-toggle input[type="radio"] {
-            margin-right: 5px;
-        }
-
-        .input-mode-toggle label {
-            cursor: pointer;
-            padding: 5px 10px;
+        /* Smart Input Styles */
+        .smart-input {
+            border: 2px solid #007bff;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            padding: 8px 12px;
+            font-size: 14px;
+            width: 100%;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
 
-        .input-mode-toggle input[type="radio"]:checked + label {
-            background-color: #007bff;
-            color: white;
+        .smart-input:focus {
+            border-color: #0056b3;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+            outline: none;
+        }
+
+        .smart-input.percentage-input {
+            border-color: #28a745;
+        }
+
+        .smart-input.price-input {
+            border-color: #ffc107;
+        }
+
+        .smart-input.error-input {
+            border-color: #dc3545;
         }
 
         .price-reference {
@@ -1558,20 +1563,8 @@
                     </div>
                 </div>
                 
-                <!-- Input Mode Toggle -->
-                <div class="form-group">
-                    <label>📊 Input Mode:</label>
-                    <div class="input-mode-toggle">
-                        <input type="radio" id="percentage_mode" name="input_mode" value="percentage" checked>
-                        <label for="percentage_mode">📈 Percentage Mode</label>
-                        
-                        <input type="radio" id="price_mode" name="input_mode" value="price">
-                        <label for="price_mode">💷 Price Mode</label>
-                    </div>
-                </div>
-
                 <!-- Current BTC Price Reference -->
-                <div class="form-group" id="current_price_display" style="display: none;">
+                <div class="form-group">
                     <label>🔍 Current BTC Price:</label>
                     <div class="price-reference">
                         <span id="current_btc_price_display">Loading...</span>
@@ -1579,39 +1572,26 @@
                     </div>
                 </div>
 
-                <!-- Percentage Mode Inputs -->
-                <div class="form-row" id="percentage_inputs">
+                <!-- Smart Input Fields -->
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="buy_dip_percent">📉 Buy Dip Percentage (%):</label>
-                        <input type="number" id="buy_dip_percent" value="5" min="0.1" max="20" step="0.1">
+                        <label for="buy_threshold">📉 Buy Threshold:</label>
+                        <input type="text" id="buy_threshold" placeholder="5% or £87200" class="smart-input">
+                        <span class="conversion-display" id="buy_conversion_display"></span>
                     </div>
                     
                     <div class="form-group">
-                        <label for="sell_gain_percent">📈 Sell Gain Percentage (%):</label>
-                        <input type="number" id="sell_gain_percent" value="10" min="0.1" max="50" step="0.1">
-                    </div>
-                </div>
-
-                <!-- Price Mode Inputs -->
-                <div class="form-row" id="price_inputs" style="display: none;">
-                    <div class="form-group">
-                        <label for="buy_price_gbp">📉 Buy Price (£):</label>
-                        <input type="number" id="buy_price_gbp" min="1000" max="200000" step="1">
-                        <span class="conversion-display" id="buy_percentage_display"></span>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="sell_price_gbp">📈 Sell Price (£):</label>
-                        <input type="number" id="sell_price_gbp" min="1000" max="200000" step="1">
-                        <span class="conversion-display" id="sell_percentage_display"></span>
+                        <label for="sell_threshold">📈 Sell Threshold:</label>
+                        <input type="text" id="sell_threshold" placeholder="10% or £87500" class="smart-input">
+                        <span class="conversion-display" id="sell_conversion_display"></span>
                     </div>
                 </div>
 
                 <!-- Profit Preview -->
-                <div class="form-group" id="profit_preview" style="display: none;">
+                <div class="form-group" id="profit_preview">
                     <label>💰 Potential Profit Preview:</label>
                     <div class="profit-display" id="profit_calculation">
-                        Enter prices to see profit calculation
+                        Enter thresholds to see profit calculation
                     </div>
                 </div>
                 
@@ -1657,20 +1637,8 @@
                     </div>
                 </div>
                 
-                <!-- Optimization Input Mode Toggle -->
-                <div class="form-group">
-                    <label>📊 Optimization Mode:</label>
-                    <div class="input-mode-toggle">
-                        <input type="radio" id="opt_percentage_mode" name="opt_input_mode" value="percentage" checked>
-                        <label for="opt_percentage_mode">📈 Percentage Ranges</label>
-                        
-                        <input type="radio" id="opt_price_mode" name="opt_input_mode" value="price">
-                        <label for="opt_price_mode">💷 Price Ranges</label>
-                    </div>
-                </div>
-
                 <!-- Current BTC Price Reference for Optimization -->
-                <div class="form-group" id="opt_current_price_display" style="display: none;">
+                <div class="form-group">
                     <label>🔍 Current BTC Price:</label>
                     <div class="price-reference">
                         <span id="opt_current_btc_price_display">Loading...</span>
@@ -1678,61 +1646,32 @@
                     </div>
                 </div>
 
-                <!-- Percentage Mode Range Inputs -->
-                <div id="opt_percentage_inputs">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="buy_min">📉 Buy % Range (Min):</label>
-                            <input type="number" id="buy_min" value="1" min="0.1" max="15" step="0.1">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="buy_max">📉 Buy % Range (Max):</label>
-                            <input type="number" id="buy_max" value="10" min="1" max="25" step="0.1">
-                        </div>
+                <!-- Smart Range Inputs -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="buy_range_min">📉 Buy Range (Min):</label>
+                        <input type="text" id="buy_range_min" placeholder="1% or £85000" class="smart-input">
+                        <span class="conversion-display" id="buy_min_conversion_display"></span>
                     </div>
                     
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="sell_min">📈 Sell % Range (Min):</label>
-                            <input type="number" id="sell_min" value="1" min="0.1" max="20" step="0.1">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="sell_max">📈 Sell % Range (Max):</label>
-                            <input type="number" id="sell_max" value="10" min="1" max="50" step="0.1">
-                        </div>
+                    <div class="form-group">
+                        <label for="buy_range_max">📉 Buy Range (Max):</label>
+                        <input type="text" id="buy_range_max" placeholder="10% or £90000" class="smart-input">
+                        <span class="conversion-display" id="buy_max_conversion_display"></span>
                     </div>
                 </div>
-
-                <!-- Price Mode Range Inputs -->
-                <div id="opt_price_inputs" style="display: none;">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="buy_price_min">📉 Buy Price Range Min (£):</label>
-                            <input type="number" id="buy_price_min" min="1000" max="200000" step="1">
-                            <span class="conversion-display" id="buy_min_percentage_display"></span>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="buy_price_max">📉 Buy Price Range Max (£):</label>
-                            <input type="number" id="buy_price_max" min="1000" max="200000" step="1">
-                            <span class="conversion-display" id="buy_max_percentage_display"></span>
-                        </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sell_range_min">📈 Sell Range (Min):</label>
+                        <input type="text" id="sell_range_min" placeholder="1% or £87000" class="smart-input">
+                        <span class="conversion-display" id="sell_min_conversion_display"></span>
                     </div>
                     
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="sell_price_min">📈 Sell Price Range Min (£):</label>
-                            <input type="number" id="sell_price_min" min="1000" max="200000" step="1">
-                            <span class="conversion-display" id="sell_min_percentage_display"></span>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="sell_price_max">📈 Sell Price Range Max (£):</label>
-                            <input type="number" id="sell_price_max" min="1000" max="200000" step="1">
-                            <span class="conversion-display" id="sell_max_percentage_display"></span>
-                        </div>
+                    <div class="form-group">
+                        <label for="sell_range_max">📈 Sell Range (Max):</label>
+                        <input type="text" id="sell_range_max" placeholder="10% or £95000" class="smart-input">
+                        <span class="conversion-display" id="sell_max_conversion_display"></span>
                     </div>
                 </div>
                 
@@ -4281,24 +4220,42 @@
                     button.disabled = true;
                     button.textContent = '⏳ Running Backtest...';
                     
-                    // Determine input mode and prepare form data accordingly
-                    const inputMode = document.querySelector('input[name="input_mode"]:checked').value;
+                    // Parse smart inputs and prepare form data
+                    const buyParsed = parseSmartInput(document.getElementById('buy_threshold').value);
+                    const sellParsed = parseSmartInput(document.getElementById('sell_threshold').value);
+                    
+                    if (!buyParsed.isValid || !sellParsed.isValid) {
+                        throw new Error('Please enter valid buy and sell thresholds (e.g., "5%" or "£87200")');
+                    }
+
                     const formData = {
                         lookback_days: document.getElementById('lookback_days').value,
                         investment_value: document.getElementById('investment_value').value,
-                        transaction_fee_percent: document.getElementById('transaction_fee_percent').value,
-                        input_mode: inputMode
+                        transaction_fee_percent: document.getElementById('transaction_fee_percent').value
                     };
 
-                    if (inputMode === 'price') {
-                        // Price mode - send price values and current BTC price
-                        formData.buy_price_gbp = document.getElementById('buy_price_gbp').value;
-                        formData.sell_price_gbp = document.getElementById('sell_price_gbp').value;
-                        formData.current_btc_price = currentBtcPriceForCalculations;
+                    // Convert inputs to percentages for the backend
+                    if (buyParsed.type === 'percentage') {
+                        formData.buy_dip_percent = buyParsed.value;
                     } else {
-                        // Percentage mode - send percentage values
-                        formData.buy_dip_percent = document.getElementById('buy_dip_percent').value;
-                        formData.sell_gain_percent = document.getElementById('sell_gain_percent').value;
+                        formData.input_mode = 'price';
+                        formData.buy_price_gbp = buyParsed.value;
+                        formData.current_btc_price = currentBtcPriceForCalculations;
+                    }
+
+                    if (sellParsed.type === 'percentage') {
+                        formData.sell_gain_percent = sellParsed.value;
+                    } else {
+                        formData.input_mode = 'price';
+                        formData.sell_price_gbp = sellParsed.value;
+                        formData.current_btc_price = currentBtcPriceForCalculations;
+                    }
+
+                    // If both are percentages, use percentage mode
+                    if (buyParsed.type === 'percentage' && sellParsed.type === 'percentage') {
+                        formData.input_mode = 'percentage';
+                        formData.buy_dip_percent = buyParsed.value;
+                        formData.sell_gain_percent = sellParsed.value;
                     }
                     
                     try {
@@ -5059,30 +5016,20 @@
             }
         };
 
-        // Price Mode Functionality
+        // Smart Input Functionality
         let currentBtcPriceForCalculations = null;
 
-        // Initialize price mode functionality
-        function initializePriceMode() {
-            // Add event listeners for mode toggles
-            document.getElementById('percentage_mode').addEventListener('change', handleInputModeChange);
-            document.getElementById('price_mode').addEventListener('change', handleInputModeChange);
-            document.getElementById('opt_percentage_mode').addEventListener('change', handleOptInputModeChange);
-            document.getElementById('opt_price_mode').addEventListener('change', handleOptInputModeChange);
-
-            // Add event listeners for price inputs
-            document.getElementById('buy_price_gbp').addEventListener('input', calculatePercentageFromPrice);
-            document.getElementById('sell_price_gbp').addEventListener('input', calculatePercentageFromPrice);
+        // Initialize smart input functionality
+        function initializeSmartInputs() {
+            // Add event listeners for smart inputs
+            document.getElementById('buy_threshold').addEventListener('input', handleSmartInputChange);
+            document.getElementById('sell_threshold').addEventListener('input', handleSmartInputChange);
             
-            // Add event listeners for optimization price inputs
-            document.getElementById('buy_price_min').addEventListener('input', calculateOptPercentageFromPrice);
-            document.getElementById('buy_price_max').addEventListener('input', calculateOptPercentageFromPrice);
-            document.getElementById('sell_price_min').addEventListener('input', calculateOptPercentageFromPrice);
-            document.getElementById('sell_price_max').addEventListener('input', calculateOptPercentageFromPrice);
-
-            // Add event listeners for percentage inputs (to update prices when in price mode)
-            document.getElementById('buy_dip_percent').addEventListener('input', calculatePriceFromPercentage);
-            document.getElementById('sell_gain_percent').addEventListener('input', calculatePriceFromPercentage);
+            // Add event listeners for optimization smart inputs
+            document.getElementById('buy_range_min').addEventListener('input', handleOptSmartInputChange);
+            document.getElementById('buy_range_max').addEventListener('input', handleOptSmartInputChange);
+            document.getElementById('sell_range_min').addEventListener('input', handleOptSmartInputChange);
+            document.getElementById('sell_range_max').addEventListener('input', handleOptSmartInputChange);
 
             // Add refresh button listeners
             document.getElementById('refresh_price').addEventListener('click', refreshCurrentPrice);
@@ -5092,53 +5039,86 @@
             refreshCurrentPrice();
         }
 
-        // Handle input mode change for backtest
-        function handleInputModeChange() {
-            const percentageMode = document.getElementById('percentage_mode').checked;
-            const percentageInputs = document.getElementById('percentage_inputs');
-            const priceInputs = document.getElementById('price_inputs');
-            const currentPriceDisplay = document.getElementById('current_price_display');
-            const profitPreview = document.getElementById('profit_preview');
-
-            if (percentageMode) {
-                percentageInputs.style.display = 'flex';
-                priceInputs.style.display = 'none';
-                currentPriceDisplay.style.display = 'none';
-                profitPreview.style.display = 'none';
-            } else {
-                percentageInputs.style.display = 'none';
-                priceInputs.style.display = 'flex';
-                currentPriceDisplay.style.display = 'block';
-                profitPreview.style.display = 'block';
-                
-                // Convert current percentage values to prices
-                if (currentBtcPriceForCalculations) {
-                    updatePricesFromPercentages();
+        // Parse smart input to determine if it's percentage or price
+        function parseSmartInput(value) {
+            const cleanValue = value.trim();
+            
+            if (cleanValue.includes('%')) {
+                // Percentage input
+                const numValue = parseFloat(cleanValue.replace('%', ''));
+                return {
+                    type: 'percentage',
+                    value: numValue,
+                    isValid: !isNaN(numValue) && numValue > 0
+                };
+            } else if (cleanValue.includes('£') || cleanValue.includes('$')) {
+                // Price input
+                const numValue = parseFloat(cleanValue.replace(/[£$,]/g, ''));
+                return {
+                    type: 'price',
+                    value: numValue,
+                    isValid: !isNaN(numValue) && numValue > 0
+                };
+            } else if (!isNaN(parseFloat(cleanValue))) {
+                // Plain number - treat as percentage if < 100, otherwise as price
+                const numValue = parseFloat(cleanValue);
+                if (numValue < 100) {
+                    return {
+                        type: 'percentage',
+                        value: numValue,
+                        isValid: numValue > 0
+                    };
+                } else {
+                    return {
+                        type: 'price',
+                        value: numValue,
+                        isValid: numValue > 0
+                    };
                 }
             }
+            
+            return {
+                type: 'invalid',
+                value: 0,
+                isValid: false
+            };
         }
 
-        // Handle input mode change for optimization
-        function handleOptInputModeChange() {
-            const percentageMode = document.getElementById('opt_percentage_mode').checked;
-            const percentageInputs = document.getElementById('opt_percentage_inputs');
-            const priceInputs = document.getElementById('opt_price_inputs');
-            const currentPriceDisplay = document.getElementById('opt_current_price_display');
-
-            if (percentageMode) {
-                percentageInputs.style.display = 'block';
-                priceInputs.style.display = 'none';
-                currentPriceDisplay.style.display = 'none';
+        // Handle smart input changes for backtest
+        function handleSmartInputChange(event) {
+            const input = event.target;
+            const parsed = parseSmartInput(input.value);
+            
+            // Update input styling based on type
+            input.classList.remove('percentage-input', 'price-input', 'error-input');
+            if (parsed.isValid) {
+                input.classList.add(parsed.type + '-input');
             } else {
-                percentageInputs.style.display = 'none';
-                priceInputs.style.display = 'block';
-                currentPriceDisplay.style.display = 'block';
-                
-                // Convert current percentage values to prices
-                if (currentBtcPriceForCalculations) {
-                    updateOptPricesFromPercentages();
-                }
+                input.classList.add('error-input');
             }
+            
+            // Update conversion display
+            updateConversionDisplay(input.id, parsed);
+            
+            // Update profit preview if both thresholds are valid
+            updateProfitPreview();
+        }
+
+        // Handle smart input changes for optimization
+        function handleOptSmartInputChange(event) {
+            const input = event.target;
+            const parsed = parseSmartInput(input.value);
+            
+            // Update input styling based on type
+            input.classList.remove('percentage-input', 'price-input', 'error-input');
+            if (parsed.isValid) {
+                input.classList.add(parsed.type + '-input');
+            } else {
+                input.classList.add('error-input');
+            }
+            
+            // Update conversion display
+            updateOptConversionDisplay(input.id, parsed);
         }
 
         // Refresh current BTC price
@@ -5344,9 +5324,147 @@
             calculateOptPercentageFromPrice();
         }
 
-        // Initialize price mode on page load
+        // Helper functions for conversion displays
+        async function updateConversionDisplay(inputId, parsed) {
+            if (!currentBtcPriceForCalculations || !parsed.isValid) return;
+            
+            let displayElement;
+            if (inputId === 'buy_threshold') {
+                displayElement = document.getElementById('buy_conversion_display');
+            } else if (inputId === 'sell_threshold') {
+                displayElement = document.getElementById('sell_conversion_display');
+            }
+            
+            if (!displayElement) return;
+            
+            if (parsed.type === 'percentage') {
+                // Show price equivalent
+                const isSell = inputId.includes('sell');
+                const referencePrice = isSell ? getBuyPrice() : currentBtcPriceForCalculations;
+                if (referencePrice > 0) {
+                    const priceEquivalent = percentage_to_price_client(parsed.value, referencePrice, isSell);
+                    displayElement.textContent = `≈ £${priceEquivalent.toLocaleString()}`;
+                }
+            } else if (parsed.type === 'price') {
+                // Show percentage equivalent
+                const isSell = inputId.includes('sell');
+                const referencePrice = isSell ? getBuyPrice() : currentBtcPriceForCalculations;
+                if (referencePrice > 0) {
+                    const percentageEquivalent = price_to_percentage_client(parsed.value, referencePrice, isSell);
+                    displayElement.textContent = `≈ ${percentageEquivalent}%`;
+                }
+            }
+        }
+
+        async function updateOptConversionDisplay(inputId, parsed) {
+            // Similar logic for optimization inputs
+            if (!currentBtcPriceForCalculations || !parsed.isValid) return;
+            
+            const displayElement = document.getElementById(inputId.replace('_range_', '_') + '_conversion_display');
+            if (!displayElement) return;
+            
+            if (parsed.type === 'percentage') {
+                const isSell = inputId.includes('sell');
+                const priceEquivalent = percentage_to_price_client(parsed.value, currentBtcPriceForCalculations, isSell);
+                displayElement.textContent = `≈ £${priceEquivalent.toLocaleString()}`;
+            } else if (parsed.type === 'price') {
+                const isSell = inputId.includes('sell');
+                const percentageEquivalent = price_to_percentage_client(parsed.value, currentBtcPriceForCalculations, isSell);
+                displayElement.textContent = `≈ ${percentageEquivalent}%`;
+            }
+        }
+
+        function getBuyPrice() {
+            const buyParsed = parseSmartInput(document.getElementById('buy_threshold').value);
+            if (buyParsed.type === 'price') {
+                return buyParsed.value;
+            } else if (buyParsed.type === 'percentage') {
+                return percentage_to_price_client(buyParsed.value, currentBtcPriceForCalculations, false);
+            }
+            return currentBtcPriceForCalculations;
+        }
+
+        async function updateProfitPreview() {
+            const buyParsed = parseSmartInput(document.getElementById('buy_threshold').value);
+            const sellParsed = parseSmartInput(document.getElementById('sell_threshold').value);
+            
+            if (!buyParsed.isValid || !sellParsed.isValid || !currentBtcPriceForCalculations) {
+                document.getElementById('profit_calculation').textContent = 'Enter valid thresholds to see profit calculation';
+                return;
+            }
+            
+            // Convert to prices for calculation
+            let buyPrice, sellPrice;
+            
+            if (buyParsed.type === 'percentage') {
+                buyPrice = percentage_to_price_client(buyParsed.value, currentBtcPriceForCalculations, false);
+            } else {
+                buyPrice = buyParsed.value;
+            }
+            
+            if (sellParsed.type === 'percentage') {
+                sellPrice = percentage_to_price_client(sellParsed.value, buyPrice, true);
+            } else {
+                sellPrice = sellParsed.value;
+            }
+            
+            const investmentAmount = parseFloat(document.getElementById('investment_value').value) || 1000;
+            const feePercent = parseFloat(document.getElementById('transaction_fee_percent').value) || 0.1;
+            
+            try {
+                const response = await fetch('/api/bitcoin/profit-preview', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        buy_price: buyPrice,
+                        sell_price: sellPrice,
+                        investment_amount: investmentAmount,
+                        fee_percent: feePercent
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const profitColor = data.net_profit > 0 ? 'green' : 'red';
+                    const profitSign = data.net_profit > 0 ? '+' : '';
+                    document.getElementById('profit_calculation').innerHTML = `
+                        <strong>Buy:</strong> £${buyPrice.toLocaleString()} → <strong>Sell:</strong> £${sellPrice.toLocaleString()}<br>
+                        <strong>BTC Amount:</strong> ${data.btc_amount} BTC<br>
+                        <strong>Total Fees:</strong> £${data.total_fees}<br>
+                        <strong style="color: ${profitColor}">Net Profit: ${profitSign}£${data.net_profit} (${profitSign}${data.profit_percentage}%)</strong>
+                    `;
+                } else {
+                    document.getElementById('profit_calculation').innerHTML = `<span style="color: red">${data.error}</span>`;
+                }
+            } catch (error) {
+                console.error('Error calculating profit preview:', error);
+            }
+        }
+
+        // Client-side conversion functions
+        function price_to_percentage_client(target_price, current_price, is_sell) {
+            if (current_price <= 0 || target_price <= 0) return 0;
+            
+            if (is_sell) {
+                return Math.round(((target_price - current_price) / current_price) * 100 * 10) / 10;
+            } else {
+                return Math.round(((current_price - target_price) / current_price) * 100 * 10) / 10;
+            }
+        }
+
+        function percentage_to_price_client(percentage, current_price, is_sell) {
+            if (current_price <= 0 || percentage < 0) return 0;
+            
+            if (is_sell) {
+                return Math.round(current_price * (1 + percentage / 100));
+            } else {
+                return Math.round(current_price * (1 - percentage / 100));
+            }
+        }
+
+        // Initialize smart inputs on page load
         document.addEventListener('DOMContentLoaded', function() {
-            initializePriceMode();
+            initializeSmartInputs();
         });
 
     </script>
