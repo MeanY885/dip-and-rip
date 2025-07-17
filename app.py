@@ -1542,7 +1542,7 @@ def calculate_profit_preview(buy_price, sell_price, investment_amount, fee_perce
         
         # Calculate stop loss scenarios
         stop_loss_scenarios = []
-        stop_loss_percentages = [0.3, 0.5, 1.0]
+        stop_loss_percentages = [0.2, 0.4, 0.6, 0.8, 1.0]
         
         for stop_loss_percent in stop_loss_percentages:
             # Calculate stop loss price (percentage below buy price)
@@ -3000,7 +3000,7 @@ def bitcoin_trades():
                 SELECT id, status, date, type, initial_investment_gbp, 
                        btc_buy_price, btc_sell_price, profit, fee, btc_amount
                 FROM bitcoin_trade
-                ORDER BY date DESC
+                ORDER BY created_at DESC
             """))
             
             trades_data = []
