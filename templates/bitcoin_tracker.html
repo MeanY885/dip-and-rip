@@ -5453,11 +5453,22 @@
                 if (data.success) {
                     const profitColor = data.net_profit > 0 ? 'green' : 'red';
                     const profitSign = data.net_profit > 0 ? '+' : '';
+                    
+                    // Generate stop loss scenarios display
+                    let stopLossHtml = '';
+                    if (data.stop_loss_scenarios && data.stop_loss_scenarios.length > 0) {
+                        stopLossHtml = '<br><strong>Stop Loss Scenarios:</strong><br>';
+                        data.stop_loss_scenarios.forEach(scenario => {
+                            stopLossHtml += `• ${scenario.percentage}% Stop Loss: £${scenario.price.toLocaleString()} (-£${scenario.loss_amount} loss)<br>`;
+                        });
+                    }
+                    
                     document.getElementById('profit_calculation').innerHTML = `
                         <strong>Buy:</strong> £${buyPrice.toLocaleString()} → <strong>Sell:</strong> £${sellPrice.toLocaleString()}<br>
                         <strong>BTC Amount:</strong> ${data.btc_amount} BTC<br>
                         <strong>Total Fees:</strong> £${data.total_fees}<br>
                         <strong style="color: ${profitColor}">Net Profit: ${profitSign}£${data.net_profit} (${profitSign}${data.profit_percentage}%)</strong>
+                        ${stopLossHtml}
                     `;
                 } else {
                     document.getElementById('profit_calculation').innerHTML = `<span style="color: red">${data.error}</span>`;

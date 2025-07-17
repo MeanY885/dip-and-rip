@@ -1540,6 +1540,33 @@ def calculate_profit_preview(buy_price, sell_price, investment_amount, fee_perce
         profit = net_sell_value - investment_amount
         profit_percentage = (profit / investment_amount) * 100
         
+        # Calculate stop loss scenarios
+        stop_loss_scenarios = []
+        stop_loss_percentages = [0.3, 0.5, 1.0]
+        
+        for stop_loss_percent in stop_loss_percentages:
+            # Calculate stop loss price (percentage below buy price)
+            stop_loss_price = buy_price * (1 - stop_loss_percent / 100)
+            
+            # Calculate loss if stop loss is triggered
+            gross_stop_loss_value = btc_amount * stop_loss_price
+            stop_loss_sell_fee = gross_stop_loss_value * (fee_percent / 100)
+            net_stop_loss_value = gross_stop_loss_value - stop_loss_sell_fee
+            
+            # Calculate total loss
+            stop_loss_total_fees = buy_fee + stop_loss_sell_fee
+            stop_loss_loss = investment_amount - net_stop_loss_value
+            stop_loss_loss_percentage = (stop_loss_loss / investment_amount) * 100
+            
+            stop_loss_scenarios.append({
+                'percentage': stop_loss_percent,
+                'price': round(stop_loss_price, 2),
+                'loss_amount': round(stop_loss_loss, 2),
+                'loss_percentage': round(stop_loss_loss_percentage, 2),
+                'total_fees': round(stop_loss_total_fees, 2),
+                'final_value': round(net_stop_loss_value, 2)
+            })
+        
         return {
             'success': True,
             'investment': investment_amount,
@@ -1550,7 +1577,8 @@ def calculate_profit_preview(buy_price, sell_price, investment_amount, fee_perce
             'gross_profit': round(gross_sell_value - cash_after_buy_fee, 2),
             'net_profit': round(profit, 2),
             'profit_percentage': round(profit_percentage, 2),
-            'final_value': round(net_sell_value, 2)
+            'final_value': round(net_sell_value, 2),
+            'stop_loss_scenarios': stop_loss_scenarios
         }
     except Exception as e:
         return {
