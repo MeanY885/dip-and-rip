@@ -92,6 +92,15 @@ def format_date_safe(date_obj):
     # Fallback to string conversion
     return str(date_obj)
 
+def check_duration_column_exists():
+    """Check if the duration_minutes column exists in the bitcoin_trade table"""
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("SELECT duration_minutes FROM bitcoin_trade LIMIT 1"))
+        return True
+    except:
+        return False
+
 # Database Models
 class Investment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2998,11 +3007,7 @@ def bitcoin_trades():
             from sqlalchemy import text
             
             # Check if duration_minutes column exists
-            has_duration_column = True
-            try:
-                db.session.execute(text("SELECT duration_minutes FROM bitcoin_trade LIMIT 1"))
-            except:
-                has_duration_column = False
+            has_duration_column = check_duration_column_exists()
             
             if has_duration_column:
                 result = db.session.execute(text("""
@@ -3065,6 +3070,9 @@ def bitcoin_trades():
         # Create new bitcoin trade
         try:
             data = request.json
+            
+            # Check if duration_minutes column exists
+            has_duration_column = check_duration_column_exists()
             
             # Handle both old and new field names for backward compatibility
             initial_investment = float(data.get('initial_investment_gbp', data.get('gbp_investment', 0)))
