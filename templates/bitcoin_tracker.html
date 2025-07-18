@@ -2438,7 +2438,24 @@
         function formatTradeDateTime(dateString) {
             if (!dateString) return '-';
             
-            const date = new Date(dateString);
+            // Check if the date string includes time information
+            const hasTime = dateString.includes('T') || dateString.includes(':') || dateString.length > 10;
+            
+            let date;
+            if (hasTime) {
+                // Has time data - use as is
+                date = new Date(dateString);
+            } else {
+                // Date only - create date in local timezone to avoid timezone conversion
+                const parts = dateString.split('-');
+                if (parts.length === 3) {
+                    // Create date in local timezone (YYYY-MM-DD)
+                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                } else {
+                    date = new Date(dateString);
+                }
+            }
+            
             if (isNaN(date.getTime())) return '-';
             
             // Format date as DD/MM/YY
@@ -2446,15 +2463,20 @@
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const year = date.getFullYear().toString().slice(-2);
             
-            // Format time as HH:MMam/pm
-            let hours = date.getHours();
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            const ampm = hours >= 12 ? 'pm' : 'am';
-            hours = hours % 12;
-            hours = hours ? hours : 12; // 0 should be 12
-            const formattedHours = hours.toString().padStart(2, '0');
-            
-            return `${day}/${month}/${year} / ${formattedHours}:${minutes}${ampm}`;
+            if (hasTime) {
+                // Format time as HH:MMam/pm
+                let hours = date.getHours();
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                const ampm = hours >= 12 ? 'pm' : 'am';
+                hours = hours % 12;
+                hours = hours ? hours : 12; // 0 should be 12
+                const formattedHours = hours.toString().padStart(2, '0');
+                
+                return `${day}/${month}/${year} / ${formattedHours}:${minutes}${ampm}`;
+            } else {
+                // Date only - no time information available
+                return `${day}/${month}/${year}`;
+            }
         }
 
         function formatDuration(tradeDate, status) {
