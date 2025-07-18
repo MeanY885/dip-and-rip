@@ -2478,34 +2478,44 @@
             }
         }
 
-        function formatDuration(tradeDate, status) {
-            if (!tradeDate) return '-';
-            
+        function formatDuration(durationMinutes, status, tradeDate) {
             if (status === 'Closed') {
-                // For closed trades, we don't have the close timestamp
-                // So we cannot calculate the actual duration between open and close
-                return 'N/A';
+                // For closed trades, use stored duration
+                if (durationMinutes !== null && durationMinutes !== undefined) {
+                    return formatDurationFromMinutes(durationMinutes);
+                } else {
+                    return 'N/A';
+                }
             } else {
-                // For open trades, show time since opening
+                // For open trades, calculate current duration from trade date
+                if (!tradeDate) return '-';
+                
                 const startDate = new Date(tradeDate);
                 const currentDate = new Date();
                 
                 // Calculate duration in milliseconds
                 const durationMs = currentDate - startDate;
-                const durationMinutes = Math.floor(durationMs / (1000 * 60));
-                const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
-                const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
-                const durationMonths = Math.floor(durationDays / 30);
+                const currentDurationMinutes = Math.floor(durationMs / (1000 * 60));
                 
-                if (durationMonths > 0) {
-                    return `${durationMonths} month${durationMonths > 1 ? 's' : ''}`;
-                } else if (durationDays > 0) {
-                    return `${durationDays} day${durationDays > 1 ? 's' : ''}`;
-                } else if (durationHours > 0) {
-                    return `${durationHours} hour${durationHours > 1 ? 's' : ''}`;
-                } else {
-                    return `${durationMinutes} minute${durationMinutes > 1 ? 's' : ''}`;
-                }
+                return formatDurationFromMinutes(currentDurationMinutes);
+            }
+        }
+        
+        function formatDurationFromMinutes(minutes) {
+            if (!minutes || minutes <= 0) return '-';
+            
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+            const months = Math.floor(days / 30);
+            
+            if (months > 0) {
+                return `${months} month${months > 1 ? 's' : ''}`;
+            } else if (days > 0) {
+                return `${days} day${days > 1 ? 's' : ''}`;
+            } else if (hours > 0) {
+                return `${hours} hour${hours > 1 ? 's' : ''}`;
+            } else {
+                return `${minutes} minute${minutes > 1 ? 's' : ''}`;
             }
         }
 
@@ -2542,7 +2552,7 @@
                 row.innerHTML = 
                     '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
                     '<td>' + formatTradeDateTime(trade.date) + '</td>' +
-                    '<td>' + formatDuration(trade.date, trade.status) + '</td>' +
+                    '<td>' + formatDuration(trade.duration_minutes, trade.status, trade.date) + '</td>' +
                     '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
                     '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
                     '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +

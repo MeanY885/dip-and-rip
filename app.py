@@ -145,6 +145,7 @@ class BitcoinTrade(db.Model):
     profit = db.Column(db.Float, nullable=True)  # Auto-calculated, nullable for open trades
     fee = db.Column(db.Float, nullable=True)  # Nullable for open trades
     btc_amount = db.Column(db.Float, nullable=True)  # Store the amount of BTC purchased
+    duration_minutes = db.Column(db.Integer, nullable=True)  # Duration in minutes for closed trades
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -2998,7 +2999,7 @@ def bitcoin_trades():
             
             result = db.session.execute(text("""
                 SELECT id, status, date, type, initial_investment_gbp, 
-                       btc_buy_price, btc_sell_price, profit, fee, btc_amount
+                       btc_buy_price, btc_sell_price, profit, fee, btc_amount, duration_minutes
                 FROM bitcoin_trade
                 ORDER BY date DESC
             """))
@@ -3015,7 +3016,8 @@ def bitcoin_trades():
                     'btc_sell_price': row[6],
                     'profit': row[7],
                     'fee': row[8],
-                    'btc_amount': row[9]
+                    'btc_amount': row[9],
+                    'duration_minutes': row[10]
                 })
             
             return jsonify({
@@ -3050,12 +3052,19 @@ def bitcoin_trades():
                 gross_return = btc_amount * btc_sell_price
                 profit = gross_return - initial_investment - fee
                 status = 'Closed'
+                
+                # Calculate duration in minutes from trade date to now
+                trade_date = datetime.strptime(data['date'], '%Y-%m-%d')
+                current_time = datetime.utcnow()
+                duration_delta = current_time - trade_date
+                duration_minutes = int(duration_delta.total_seconds() / 60)
             else:
                 # Missing fields - set status to Open
                 btc_sell_price = None
                 fee = None
                 profit = None
                 status = 'Open'
+                duration_minutes = None
             
             trade = BitcoinTrade(
                 status=status,
@@ -3066,7 +3075,8 @@ def bitcoin_trades():
                 btc_sell_price=btc_sell_price,
                 profit=profit,
                 fee=fee,
-                btc_amount=btc_amount
+                btc_amount=btc_amount,
+                duration_minutes=duration_minutes
             )
             
             db.session.add(trade)
@@ -3084,7 +3094,8 @@ def bitcoin_trades():
                     'btc_sell_price': trade.btc_sell_price,
                     'profit': trade.profit,
                     'fee': trade.fee,
-                    'btc_amount': trade.btc_amount
+                    'btc_amount': trade.btc_amount,
+                    'duration_minutes': trade.duration_minutes
                 }
             })
             
@@ -3125,10 +3136,17 @@ def bitcoin_trade_detail(trade_id):
                 gross_return = trade.btc_amount * trade.btc_sell_price
                 trade.profit = gross_return - trade.initial_investment_gbp - trade.fee
                 trade.status = 'Closed'
+                
+                # Calculate duration in minutes from created_at to now
+                if trade.created_at:
+                    current_time = datetime.utcnow()
+                    duration_delta = current_time - trade.created_at
+                    trade.duration_minutes = int(duration_delta.total_seconds() / 60)
             else:
                 # Not all fields complete
                 trade.profit = None
                 trade.status = 'Open'
+                trade.duration_minutes = None
             
             trade.updated_at = datetime.utcnow()
             db.session.commit()
@@ -3145,7 +3163,8 @@ def bitcoin_trade_detail(trade_id):
                     'btc_sell_price': trade.btc_sell_price,
                     'profit': trade.profit,
                     'fee': trade.fee,
-                    'btc_amount': trade.btc_amount
+                    'btc_amount': trade.btc_amount,
+                    'duration_minutes': trade.duration_minutes
                 }
             })
             
