@@ -2998,7 +2998,8 @@ def bitcoin_trades():
             
             result = db.session.execute(text("""
                 SELECT id, status, date, type, initial_investment_gbp, 
-                       btc_buy_price, btc_sell_price, profit, fee, btc_amount
+                       btc_buy_price, btc_sell_price, profit, fee, btc_amount,
+                       created_at, updated_at
                 FROM bitcoin_trade
                 ORDER BY created_at DESC
             """))
@@ -3015,7 +3016,9 @@ def bitcoin_trades():
                     'btc_sell_price': row[6],
                     'profit': row[7],
                     'fee': row[8],
-                    'btc_amount': row[9]
+                    'btc_amount': row[9],
+                    'created_at': row[10].isoformat() if row[10] else None,
+                    'updated_at': row[11].isoformat() if row[11] else None
                 })
             
             return jsonify({

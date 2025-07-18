@@ -1368,6 +1368,7 @@
                     <tr>
                         <th>Status</th>
                         <th>Date</th>
+                        <th>Duration</th>
                         <th>Initial Investment (£)</th>
                         <th>BTC Buy Price (£)</th>
                         <th>BTC Amount</th>
@@ -2434,6 +2435,29 @@
             }
         }
 
+        function formatDuration(createdAt, updatedAt, status) {
+            if (!createdAt) return '-';
+            
+            const startTime = new Date(createdAt);
+            const endTime = status === 'Closed' && updatedAt ? new Date(updatedAt) : new Date();
+            
+            const durationMs = endTime - startTime;
+            const durationMinutes = Math.floor(durationMs / (1000 * 60));
+            const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+            const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
+            const durationMonths = Math.floor(durationDays / 30);
+            
+            if (durationMonths > 0) {
+                return `${durationMonths} month${durationMonths > 1 ? 's' : ''}`;
+            } else if (durationDays > 0) {
+                return `${durationDays} day${durationDays > 1 ? 's' : ''}`;
+            } else if (durationHours > 0) {
+                return `${durationHours} hour${durationHours > 1 ? 's' : ''}`;
+            } else {
+                return `${durationMinutes} minute${durationMinutes > 1 ? 's' : ''}`;
+            }
+        }
+
         function renderTrades() {
             const tbody = document.getElementById('tradesTableBody');
             tbody.innerHTML = '';
@@ -2467,6 +2491,7 @@
                 row.innerHTML = 
                     '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
                     '<td>' + new Date(trade.date).toLocaleDateString('en-GB') + '</td>' +
+                    '<td>' + formatDuration(trade.created_at, trade.updated_at, trade.status) + '</td>' +
                     '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
                     '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
                     '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +
