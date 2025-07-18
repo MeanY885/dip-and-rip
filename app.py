@@ -154,9 +154,18 @@ class BitcoinTrade(db.Model):
     profit = db.Column(db.Float, nullable=True)  # Auto-calculated, nullable for open trades
     fee = db.Column(db.Float, nullable=True)  # Nullable for open trades
     btc_amount = db.Column(db.Float, nullable=True)  # Store the amount of BTC purchased
-    duration_minutes = db.Column(db.Integer, nullable=True)  # Duration in minutes for closed trades
+    # duration_minutes = db.Column(db.Integer, nullable=True)  # Duration in minutes for closed trades - COMMENTED OUT UNTIL DB MIGRATION
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def set_duration_minutes(self, value):
+        """Safely set duration_minutes if the attribute exists"""
+        if hasattr(self, 'duration_minutes'):
+            self.duration_minutes = value
+    
+    def get_duration_minutes(self):
+        """Safely get duration_minutes, return None if attribute doesn't exist"""
+        return getattr(self, 'duration_minutes', None)
 
 class BitcoinPriceHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -3119,11 +3128,11 @@ def bitcoin_trades():
                 'btc_amount': btc_amount
             }
             
-            # Only add duration_minutes if the column exists in the database
-            if has_duration_column:
-                trade_data['duration_minutes'] = duration_minutes
-            
             trade = BitcoinTrade(**trade_data)
+            
+            # Set duration_minutes using safe method if needed
+            if has_duration_column and duration_minutes is not None:
+                trade.set_duration_minutes(duration_minutes)
             
             db.session.add(trade)
             db.session.commit()
@@ -3141,7 +3150,7 @@ def bitcoin_trades():
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'duration_minutes': getattr(trade, 'duration_minutes', None)
+                    'duration_minutes': trade.get_duration_minutes()
                 }
             })
             
@@ -3187,16 +3196,14 @@ def bitcoin_trade_detail(trade_id):
                 if trade.created_at:
                     current_time = datetime.utcnow()
                     duration_delta = current_time - trade.created_at
-                    # Only set duration_minutes if the column exists
-                    if hasattr(trade, 'duration_minutes'):
-                        trade.duration_minutes = int(duration_delta.total_seconds() / 60)
+                    # Set duration using safe method
+                    trade.set_duration_minutes(int(duration_delta.total_seconds() / 60))
             else:
                 # Not all fields complete
                 trade.profit = None
                 trade.status = 'Open'
-                # Only set duration_minutes if the column exists
-                if hasattr(trade, 'duration_minutes'):
-                    trade.duration_minutes = None
+                # Set duration to None using safe method
+                trade.set_duration_minutes(None)
             
             trade.updated_at = datetime.utcnow()
             db.session.commit()
@@ -3214,7 +3221,7 @@ def bitcoin_trade_detail(trade_id):
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'duration_minutes': getattr(trade, 'duration_minutes', None)
+                    'duration_minutes': trade.get_duration_minutes()
                 }
             })
             
