@@ -3040,8 +3040,8 @@ def bitcoin_trades():
                     'profit': row[7],
                     'fee': row[8],
                     'btc_amount': row[9],
-                    'created_at': row[10].isoformat() if row[10] else None,
-                    'updated_at': row[11].isoformat() if row[11] else None,
+                    'created_at': str(row[10]) if row[10] else None,
+                    'updated_at': str(row[11]) if row[11] else None,
                     'duration_minutes': None  # Will be calculated on frontend
                 })
             
