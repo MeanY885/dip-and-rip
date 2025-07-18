@@ -2997,28 +2997,60 @@ def bitcoin_trades():
             # Use raw SQL to avoid date parsing issues
             from sqlalchemy import text
             
-            result = db.session.execute(text("""
-                SELECT id, status, date, type, initial_investment_gbp, 
-                       btc_buy_price, btc_sell_price, profit, fee, btc_amount, duration_minutes
-                FROM bitcoin_trade
-                ORDER BY date DESC
-            """))
+            # Check if duration_minutes column exists
+            has_duration_column = True
+            try:
+                db.session.execute(text("SELECT duration_minutes FROM bitcoin_trade LIMIT 1"))
+            except:
+                has_duration_column = False
             
-            trades_data = []
-            for row in result:
-                trades_data.append({
-                    'id': row[0],
-                    'status': row[1],
-                    'date': row[2],
-                    'type': row[3],
-                    'initial_investment_gbp': row[4],
-                    'btc_buy_price': row[5],
-                    'btc_sell_price': row[6],
-                    'profit': row[7],
-                    'fee': row[8],
-                    'btc_amount': row[9],
-                    'duration_minutes': row[10]
-                })
+            if has_duration_column:
+                result = db.session.execute(text("""
+                    SELECT id, status, date, type, initial_investment_gbp, 
+                           btc_buy_price, btc_sell_price, profit, fee, btc_amount, duration_minutes
+                    FROM bitcoin_trade
+                    ORDER BY date DESC
+                """))
+                
+                trades_data = []
+                for row in result:
+                    trades_data.append({
+                        'id': row[0],
+                        'status': row[1],
+                        'date': row[2],
+                        'type': row[3],
+                        'initial_investment_gbp': row[4],
+                        'btc_buy_price': row[5],
+                        'btc_sell_price': row[6],
+                        'profit': row[7],
+                        'fee': row[8],
+                        'btc_amount': row[9],
+                        'duration_minutes': row[10]
+                    })
+            else:
+                # Fallback for databases without duration_minutes column
+                result = db.session.execute(text("""
+                    SELECT id, status, date, type, initial_investment_gbp, 
+                           btc_buy_price, btc_sell_price, profit, fee, btc_amount
+                    FROM bitcoin_trade
+                    ORDER BY date DESC
+                """))
+                
+                trades_data = []
+                for row in result:
+                    trades_data.append({
+                        'id': row[0],
+                        'status': row[1],
+                        'date': row[2],
+                        'type': row[3],
+                        'initial_investment_gbp': row[4],
+                        'btc_buy_price': row[5],
+                        'btc_sell_price': row[6],
+                        'profit': row[7],
+                        'fee': row[8],
+                        'btc_amount': row[9],
+                        'duration_minutes': None  # Default to None for missing column
+                    })
             
             return jsonify({
                 'success': True,
