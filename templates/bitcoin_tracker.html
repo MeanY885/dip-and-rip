@@ -2435,6 +2435,28 @@
             }
         }
 
+        function formatTradeDateTime(dateString) {
+            if (!dateString) return '-';
+            
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '-';
+            
+            // Format date as DD/MM/YY
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear().toString().slice(-2);
+            
+            // Format time as HH:MMam/pm
+            let hours = date.getHours();
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'pm' : 'am';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // 0 should be 12
+            const formattedHours = hours.toString().padStart(2, '0');
+            
+            return `${day}/${month}/${year} / ${formattedHours}:${minutes}${ampm}`;
+        }
+
         function formatDuration(tradeDate, status) {
             if (!tradeDate) return '-';
             
@@ -2491,7 +2513,7 @@
                 
                 row.innerHTML = 
                     '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
-                    '<td>' + new Date(trade.date).toLocaleDateString('en-GB') + '</td>' +
+                    '<td>' + formatTradeDateTime(trade.date) + '</td>' +
                     '<td>' + formatDuration(trade.date, trade.status) + '</td>' +
                     '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
                     '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
