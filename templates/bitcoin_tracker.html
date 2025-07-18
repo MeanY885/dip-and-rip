@@ -2478,27 +2478,26 @@
             }
         }
 
-        function formatDuration(durationMinutes, status, tradeDate) {
-            if (status === 'Closed') {
-                // For closed trades, use stored duration
-                if (durationMinutes !== null && durationMinutes !== undefined) {
-                    return formatDurationFromMinutes(durationMinutes);
-                } else {
-                    return 'N/A';
-                }
+        function formatDuration(trade) {
+            // Use created_at timestamp for accurate duration calculation
+            if (!trade.created_at) return '-';
+            
+            const startTime = new Date(trade.created_at);
+            let endTime;
+            
+            if (trade.status === 'Closed' && trade.updated_at) {
+                // For closed trades, use updated_at as end time
+                endTime = new Date(trade.updated_at);
             } else {
-                // For open trades, calculate current duration from trade date
-                if (!tradeDate) return '-';
-                
-                const startDate = new Date(tradeDate);
-                const currentDate = new Date();
-                
-                // Calculate duration in milliseconds
-                const durationMs = currentDate - startDate;
-                const currentDurationMinutes = Math.floor(durationMs / (1000 * 60));
-                
-                return formatDurationFromMinutes(currentDurationMinutes);
+                // For open trades, use current time
+                endTime = new Date();
             }
+            
+            // Calculate duration in milliseconds
+            const durationMs = endTime - startTime;
+            const durationMinutes = Math.floor(durationMs / (1000 * 60));
+            
+            return formatDurationFromMinutes(durationMinutes);
         }
         
         function formatDurationFromMinutes(minutes) {
@@ -2552,7 +2551,7 @@
                 row.innerHTML = 
                     '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
                     '<td>' + formatTradeDateTime(trade.date) + '</td>' +
-                    '<td>' + formatDuration(trade.duration_minutes, trade.status, trade.date) + '</td>' +
+                    '<td>' + formatDuration(trade) + '</td>' +
                     '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
                     '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
                     '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +

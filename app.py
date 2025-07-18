@@ -3018,53 +3018,32 @@ def bitcoin_trades():
             # Check if duration_minutes column exists
             has_duration_column = check_duration_column_exists()
             
-            if has_duration_column:
-                result = db.session.execute(text("""
-                    SELECT id, status, date, type, initial_investment_gbp, 
-                           btc_buy_price, btc_sell_price, profit, fee, btc_amount, duration_minutes
-                    FROM bitcoin_trade
-                    ORDER BY date DESC
-                """))
-                
-                trades_data = []
-                for row in result:
-                    trades_data.append({
-                        'id': row[0],
-                        'status': row[1],
-                        'date': row[2],
-                        'type': row[3],
-                        'initial_investment_gbp': row[4],
-                        'btc_buy_price': row[5],
-                        'btc_sell_price': row[6],
-                        'profit': row[7],
-                        'fee': row[8],
-                        'btc_amount': row[9],
-                        'duration_minutes': row[10]
-                    })
-            else:
-                # Fallback for databases without duration_minutes column
-                result = db.session.execute(text("""
-                    SELECT id, status, date, type, initial_investment_gbp, 
-                           btc_buy_price, btc_sell_price, profit, fee, btc_amount
-                    FROM bitcoin_trade
-                    ORDER BY date DESC
-                """))
-                
-                trades_data = []
-                for row in result:
-                    trades_data.append({
-                        'id': row[0],
-                        'status': row[1],
-                        'date': row[2],
-                        'type': row[3],
-                        'initial_investment_gbp': row[4],
-                        'btc_buy_price': row[5],
-                        'btc_sell_price': row[6],
-                        'profit': row[7],
-                        'fee': row[8],
-                        'btc_amount': row[9],
-                        'duration_minutes': None  # Default to None for missing column
-                    })
+            # Always include created_at and updated_at for duration calculation
+            result = db.session.execute(text("""
+                SELECT id, status, date, type, initial_investment_gbp, 
+                       btc_buy_price, btc_sell_price, profit, fee, btc_amount,
+                       created_at, updated_at
+                FROM bitcoin_trade
+                ORDER BY date DESC
+            """))
+            
+            trades_data = []
+            for row in result:
+                trades_data.append({
+                    'id': row[0],
+                    'status': row[1],
+                    'date': row[2],
+                    'type': row[3],
+                    'initial_investment_gbp': row[4],
+                    'btc_buy_price': row[5],
+                    'btc_sell_price': row[6],
+                    'profit': row[7],
+                    'fee': row[8],
+                    'btc_amount': row[9],
+                    'created_at': row[10].isoformat() if row[10] else None,
+                    'updated_at': row[11].isoformat() if row[11] else None,
+                    'duration_minutes': None  # Will be calculated on frontend
+                })
             
             return jsonify({
                 'success': True,
@@ -3150,7 +3129,9 @@ def bitcoin_trades():
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'duration_minutes': trade.get_duration_minutes()
+                    'created_at': trade.created_at.isoformat() if trade.created_at else None,
+                    'updated_at': trade.updated_at.isoformat() if trade.updated_at else None,
+                    'duration_minutes': None  # Will be calculated on frontend
                 }
             })
             
@@ -3221,7 +3202,9 @@ def bitcoin_trade_detail(trade_id):
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'duration_minutes': trade.get_duration_minutes()
+                    'created_at': trade.created_at.isoformat() if trade.created_at else None,
+                    'updated_at': trade.updated_at.isoformat() if trade.updated_at else None,
+                    'duration_minutes': None  # Will be calculated on frontend
                 }
             })
             
