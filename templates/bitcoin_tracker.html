@@ -2550,7 +2550,7 @@
                 
                 row.innerHTML = 
                     '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
-                    '<td>' + formatTradeDateTime(trade.date) + '</td>' +
+                    '<td>' + formatTradeDateTime(trade.created_at) + '</td>' +
                     '<td>' + formatDuration(trade) + '</td>' +
                     '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
                     '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
