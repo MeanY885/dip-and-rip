@@ -3040,8 +3040,8 @@ def bitcoin_trades():
                     'profit': row[7],
                     'fee': row[8],
                     'btc_amount': row[9],
-                    'created_at': str(row[10]) if row[10] else None,
-                    'updated_at': str(row[11]) if row[11] else None,
+                    'created_at': (str(row[10]) + 'Z') if row[10] else None,
+                    'updated_at': (str(row[11]) + 'Z') if row[11] else None,
                     'duration_minutes': None  # Will be calculated on frontend
                 })
             
@@ -3129,8 +3129,8 @@ def bitcoin_trades():
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'created_at': trade.created_at.isoformat() if trade.created_at else None,
-                    'updated_at': trade.updated_at.isoformat() if trade.updated_at else None,
+                    'created_at': (trade.created_at.isoformat() + 'Z') if trade.created_at else None,
+                    'updated_at': (trade.updated_at.isoformat() + 'Z') if trade.updated_at else None,
                     'duration_minutes': None  # Will be calculated on frontend
                 }
             })
@@ -3202,8 +3202,8 @@ def bitcoin_trade_detail(trade_id):
                     'profit': trade.profit,
                     'fee': trade.fee,
                     'btc_amount': trade.btc_amount,
-                    'created_at': trade.created_at.isoformat() if trade.created_at else None,
-                    'updated_at': trade.updated_at.isoformat() if trade.updated_at else None,
+                    'created_at': (trade.created_at.isoformat() + 'Z') if trade.created_at else None,
+                    'updated_at': (trade.updated_at.isoformat() + 'Z') if trade.updated_at else None,
                     'duration_minutes': None  # Will be calculated on frontend
                 }
             })
