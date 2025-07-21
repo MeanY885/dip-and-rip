@@ -2618,7 +2618,13 @@
                     validGainCount++;
                 }
                 
-                if (trade.profit !== null) {
+                // Calculate estimated profit for open trades
+                if (currentBTCPrice && trade.btc_amount && trade.status === 'Open') {
+                    const estimatedValue = trade.btc_amount * currentBTCPrice;
+                    const estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                    totalProfit += estimatedProfit;
+                } else if (trade.profit !== null) {
+                    // For closed trades, use actual profit
                     totalProfit += trade.profit;
                 }
             });
