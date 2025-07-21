@@ -2340,50 +2340,39 @@
         let priceMonitorAutoRefreshInterval = null;
         let countdownInterval = null;
         let countdownSeconds = 30;
-        let titleScrollInterval = null;
-        let titleScrollPosition = 0;
-        let fullTitle = '';
+        let titleAlternateInterval = null;
+        let showingBTCPrice = false;
+        let profitTitle = '';
+        let btcPriceTitle = '';
 
-        function startScrollingTitle(title) {
-            fullTitle = title;
-            const maxLength = 20;
+        function startAlternatingTitle(profitText, btcPrice) {
+            profitTitle = profitText;
+            btcPriceTitle = `£${btcPrice.toFixed(2)}`;
             
-            // If title fits, just display it normally
-            if (title.length <= maxLength) {
-                document.title = title;
-                return;
+            // Clear any existing interval
+            if (titleAlternateInterval) {
+                clearInterval(titleAlternateInterval);
             }
             
-            // Clear any existing scroll interval
-            if (titleScrollInterval) {
-                clearInterval(titleScrollInterval);
-            }
+            // Start with profit display
+            showingBTCPrice = false;
+            document.title = profitTitle;
             
-            titleScrollPosition = 0;
-            
-            titleScrollInterval = setInterval(() => {
-                let displayTitle;
-                
-                if (titleScrollPosition + maxLength >= fullTitle.length) {
-                    // Show end of string and pad with spaces, then loop back
-                    displayTitle = fullTitle.substring(titleScrollPosition) + '   ' + fullTitle.substring(0, maxLength - (fullTitle.length - titleScrollPosition) - 3);
+            titleAlternateInterval = setInterval(() => {
+                if (showingBTCPrice) {
+                    document.title = profitTitle;
+                    showingBTCPrice = false;
                 } else {
-                    displayTitle = fullTitle.substring(titleScrollPosition, titleScrollPosition + maxLength);
+                    document.title = btcPriceTitle;
+                    showingBTCPrice = true;
                 }
-                
-                document.title = displayTitle;
-                
-                titleScrollPosition++;
-                if (titleScrollPosition >= fullTitle.length + 3) {
-                    titleScrollPosition = 0;
-                }
-            }, 300);
+            }, 2000);
         }
 
-        function stopScrollingTitle() {
-            if (titleScrollInterval) {
-                clearInterval(titleScrollInterval);
-                titleScrollInterval = null;
+        function stopAlternatingTitle() {
+            if (titleAlternateInterval) {
+                clearInterval(titleAlternateInterval);
+                titleAlternateInterval = null;
             }
         }
 
@@ -2680,10 +2669,10 @@
                 const gainSign = avgGainPercent >= 0 ? '+' : '';
                 const profitDisplay = totalProfit >= 0 ? `£${totalProfit.toFixed(2)}` : `-£${Math.abs(totalProfit).toFixed(2)}`;
                 
-                const titleText = `£${currentBTCPrice.toFixed(2)} | ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
-                startScrollingTitle(titleText);
+                const profitText = `Open: ${profitDisplay} | ${gainSign}${avgGainPercent.toFixed(2)}%`;
+                startAlternatingTitle(profitText, currentBTCPrice);
             } else {
-                stopScrollingTitle();
+                stopAlternatingTitle();
                 document.title = 'Bitcoin Trading Tracker';
             }
         }
@@ -5684,7 +5673,7 @@
 
         // Cleanup timers on page unload
         window.addEventListener('beforeunload', function() {
-            stopScrollingTitle();
+            stopAlternatingTitle();
             if (tradingRecordsAutoRefreshInterval) {
                 clearInterval(tradingRecordsAutoRefreshInterval);
             }
