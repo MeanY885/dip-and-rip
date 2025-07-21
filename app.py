@@ -3978,16 +3978,15 @@ def finance_summary():
             
             # Generate last 6 months from current month backwards
             for i in range(6):
+                target_year = current_date.year
+                target_month = current_date.month - i
+                
+                # Handle year rollover
+                while target_month <= 0:
+                    target_month += 12
+                    target_year -= 1
+                
                 try:
-                    # Calculate target date by going back i months
-                    months_back = i
-                    target_year = current_date.year
-                    target_month = current_date.month - months_back
-                    
-                    # Handle year rollover
-                    while target_month <= 0:
-                        target_month += 12
-                        target_year -= 1
                     
                     # Filter transactions for this specific month and year
                     month_transactions = []
@@ -4035,7 +4034,9 @@ def finance_summary():
                     }
                 except Exception as e:
                     print(f"Error processing month {target_month}/{target_year}: {e}")
-                    # Add empty month data to prevent chart issues
+                
+                # Always add month data (whether successful or not) to ensure all 6 months appear
+                if f"{target_year}-{target_month:02d}" not in monthly_data:
                     monthly_data[f"{target_year}-{target_month:02d}"] = {
                         'month': target_month,
                         'year': target_year,
