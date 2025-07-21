@@ -3946,6 +3946,15 @@ def finance_summary():
         
         transactions = query.all()
         
+        # For monthly overview, we need ALL transactions from the past 6 months
+        current_date = datetime.now()
+        six_months_ago = current_date - timedelta(days=180)  # Roughly 6 months
+        
+        all_transactions_query = FinanceTransaction.query.filter(
+            FinanceTransaction.date >= six_months_ago.date()
+        )
+        all_transactions = all_transactions_query.all()
+        
         # Calculate summary metrics
         total_transactions = len(transactions)
         total_amount = sum(t.amount for t in transactions)
@@ -3990,7 +3999,7 @@ def finance_summary():
                     
                     # Filter transactions for this specific month and year
                     month_transactions = []
-                    for t in transactions:
+                    for t in all_transactions:
                         try:
                             if hasattr(t, 'date') and t.date and t.date.month == target_month and t.date.year == target_year:
                                 month_transactions.append(t)
