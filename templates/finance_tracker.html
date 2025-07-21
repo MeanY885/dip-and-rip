@@ -1157,19 +1157,22 @@
                 monthlyChart.destroy();
             }
 
-            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-            // Sort monthly data by expenses for better visualization
-            const sortedData = monthlyData
-                .map((m, index) => ({ ...m, monthName: monthNames[index], expenses: Math.abs(m.expenses) }))
+            // Convert monthly data object to array and sort chronologically (oldest to newest)
+            const dataArray = Object.values(monthlyData)
+                .map(m => ({ ...m, expenses: Math.abs(m.expenses) }))
                 .filter(m => m.expenses > 0)
-                .sort((a, b) => b.expenses - a.expenses);
+                .sort((a, b) => {
+                    // Sort by year then month (chronologically)
+                    if (a.year !== b.year) return a.year - b.year;
+                    return a.month - b.month;
+                });
+
+            const sortedData = dataArray;
 
             monthlyChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: sortedData.map(m => m.monthName),
+                    labels: sortedData.map(m => m.month_name),
                     datasets: [
                         {
                             label: 'Monthly Expenses',

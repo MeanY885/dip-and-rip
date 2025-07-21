@@ -3971,12 +3971,22 @@ def finance_summary():
                 categories[cat_name]['amount'] += t.amount
                 categories[cat_name]['count'] += 1
         
-        # Monthly breakdown for the year
+        # Monthly breakdown for the last 6 months
+        current_date = datetime.now()
         monthly_data = {}
-        for m in range(1, 13):
-            month_transactions = [t for t in transactions if t.month == m]
-            monthly_data[m] = {
-                'month': m,
+        
+        # Generate last 6 months from current month backwards
+        for i in range(6):
+            target_month = (current_date.month - i - 1) % 12 + 1
+            target_year = current_date.year if (current_date.month - i) > 0 else current_date.year - 1
+            
+            # Filter transactions for this specific month and year
+            month_transactions = [t for t in transactions if t.month == target_month and t.year == target_year]
+            
+            monthly_data[f"{target_year}-{target_month:02d}"] = {
+                'month': target_month,
+                'year': target_year,
+                'month_name': datetime(target_year, target_month, 1).strftime('%b %Y'),
                 'total': sum(t.amount for t in month_transactions),
                 'income': sum(t.amount for t in month_transactions if t.amount > 0),
                 'expenses': sum(t.amount for t in month_transactions if t.amount < 0),
