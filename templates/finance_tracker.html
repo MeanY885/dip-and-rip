@@ -1209,15 +1209,41 @@
                     indexAxis: 'y', // Makes bars horizontal
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'point',
+                        intersect: false
+                    },
                     plugins: {
                         legend: {
                             display: true,
                             position: 'top'
                         },
                         tooltip: {
+                            mode: 'point', // More precise targeting
+                            intersect: false, // Show tooltip even when not directly over a point
+                            position: 'nearest', // Position tooltip at nearest point
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#fff',
+                            borderWidth: 1,
+                            cornerRadius: 6,
+                            displayColors: true,
                             callbacks: {
+                                title: function(context) {
+                                    // Show the month name
+                                    return context[0].label;
+                                },
                                 label: function(context) {
                                     return `${context.dataset.label}: £${context.parsed.x.toFixed(2)}`;
+                                },
+                                afterBody: function(context) {
+                                    // Calculate total for this month
+                                    let total = 0;
+                                    context.forEach(item => {
+                                        total += item.parsed.x;
+                                    });
+                                    return [`Total: £${total.toFixed(2)}`];
                                 }
                             }
                         }
