@@ -3977,11 +3977,18 @@ def finance_summary():
         
         # Generate last 6 months from current month backwards
         for i in range(6):
-            target_month = (current_date.month - i - 1) % 12 + 1
-            target_year = current_date.year if (current_date.month - i) > 0 else current_date.year - 1
+            # Calculate target date by going back i months
+            months_back = i
+            target_year = current_date.year
+            target_month = current_date.month - months_back
+            
+            # Handle year rollover
+            while target_month <= 0:
+                target_month += 12
+                target_year -= 1
             
             # Filter transactions for this specific month and year
-            month_transactions = [t for t in transactions if t.month == target_month and t.year == target_year]
+            month_transactions = [t for t in transactions if t.date.month == target_month and t.date.year == target_year]
             
             # Calculate categories for this month
             month_categories = {}
