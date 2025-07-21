@@ -2340,6 +2340,52 @@
         let priceMonitorAutoRefreshInterval = null;
         let countdownInterval = null;
         let countdownSeconds = 30;
+        let titleScrollInterval = null;
+        let titleScrollPosition = 0;
+        let fullTitle = '';
+
+        function startScrollingTitle(title) {
+            fullTitle = title;
+            const maxLength = 20;
+            
+            // If title fits, just display it normally
+            if (title.length <= maxLength) {
+                document.title = title;
+                return;
+            }
+            
+            // Clear any existing scroll interval
+            if (titleScrollInterval) {
+                clearInterval(titleScrollInterval);
+            }
+            
+            titleScrollPosition = 0;
+            
+            titleScrollInterval = setInterval(() => {
+                let displayTitle;
+                
+                if (titleScrollPosition + maxLength >= fullTitle.length) {
+                    // Show end of string and pad with spaces, then loop back
+                    displayTitle = fullTitle.substring(titleScrollPosition) + '   ' + fullTitle.substring(0, maxLength - (fullTitle.length - titleScrollPosition) - 3);
+                } else {
+                    displayTitle = fullTitle.substring(titleScrollPosition, titleScrollPosition + maxLength);
+                }
+                
+                document.title = displayTitle;
+                
+                titleScrollPosition++;
+                if (titleScrollPosition >= fullTitle.length + 3) {
+                    titleScrollPosition = 0;
+                }
+            }, 1500);
+        }
+
+        function stopScrollingTitle() {
+            if (titleScrollInterval) {
+                clearInterval(titleScrollInterval);
+                titleScrollInterval = null;
+            }
+        }
 
         // Load trades on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -2634,8 +2680,10 @@
                 const gainSign = avgGainPercent >= 0 ? '+' : '';
                 const profitDisplay = totalProfit >= 0 ? `£${totalProfit.toFixed(2)}` : `-£${Math.abs(totalProfit).toFixed(2)}`;
                 
-                document.title = `£${Math.round(currentBTCPrice)} | ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
+                const titleText = `£${Math.round(currentBTCPrice)} | ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
+                startScrollingTitle(titleText);
             } else {
+                stopScrollingTitle();
                 document.title = 'Bitcoin Trading Tracker';
             }
         }
@@ -5632,6 +5680,20 @@
         // Initialize smart inputs on page load
         document.addEventListener('DOMContentLoaded', function() {
             initializeSmartInputs();
+        });
+
+        // Cleanup timers on page unload
+        window.addEventListener('beforeunload', function() {
+            stopScrollingTitle();
+            if (tradingRecordsAutoRefreshInterval) {
+                clearInterval(tradingRecordsAutoRefreshInterval);
+            }
+            if (priceMonitorAutoRefreshInterval) {
+                clearInterval(priceMonitorAutoRefreshInterval);
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
         });
 
     </script>
