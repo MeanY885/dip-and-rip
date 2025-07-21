@@ -2347,7 +2347,7 @@
 
         function startAlternatingTitle(profitText, btcPrice) {
             profitTitle = profitText;
-            btcPriceTitle = `£${btcPrice.toFixed(2)}`;
+            btcPriceTitle = `BTCGBP: £${btcPrice.toFixed(2)}`;
             
             // Clear any existing interval
             if (titleAlternateInterval) {
@@ -2366,7 +2366,7 @@
                     document.title = btcPriceTitle;
                     showingBTCPrice = true;
                 }
-            }, 2000);
+            }, 3000);
         }
 
         function stopAlternatingTitle() {
