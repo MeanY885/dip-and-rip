@@ -1978,7 +1978,7 @@
         <div id="smart-strategy-tab" class="tab-content">
             <div class="strategy-header">
                 <h3>🤖 Automated Strategy Recommendations</h3>
-                <p><strong>Real-time optimal parameters</strong> for all timeframes - automatically updated every 60 seconds</p>
+                <p><strong>Real-time optimal parameters</strong> for all timeframes - automatically updated every 30 seconds</p>
                 <div class="last-updated">
                     <span id="strategy-last-updated">Loading...</span>
                     <span class="auto-refresh-indicator" id="strategy-refresh-status">●</span>
@@ -2339,7 +2339,7 @@
         let tradingRecordsAutoRefreshInterval = null;
         let priceMonitorAutoRefreshInterval = null;
         let countdownInterval = null;
-        let countdownSeconds = 60;
+        let countdownSeconds = 30;
 
         // Load trades on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -2769,15 +2769,15 @@
             // Only start if there are open trades
             const openTrades = trades.filter(t => t.status === 'Open');
             if (openTrades.length > 0 && !tradingRecordsAutoRefreshInterval) {
-                console.log('Starting auto-refresh for trading records (60 seconds)');
+                console.log('Starting auto-refresh for trading records (30 seconds)');
                 tradingRecordsAutoRefreshInterval = setInterval(() => {
                     refreshCurrentPrices(true); // Silent refresh
-                }, 60000); // 60 seconds
+                }, 30000); // 30 seconds
                 
                 // Update status indicator
                 const statusElement = document.getElementById('autoRefreshStatus');
                 if (statusElement) {
-                    statusElement.textContent = '🔄 Auto-updating profits every 60s (60s)';
+                    statusElement.textContent = '🔄 Auto-updating profits every 30s (30s)';
                     statusElement.style.color = '#28a745';
                 }
                 
@@ -2806,15 +2806,15 @@
         // Auto-refresh functionality for Price Monitor
         function startPriceMonitorAutoRefresh() {
             if (!priceMonitorAutoRefreshInterval) {
-                console.log('Starting auto-refresh for price monitor (60 seconds)');
+                console.log('Starting auto-refresh for price monitor (30 seconds)');
                 priceMonitorAutoRefreshInterval = setInterval(() => {
                     refreshPrice(true); // Silent refresh
-                }, 60000); // 60 seconds
+                }, 30000); // 30 seconds
                 
                 // Update status indicator
                 const statusElement = document.getElementById('priceMonitorAutoRefreshStatus');
                 if (statusElement) {
-                    statusElement.textContent = '🔄 Auto-updating prices every 60s';
+                    statusElement.textContent = '🔄 Auto-updating prices every 30s';
                     statusElement.style.color = '#28a745';
                 }
             }
@@ -2840,7 +2840,7 @@
                 clearInterval(countdownInterval);
             }
             
-            countdownSeconds = 60;
+            countdownSeconds = 30;
             updateCountdownDisplay();
             
             countdownInterval = setInterval(() => {
@@ -2848,7 +2848,7 @@
                 updateCountdownDisplay();
                 
                 if (countdownSeconds <= 0) {
-                    countdownSeconds = 60;
+                    countdownSeconds = 30;
                 }
             }, 1000);
         }
@@ -2863,7 +2863,7 @@
         function updateCountdownDisplay() {
             const statusElement = document.getElementById('autoRefreshStatus');
             if (statusElement && statusElement.textContent.includes('🔄 Auto-updating')) {
-                statusElement.textContent = `🔄 Auto-updating profits every 60s (${countdownSeconds}s)`;
+                statusElement.textContent = `🔄 Auto-updating profits every 30s (${countdownSeconds}s)`;
             }
         }
 
