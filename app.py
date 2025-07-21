@@ -3983,6 +3983,15 @@ def finance_summary():
             # Filter transactions for this specific month and year
             month_transactions = [t for t in transactions if t.month == target_month and t.year == target_year]
             
+            # Calculate categories for this month
+            month_categories = {}
+            for t in month_transactions:
+                if t.amount < 0:  # Only include expenses
+                    cat_name = t.category.name if t.category else 'Other'
+                    if cat_name not in month_categories:
+                        month_categories[cat_name] = 0
+                    month_categories[cat_name] += abs(t.amount)
+            
             monthly_data[f"{target_year}-{target_month:02d}"] = {
                 'month': target_month,
                 'year': target_year,
@@ -3990,7 +3999,8 @@ def finance_summary():
                 'total': sum(t.amount for t in month_transactions),
                 'income': sum(t.amount for t in month_transactions if t.amount > 0),
                 'expenses': sum(t.amount for t in month_transactions if t.amount < 0),
-                'count': len(month_transactions)
+                'count': len(month_transactions),
+                'categories': month_categories
             }
         
         return jsonify({

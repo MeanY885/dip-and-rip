@@ -1160,7 +1160,6 @@
             // Convert monthly data object to array and sort chronologically (oldest to newest)
             const dataArray = Object.values(monthlyData)
                 .map(m => ({ ...m, expenses: Math.abs(m.expenses) }))
-                .filter(m => m.expenses > 0)
                 .sort((a, b) => {
                     // Sort by year then month (chronologically)
                     if (a.year !== b.year) return a.year - b.year;
@@ -1169,38 +1168,70 @@
 
             const sortedData = dataArray;
 
+            // Collect all unique categories across all months
+            const allCategories = new Set();
+            sortedData.forEach(month => {
+                if (month.categories) {
+                    Object.keys(month.categories).forEach(cat => allCategories.add(cat));
+                }
+            });
+            
+            // Define colors for categories
+            const categoryColors = [
+                'rgba(59, 130, 246, 0.8)',   // Blue
+                'rgba(34, 197, 94, 0.8)',    // Green
+                'rgba(239, 68, 68, 0.8)',    // Red
+                'rgba(245, 158, 11, 0.8)',   // Orange
+                'rgba(168, 85, 247, 0.8)',   // Purple
+                'rgba(236, 72, 153, 0.8)',   // Pink
+                'rgba(14, 165, 233, 0.8)',   // Sky
+                'rgba(132, 204, 22, 0.8)',   // Lime
+                'rgba(249, 115, 22, 0.8)',   // Orange Alt
+                'rgba(99, 102, 241, 0.8)'    // Indigo
+            ];
+            
+            // Create datasets for each category
+            const datasets = Array.from(allCategories).map((category, index) => ({
+                label: category,
+                data: sortedData.map(month => month.categories[category] || 0),
+                backgroundColor: categoryColors[index % categoryColors.length],
+                borderColor: categoryColors[index % categoryColors.length].replace('0.8', '1'),
+                borderWidth: 1
+            }));
+
             monthlyChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: sortedData.map(m => m.month_name),
-                    datasets: [
-                        {
-                            label: 'Monthly Expenses',
-                            data: sortedData.map(m => m.expenses),
-                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
-                            borderColor: 'rgba(59, 130, 246, 1)',
-                            borderWidth: 1
-                        }
-                    ]
+                    datasets: datasets
                 },
                 options: {
-                    indexAxis: 'y', // Make it horizontal
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
                         legend: {
-                            display: false // Hide legend for cleaner look
+                            display: true,
+                            position: 'top'
                         },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return `${context.label}: £${context.parsed.x.toFixed(2)}`;
+                                    return `${context.dataset.label}: £${context.parsed.y.toFixed(2)}`;
                                 }
                             }
                         }
                     },
                     scales: {
                         x: {
+                            stacked: true,
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            stacked: true,
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
@@ -1210,44 +1241,14 @@
                                     size: 11
                                 }
                             }
-                        },
-                        y: {
-                            ticks: {
-                                font: {
-                                    size: 11
-                                }
-                            }
                         }
                     },
                     layout: {
                         padding: {
                             top: 10,
-                            right: 60,
+                            right: 10,
                             bottom: 10,
                             left: 10
-                        }
-                    },
-                    animation: {
-                        onComplete: function() {
-                            const chart = this;
-                            const ctx = chart.ctx;
-                            
-                            ctx.font = 'bold 11px Arial';
-                            ctx.fillStyle = '#333';
-                            ctx.textAlign = 'left';
-                            ctx.textBaseline = 'middle';
-                            
-                            chart.data.datasets.forEach((dataset, i) => {
-                                const meta = chart.getDatasetMeta(i);
-                                meta.data.forEach((bar, index) => {
-                                    const data = dataset.data[index];
-                                    if (data > 0) {
-                                        const x = bar.x + 5;
-                                        const y = bar.y;
-                                        ctx.fillText('£' + data.toLocaleString(), x, y);
-                                    }
-                                });
-                            });
                         }
                     }
                 }
