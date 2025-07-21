@@ -2634,7 +2634,7 @@
                 const gainSign = avgGainPercent >= 0 ? '+' : '';
                 const profitDisplay = totalProfit >= 0 ? `£${totalProfit.toFixed(2)}` : `-£${Math.abs(totalProfit).toFixed(2)}`;
                 
-                document.title = `Open: ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
+                document.title = `£${currentBTCPrice.toFixed(2)} | ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
             } else {
                 document.title = 'Bitcoin Trading Tracker';
             }
