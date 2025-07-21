@@ -2568,6 +2568,8 @@
                 
                 tbody.appendChild(row);
             });
+            
+            updateTabTitle();
         }
 
         function updateSummary() {
@@ -2593,6 +2595,44 @@
             document.getElementById('totalProfit').textContent = '£' + totalProfit.toFixed(2);
             document.getElementById('totalProfit').className = totalProfit >= 0 ? 'value positive' : 'value negative';
             document.getElementById('totalFees').textContent = '£' + totalFees.toFixed(2);
+            
+            updateTabTitle();
+        }
+
+        function updateTabTitle() {
+            const openTrades = trades.filter(t => t.status === 'Open');
+            
+            if (openTrades.length === 0) {
+                document.title = 'Bitcoin Trading Tracker';
+                return;
+            }
+
+            let totalGainPercent = 0;
+            let totalProfit = 0;
+            let validGainCount = 0;
+
+            openTrades.forEach(trade => {
+                if (currentBTCPrice && trade.btc_buy_price) {
+                    const gain = ((currentBTCPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                    totalGainPercent += gain;
+                    validGainCount++;
+                }
+                
+                if (trade.profit !== null) {
+                    totalProfit += trade.profit;
+                }
+            });
+
+            if (validGainCount > 0) {
+                const avgGainPercent = totalGainPercent / validGainCount;
+                const gainSign = avgGainPercent >= 0 ? '+' : '';
+                const profitSign = totalProfit >= 0 ? '' : '-';
+                const profitValue = Math.abs(totalProfit);
+                
+                document.title = `${gainSign}${avgGainPercent.toFixed(2)}% | ${profitSign}£${profitValue.toFixed(2)}`;
+            } else {
+                document.title = 'Bitcoin Trading Tracker';
+            }
         }
 
         function calculateProfit() {
