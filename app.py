@@ -3972,43 +3972,84 @@ def finance_summary():
                 categories[cat_name]['count'] += 1
         
         # Monthly breakdown for the last 6 months
-        current_date = datetime.now()
-        monthly_data = {}
-        
-        # Generate last 6 months from current month backwards
-        for i in range(6):
-            # Calculate target date by going back i months
-            months_back = i
-            target_year = current_date.year
-            target_month = current_date.month - months_back
+        try:
+            current_date = datetime.now()
+            monthly_data = {}
             
-            # Handle year rollover
-            while target_month <= 0:
-                target_month += 12
-                target_year -= 1
-            
-            # Filter transactions for this specific month and year
-            month_transactions = [t for t in transactions if t.date.month == target_month and t.date.year == target_year]
-            
-            # Calculate categories for this month
-            month_categories = {}
-            for t in month_transactions:
-                if t.amount < 0:  # Only include expenses
-                    cat_name = t.category.name if t.category else 'Other'
-                    if cat_name not in month_categories:
-                        month_categories[cat_name] = 0
-                    month_categories[cat_name] += abs(t.amount)
-            
-            monthly_data[f"{target_year}-{target_month:02d}"] = {
-                'month': target_month,
-                'year': target_year,
-                'month_name': datetime(target_year, target_month, 1).strftime('%b %Y'),
-                'total': sum(t.amount for t in month_transactions),
-                'income': sum(t.amount for t in month_transactions if t.amount > 0),
-                'expenses': sum(t.amount for t in month_transactions if t.amount < 0),
-                'count': len(month_transactions),
-                'categories': month_categories
-            }
+            # Generate last 6 months from current month backwards
+            for i in range(6):
+                try:
+                    # Calculate target date by going back i months
+                    months_back = i
+                    target_year = current_date.year
+                    target_month = current_date.month - months_back
+                    
+                    # Handle year rollover
+                    while target_month <= 0:
+                        target_month += 12
+                        target_year -= 1
+                    
+                    # Filter transactions for this specific month and year
+                    month_transactions = []
+                    for t in transactions:
+                        try:
+                            if hasattr(t, 'date') and t.date and t.date.month == target_month and t.date.year == target_year:
+                                month_transactions.append(t)
+                        except Exception as e:
+                            print(f"Error filtering transaction {t.id}: {e}")
+                            continue
+                    
+                    # Calculate categories for this month
+                    month_categories = {}
+                    for t in month_transactions:
+                        try:
+                            if t.amount < 0:  # Only include expenses
+                                cat_name = 'Other'  # Default fallback
+                                if hasattr(t, 'category') and t.category and hasattr(t.category, 'name'):
+                                    cat_name = t.category.name
+                                elif hasattr(t, 'category_id') and t.category_id:
+                                    # Try to get category name from relationship
+                                    try:
+                                        category = FinanceCategory.query.get(t.category_id)
+                                        if category:
+                                            cat_name = category.name
+                                    except:
+                                        pass
+                                
+                                if cat_name not in month_categories:
+                                    month_categories[cat_name] = 0
+                                month_categories[cat_name] += abs(t.amount)
+                        except Exception as e:
+                            print(f"Error processing transaction category {t.id}: {e}")
+                            continue
+                    
+                    monthly_data[f"{target_year}-{target_month:02d}"] = {
+                        'month': target_month,
+                        'year': target_year,
+                        'month_name': datetime(target_year, target_month, 1).strftime('%b %Y'),
+                        'total': sum(t.amount for t in month_transactions) if month_transactions else 0,
+                        'income': sum(t.amount for t in month_transactions if t.amount > 0) if month_transactions else 0,
+                        'expenses': sum(t.amount for t in month_transactions if t.amount < 0) if month_transactions else 0,
+                        'count': len(month_transactions),
+                        'categories': month_categories
+                    }
+                except Exception as e:
+                    print(f"Error processing month {target_month}/{target_year}: {e}")
+                    # Add empty month data to prevent chart issues
+                    monthly_data[f"{target_year}-{target_month:02d}"] = {
+                        'month': target_month,
+                        'year': target_year,
+                        'month_name': datetime(target_year, target_month, 1).strftime('%b %Y'),
+                        'total': 0,
+                        'income': 0,
+                        'expenses': 0,
+                        'count': 0,
+                        'categories': {}
+                    }
+        except Exception as e:
+            print(f"Error generating monthly data: {e}")
+            # Fallback to empty data
+            monthly_data = {}
         
         return jsonify({
             'success': True,
