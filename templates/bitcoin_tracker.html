@@ -2468,7 +2468,13 @@
             } else if (currentPrice && trade.btc_amount && trade.status === 'Open') {
                 // Open trade - calculate estimated profit
                 const estimatedValue = trade.btc_amount * currentPrice;
-                const estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                let estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                
+                // If fee is entered for open trade, deduct it from live profit
+                if (trade.fee !== null && trade.fee > 0) {
+                    estimatedProfit -= trade.fee;
+                }
+                
                 const profitClass = estimatedProfit >= 0 ? 'profit-positive' : 'profit-negative';
                 return '<span class="' + profitClass + '">£' + estimatedProfit.toFixed(2) + '*</span>';
             } else {
@@ -2662,7 +2668,13 @@
                 // Calculate estimated profit for open trades
                 if (currentBTCPrice && trade.btc_amount && trade.status === 'Open') {
                     const estimatedValue = trade.btc_amount * currentBTCPrice;
-                    const estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                    let estimatedProfit = estimatedValue - trade.initial_investment_gbp;
+                    
+                    // If fee is entered for open trade, deduct it from live profit
+                    if (trade.fee !== null && trade.fee > 0) {
+                        estimatedProfit -= trade.fee;
+                    }
+                    
                     totalProfit += estimatedProfit;
                 } else if (trade.profit !== null) {
                     // For closed trades, use actual profit
