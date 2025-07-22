@@ -4497,6 +4497,22 @@ def debug_pdf():
         logger.error(f"PDF debug error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# Temporary admin endpoint for database migration - REMOVE AFTER USE
+@app.route('/admin/migrate-final-value', methods=['POST'])
+def migrate_final_value_column():
+    try:
+        # Check if column already exists by trying to select from it
+        try:
+            db.session.execute(text('SELECT final_value_gbp FROM bitcoin_trade LIMIT 1'))
+            return jsonify({'success': True, 'message': 'Column already exists'})
+        except Exception:
+            # Column doesn't exist, add it
+            db.session.execute(text('ALTER TABLE bitcoin_trade ADD COLUMN final_value_gbp FLOAT'))
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Successfully added final_value_gbp column'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port, debug=True)
