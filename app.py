@@ -3019,33 +3019,67 @@ def bitcoin_trades():
             # Check if duration_minutes column exists
             has_duration_column = check_duration_column_exists()
             
-            # Always include created_at and updated_at for duration calculation
-            result = db.session.execute(text("""
-                SELECT id, status, date, type, initial_investment_gbp, 
-                       btc_buy_price, btc_sell_price, profit, fee, btc_amount,
-                       created_at, updated_at, final_value_gbp
-                FROM bitcoin_trade
-                ORDER BY date DESC
-            """))
-            
-            trades_data = []
-            for row in result:
-                trades_data.append({
-                    'id': row[0],
-                    'status': row[1],
-                    'date': row[2],
-                    'type': row[3],
-                    'initial_investment_gbp': row[4],
-                    'btc_buy_price': row[5],
-                    'btc_sell_price': row[6],
-                    'profit': row[7],
-                    'fee': row[8],
-                    'btc_amount': row[9],
-                    'created_at': (str(row[10]) + 'Z') if row[10] else None,
-                    'updated_at': (str(row[11]) + 'Z') if row[11] else None,
-                    'final_value_gbp': row[12],
-                    'duration_minutes': None  # Will be calculated on frontend
-                })
+            # Check if final_value_gbp column exists
+            try:
+                # Try with final_value_gbp column first
+                result = db.session.execute(text("""
+                    SELECT id, status, date, type, initial_investment_gbp, 
+                           btc_buy_price, btc_sell_price, profit, fee, btc_amount,
+                           created_at, updated_at, final_value_gbp
+                    FROM bitcoin_trade
+                    ORDER BY date DESC
+                """))
+                
+                trades_data = []
+                for row in result:
+                    trades_data.append({
+                        'id': row[0],
+                        'status': row[1],
+                        'date': row[2],
+                        'type': row[3],
+                        'initial_investment_gbp': row[4],
+                        'btc_buy_price': row[5],
+                        'btc_sell_price': row[6],
+                        'profit': row[7],
+                        'fee': row[8],
+                        'btc_amount': row[9],
+                        'created_at': (str(row[10]) + 'Z') if row[10] else None,
+                        'updated_at': (str(row[11]) + 'Z') if row[11] else None,
+                        'final_value_gbp': row[12],
+                        'duration_minutes': None  # Will be calculated on frontend
+                    })
+                    
+            except Exception as e:
+                # Fallback to query without final_value_gbp column if it doesn't exist
+                if 'no such column' in str(e).lower():
+                    result = db.session.execute(text("""
+                        SELECT id, status, date, type, initial_investment_gbp, 
+                               btc_buy_price, btc_sell_price, profit, fee, btc_amount,
+                               created_at, updated_at
+                        FROM bitcoin_trade
+                        ORDER BY date DESC
+                    """))
+                    
+                    trades_data = []
+                    for row in result:
+                        trades_data.append({
+                            'id': row[0],
+                            'status': row[1],
+                            'date': row[2],
+                            'type': row[3],
+                            'initial_investment_gbp': row[4],
+                            'btc_buy_price': row[5],
+                            'btc_sell_price': row[6],
+                            'profit': row[7],
+                            'fee': row[8],
+                            'btc_amount': row[9],
+                            'created_at': (str(row[10]) + 'Z') if row[10] else None,
+                            'updated_at': (str(row[11]) + 'Z') if row[11] else None,
+                            'final_value_gbp': None,  # Default value for missing column
+                            'duration_minutes': None  # Will be calculated on frontend
+                        })
+                else:
+                    raise e
             
             return jsonify({
                 'success': True,
@@ -3175,15 +3209,17 @@ def bitcoin_trade_detail(trade_id):
             if 'fee' in data:
                 trade.fee = float(data['fee']) if data['fee'] is not None else None
             if 'final_value_gbp' in data:
-                trade.final_value_gbp = float(data['final_value_gbp']) if data['final_value_gbp'] else None
+                # Only update if the column exists in the database
+                if hasattr(trade, 'final_value_gbp'):
+                    trade.final_value_gbp = float(data['final_value_gbp']) if data['final_value_gbp'] else None
             
             # Recalculate BTC amount
             if trade.initial_investment_gbp and trade.btc_buy_price:
                 trade.btc_amount = trade.initial_investment_gbp / trade.btc_buy_price
             
             # Check if all fields are complete to calculate profit and update status
-            # Priority 1: Use final_value_gbp if provided
-            if trade.final_value_gbp is not None and trade.initial_investment_gbp is not None:
+            # Priority 1: Use final_value_gbp if provided and column exists
+            if hasattr(trade, 'final_value_gbp') and trade.final_value_gbp is not None and trade.initial_investment_gbp is not None:
                 fee = trade.fee or 0
                 trade.profit = trade.final_value_gbp - trade.initial_investment_gbp - fee
                 trade.status = 'Closed'
