@@ -2687,9 +2687,9 @@
                 const gainSign = avgGainPercent >= 0 ? '+' : '';
                 const profitDisplay = totalProfit >= 0 ? `£${totalProfit.toFixed(2)}` : `-£${Math.abs(totalProfit).toFixed(2)}`;
                 
-                // Determine emojis based on performance
+                // Determine emojis based on actual profit (including fees)
                 let emojiPrefix = '';
-                if (avgGainPercent >= 0) {
+                if (totalProfit >= 0) {
                     emojiPrefix = avgGainPercent > 0.75 ? '🟢🚀 ' : '🟢 ';
                 } else {
                     emojiPrefix = '🔴 ';
