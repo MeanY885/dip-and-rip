@@ -2770,7 +2770,8 @@
                 initial_investment_gbp: parseFloat(document.getElementById('initial_investment_gbp').value),
                 btc_buy_price: parseFloat(document.getElementById('btc_buy_price').value),
                 btc_sell_price: document.getElementById('btc_sell_price').value ? parseFloat(document.getElementById('btc_sell_price').value) : null,
-                fee: document.getElementById('fee').value ? parseFloat(document.getElementById('fee').value) : null
+                fee: document.getElementById('fee').value ? parseFloat(document.getElementById('fee').value) : null,
+                final_value_gbp: document.getElementById('final_value_gbp').value ? parseFloat(document.getElementById('final_value_gbp').value) : null
             };
             
             console.log('Trade data:', tradeData); // Debug log
