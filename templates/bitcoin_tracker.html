@@ -2300,6 +2300,12 @@
                 </div>
                 
                 <div class="form-group">
+                    <label for="final_value_gbp">Final Value (£)</label>
+                    <input type="number" id="final_value_gbp" step="0.01">
+                    <div class="help-text">Total account value after trade (optional - for more accurate profit calculation)</div>
+                </div>
+                
+                <div class="form-group">
                     <label for="profit_display">Calculated Profit (£)</label>
                     <input type="text" id="profit_display" class="calculated-field" readonly>
                     <div class="help-text">Automatically calculated when all fields are filled</div>
@@ -2669,7 +2675,15 @@
                 const gainSign = avgGainPercent >= 0 ? '+' : '';
                 const profitDisplay = totalProfit >= 0 ? `£${totalProfit.toFixed(2)}` : `-£${Math.abs(totalProfit).toFixed(2)}`;
                 
-                const profitText = `Open: ${profitDisplay} | ${gainSign}${avgGainPercent.toFixed(2)}%`;
+                // Determine emojis based on performance
+                let emojiPrefix = '';
+                if (avgGainPercent >= 0) {
+                    emojiPrefix = avgGainPercent > 0.75 ? '🟢🚀 ' : '🟢 ';
+                } else {
+                    emojiPrefix = '🔴 ';
+                }
+                
+                const profitText = `${emojiPrefix}Open: ${gainSign}${avgGainPercent.toFixed(2)}% | ${profitDisplay}`;
                 startAlternatingTitle(profitText, currentBTCPrice);
             } else {
                 stopAlternatingTitle();
@@ -2682,12 +2696,23 @@
             const buyPrice = parseFloat(document.getElementById('btc_buy_price').value) || 0;
             const sellPrice = parseFloat(document.getElementById('btc_sell_price').value) || 0;
             const fee = parseFloat(document.getElementById('fee').value) || 0;
+            const finalValue = parseFloat(document.getElementById('final_value_gbp').value) || 0;
             
-            if (initialInvestment && buyPrice && sellPrice && fee >= 0) {
+            let profit = 0;
+            let canCalculate = false;
+            
+            // Priority 1: Use Final Value if provided
+            if (finalValue > 0 && initialInvestment > 0) {
+                profit = finalValue - initialInvestment - fee;
+                canCalculate = true;
+                document.getElementById('profit_display').value = '£' + profit.toFixed(2);
+            }
+            // Priority 2: Use traditional calculation if Final Value not provided
+            else if (initialInvestment && buyPrice && sellPrice && fee >= 0) {
                 const btcAmount = initialInvestment / buyPrice;
                 const grossReturn = btcAmount * sellPrice;
-                const profit = grossReturn - initialInvestment - fee;
-                
+                profit = grossReturn - initialInvestment - fee;
+                canCalculate = true;
                 document.getElementById('profit_display').value = '£' + profit.toFixed(2);
             } else {
                 document.getElementById('profit_display').value = 'Pending (fill all fields)';
@@ -2714,6 +2739,7 @@
             document.getElementById('btc_buy_price').value = trade.btc_buy_price;
             document.getElementById('btc_sell_price').value = trade.btc_sell_price || '';
             document.getElementById('fee').value = trade.fee !== null ? trade.fee : '';
+            document.getElementById('final_value_gbp').value = trade.final_value_gbp !== null ? trade.final_value_gbp : '';
             
             calculateProfit();
             

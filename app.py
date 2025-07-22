@@ -154,6 +154,7 @@ class BitcoinTrade(db.Model):
     profit = db.Column(db.Float, nullable=True)  # Auto-calculated, nullable for open trades
     fee = db.Column(db.Float, nullable=True)  # Nullable for open trades
     btc_amount = db.Column(db.Float, nullable=True)  # Store the amount of BTC purchased
+    final_value_gbp = db.Column(db.Float, nullable=True)  # Final value received from trade
     # duration_minutes = db.Column(db.Integer, nullable=True)  # Duration in minutes for closed trades - COMMENTED OUT UNTIL DB MIGRATION
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -3022,7 +3023,7 @@ def bitcoin_trades():
             result = db.session.execute(text("""
                 SELECT id, status, date, type, initial_investment_gbp, 
                        btc_buy_price, btc_sell_price, profit, fee, btc_amount,
-                       created_at, updated_at
+                       created_at, updated_at, final_value_gbp
                 FROM bitcoin_trade
                 ORDER BY date DESC
             """))
@@ -3042,6 +3043,7 @@ def bitcoin_trades():
                     'btc_amount': row[9],
                     'created_at': (str(row[10]) + 'Z') if row[10] else None,
                     'updated_at': (str(row[11]) + 'Z') if row[11] else None,
+                    'final_value_gbp': row[12],
                     'duration_minutes': None  # Will be calculated on frontend
                 })
             
@@ -3070,8 +3072,16 @@ def bitcoin_trades():
             # Check if all fields are provided to determine status and calculate profit
             btc_sell_price = data.get('btc_sell_price', data.get('crypto_value'))
             fee = data.get('fee')
+            final_value_gbp = data.get('final_value_gbp')
             
-            if btc_sell_price and fee is not None:
+            # Priority 1: Use final_value_gbp if provided
+            if final_value_gbp:
+                final_value_gbp = float(final_value_gbp)
+                fee = float(fee) if fee is not None else 0
+                profit = final_value_gbp - initial_investment - fee
+                status = 'Closed'
+            # Priority 2: Use traditional calculation
+            elif btc_sell_price and fee is not None:
                 # All fields provided - calculate profit and set status to Closed
                 btc_sell_price = float(btc_sell_price)
                 fee = float(fee)
@@ -3080,6 +3090,7 @@ def bitcoin_trades():
                 gross_return = btc_amount * btc_sell_price
                 profit = gross_return - initial_investment - fee
                 status = 'Closed'
+                final_value_gbp = None
                 
                 # Calculate duration in minutes from trade date to now
                 trade_date = datetime.strptime(data['date'], '%Y-%m-%d')
@@ -3093,6 +3104,7 @@ def bitcoin_trades():
                 profit = None
                 status = 'Open'
                 duration_minutes = None
+                final_value_gbp = None
             
             # Create trade object with or without duration_minutes based on column existence
             trade_data = {
@@ -3104,7 +3116,8 @@ def bitcoin_trades():
                 'btc_sell_price': btc_sell_price,
                 'profit': profit,
                 'fee': fee,
-                'btc_amount': btc_amount
+                'btc_amount': btc_amount,
+                'final_value_gbp': final_value_gbp
             }
             
             trade = BitcoinTrade(**trade_data)
@@ -3161,13 +3174,21 @@ def bitcoin_trade_detail(trade_id):
                 trade.btc_sell_price = float(data['btc_sell_price']) if data['btc_sell_price'] else None
             if 'fee' in data:
                 trade.fee = float(data['fee']) if data['fee'] is not None else None
+            if 'final_value_gbp' in data:
+                trade.final_value_gbp = float(data['final_value_gbp']) if data['final_value_gbp'] else None
             
             # Recalculate BTC amount
             if trade.initial_investment_gbp and trade.btc_buy_price:
                 trade.btc_amount = trade.initial_investment_gbp / trade.btc_buy_price
             
             # Check if all fields are complete to calculate profit and update status
-            if trade.btc_sell_price is not None and trade.fee is not None and trade.btc_amount is not None:
+            # Priority 1: Use final_value_gbp if provided
+            if trade.final_value_gbp is not None and trade.initial_investment_gbp is not None:
+                fee = trade.fee or 0
+                trade.profit = trade.final_value_gbp - trade.initial_investment_gbp - fee
+                trade.status = 'Closed'
+            # Priority 2: Use traditional calculation
+            elif trade.btc_sell_price is not None and trade.fee is not None and trade.btc_amount is not None:
                 # Calculate profit
                 gross_return = trade.btc_amount * trade.btc_sell_price
                 trade.profit = gross_return - trade.initial_investment_gbp - trade.fee
