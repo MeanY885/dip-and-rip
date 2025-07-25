@@ -2669,8 +2669,7 @@ def finance_tracker():
 
 @app.route('/data-viewer')
 def data_viewer():
-    # Redirect to Bitcoin Tracker
-    return redirect('/bitcoin-tracker')
+    return render_template('data_viewer.html')
 
 @app.route('/price-monitor')
 def price_monitor():
