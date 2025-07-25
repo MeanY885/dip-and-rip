@@ -2093,89 +2093,91 @@ def collect_current_minute_price():
         return {'success': False, 'error': str(e)}
 
 def calculate_swing_analysis(period_hours, days_back=7):
-    """Calculate swing analysis for specified time periods"""
+    """Calculate swing analysis for specified time periods using backward-looking windows from current time"""
     try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
+        current_time = datetime.now()
         
-        # Query minute-level data for the period
+        # For single period analysis, we look at multiple windows over the days_back period
+        # But for multi-period, we want the most recent period_hours from now
+        analysis_start = current_time - timedelta(days=days_back)
+        
+        # Query minute-level data for the analysis period
         minute_data = BitcoinPriceHistoryMinute.query.filter(
-            BitcoinPriceHistoryMinute.timestamp >= start_date,
-            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.timestamp >= analysis_start,
+            BitcoinPriceHistoryMinute.timestamp <= current_time,
             BitcoinPriceHistoryMinute.price_gbp.isnot(None)
-        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.desc()).all()  # Most recent first
         
         if not minute_data:
             return {'success': False, 'error': 'No minute-level data available'}
         
-        # Convert to list of dictionaries for easier processing
-        data_points = []
-        for record in minute_data:
-            data_points.append({
-                'timestamp': record.timestamp,
-                'price': record.price_gbp or record.close_price_gbp,
-                'high': record.high_price_gbp,
-                'low': record.low_price_gbp,
-                'open': record.open_price_gbp,
-                'close': record.close_price_gbp
-            })
+        # Get current price (most recent data point)
+        current_price = minute_data[0].price_gbp or minute_data[0].close_price_gbp
+        if not current_price:
+            return {'success': False, 'error': 'No current price available'}
         
-        # Calculate rolling windows for swing analysis
-        window_minutes = period_hours * 60
+        # For backward-looking analysis, we analyze multiple period_hours windows
+        # within the days_back timeframe to get statistics
         swing_results = []
         
-        for i in range(len(data_points)):
-            current_time = data_points[i]['timestamp']
-            window_start = current_time - timedelta(hours=period_hours)
+        # Calculate how many complete windows we can fit in the analysis period
+        total_minutes = days_back * 24 * 60
+        window_minutes = period_hours * 60
+        num_windows = total_minutes // window_minutes
+        
+        # Analyze each complete window
+        for window_num in range(min(num_windows, 50)):  # Limit to 50 windows for performance
+            window_start_time = current_time - timedelta(hours=(window_num + 1) * period_hours)
+            window_end_time = current_time - timedelta(hours=window_num * period_hours)
             
-            # Get data points within the window
+            # Get data for this specific window
             window_data = [
-                point for point in data_points 
-                if window_start <= point['timestamp'] <= current_time
+                record for record in minute_data 
+                if window_start_time <= record.timestamp <= window_end_time
             ]
             
             if len(window_data) < 2:
                 continue
             
-            # Find the highest and lowest prices in the window
-            prices = [point['price'] for point in window_data if point['price']]
-            highs = [point['high'] for point in window_data if point['high']]
-            lows = [point['low'] for point in window_data if point['low']]
+            # Find highest and lowest prices in this window
+            window_prices = []
+            for record in window_data:
+                price = record.price_gbp or record.close_price_gbp
+                if price:
+                    window_prices.append(price)
+                # Also include high/low if available for more accuracy
+                if record.high_price_gbp:
+                    window_prices.append(record.high_price_gbp)
+                if record.low_price_gbp:
+                    window_prices.append(record.low_price_gbp)
             
-            if not prices:
+            if not window_prices:
                 continue
             
-            # Use high/low if available, otherwise use prices
-            window_high = max(highs) if highs else max(prices)
-            window_low = min(lows) if lows else min(prices)
-            window_start_price = window_data[0]['price']
-            window_end_price = data_points[i]['price']
+            window_high = max(window_prices)
+            window_low = min(window_prices)
+            window_start_price = window_data[-1].price_gbp or window_data[-1].close_price_gbp  # Oldest in window
             
-            # Calculate swing metrics
             if window_start_price and window_start_price > 0:
-                # Lowest drop % (how much it dropped from the start)
+                # Calculate swings from the window start price
                 lowest_drop_pct = ((window_low - window_start_price) / window_start_price) * 100
-                
-                # Highest increase % (how much it increased from the start)
                 highest_increase_pct = ((window_high - window_start_price) / window_start_price) * 100
-                
-                # Volatility (high-low range as percentage of start price)
                 volatility_pct = ((window_high - window_low) / window_start_price) * 100
                 
                 swing_results.append({
-                    'timestamp': current_time.isoformat(),
+                    'window_start': window_start_time.isoformat(),
+                    'window_end': window_end_time.isoformat(),
                     'period_hours': period_hours,
                     'window_high': round(window_high, 2),
                     'window_low': round(window_low, 2),
                     'window_start_price': round(window_start_price, 2),
-                    'window_end_price': round(window_end_price, 2),
                     'lowest_drop_pct': round(lowest_drop_pct, 2),
                     'highest_increase_pct': round(highest_increase_pct, 2),
                     'volatility_pct': round(volatility_pct, 2),
-                    'window_data_points': len(window_data)
+                    'data_points': len(window_data)
                 })
         
-        # Calculate summary statistics
+        # Calculate summary statistics from all windows
         if swing_results:
             drops = [result['lowest_drop_pct'] for result in swing_results]
             increases = [result['highest_increase_pct'] for result in swing_results]
@@ -2190,49 +2192,163 @@ def calculate_swing_analysis(period_hours, days_back=7):
                 'avg_highest_increase_pct': round(sum(increases) / len(increases), 2),
                 'max_highest_increase_pct': round(max(increases), 2),
                 'avg_volatility_pct': round(sum(volatilities) / len(volatilities), 2),
-                'max_volatility_pct': round(max(volatilities), 2)
+                'max_volatility_pct': round(max(volatilities), 2),
+                'current_price': round(current_price, 2)
             }
         else:
             summary = {
                 'period_hours': period_hours,
                 'days_analyzed': days_back,
-                'total_windows': 0
+                'total_windows': 0,
+                'current_price': round(current_price, 2)
             }
         
         return {
             'success': True,
             'summary': summary,
-            'swing_data': swing_results[-100:] if len(swing_results) > 100 else swing_results  # Return last 100 for performance
+            'swing_data': swing_results[:20] if len(swing_results) > 20 else swing_results  # Return first 20 for performance
         }
         
     except Exception as e:
         logger.error(f"Error in swing analysis: {e}")
         return {'success': False, 'error': str(e)}
 
+def calculate_recent_period_swing(period_hours):
+    """Calculate swing for a specific recent period from current time backward"""
+    try:
+        current_time = datetime.now()
+        period_start = current_time - timedelta(hours=period_hours)
+        
+        # Query minute-level data for this specific period
+        minute_data = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= period_start,
+            BitcoinPriceHistoryMinute.timestamp <= current_time,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        
+        if not minute_data:
+            return {'success': False, 'error': f'No data available for {period_hours}h period'}
+        
+        # Get all prices in this period
+        all_prices = []
+        for record in minute_data:
+            price = record.price_gbp or record.close_price_gbp
+            if price:
+                all_prices.append(price)
+            # Include high/low for more accurate extremes
+            if record.high_price_gbp:
+                all_prices.append(record.high_price_gbp)
+            if record.low_price_gbp:
+                all_prices.append(record.low_price_gbp)
+        
+        if not all_prices:
+            return {'success': False, 'error': f'No valid prices for {period_hours}h period'}
+        
+        # Get period start price and current price
+        period_start_price = minute_data[0].price_gbp or minute_data[0].close_price_gbp
+        current_price = minute_data[-1].price_gbp or minute_data[-1].close_price_gbp
+        
+        # Find absolute highest and lowest in the period
+        period_high = max(all_prices)
+        period_low = min(all_prices)
+        
+        if not period_start_price or period_start_price <= 0:
+            return {'success': False, 'error': f'Invalid start price for {period_hours}h period'}
+        
+        # Calculate swings from period start price
+        max_rise_pct = ((period_high - period_start_price) / period_start_price) * 100
+        max_drop_pct = ((period_low - period_start_price) / period_start_price) * 100
+        volatility_pct = ((period_high - period_low) / period_start_price) * 100
+        
+        # Also calculate from current price perspective
+        rise_from_current = ((period_high - current_price) / current_price) * 100
+        drop_from_current = ((period_low - current_price) / current_price) * 100
+        
+        return {
+            'success': True,
+            'period_hours': period_hours,
+            'data_points': len(minute_data),
+            'period_start_price': round(period_start_price, 2),
+            'current_price': round(current_price, 2),
+            'period_high': round(period_high, 2),
+            'period_low': round(period_low, 2),
+            'max_rise_pct': round(max_rise_pct, 2),
+            'max_drop_pct': round(max_drop_pct, 2),
+            'volatility_pct': round(volatility_pct, 2),
+            'rise_from_current': round(rise_from_current, 2),
+            'drop_from_current': round(drop_from_current, 2),
+            'period_start': period_start.isoformat(),
+            'period_end': current_time.isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating recent period swing for {period_hours}h: {e}")
+        return {'success': False, 'error': str(e)}
+
 def get_multi_period_swing_analysis(days_back=7):
-    """Get swing analysis for multiple time periods (1h, 3h, 6h, 9h, 12h, 1 day)"""
+    """Get swing analysis for multiple time periods (1h, 3h, 6h, 9h, 12h, 1 day) using recent periods"""
     try:
         periods = [1, 3, 6, 9, 12, 24]  # hours
         results = {}
         
         for period in periods:
-            analysis = calculate_swing_analysis(period, days_back)
+            # Use the new recent period analysis for multi-period
+            analysis = calculate_recent_period_swing(period)
+            
             if analysis['success']:
                 # Format period label
-                if period == 24:
-                    period_label = '1d'
-                else:
-                    period_label = f'{period}h'
-                results[period_label] = analysis['summary']
+                period_label = '1d' if period == 24 else f'{period}h'
+                
+                # Convert to the expected format for consistency
+                results[period_label] = {
+                    'period_hours': period,
+                    'total_windows': 1,  # Single recent period
+                    'avg_lowest_drop_pct': analysis['max_drop_pct'],
+                    'max_lowest_drop_pct': analysis['max_drop_pct'],
+                    'avg_highest_increase_pct': analysis['max_rise_pct'],
+                    'max_highest_increase_pct': analysis['max_rise_pct'],
+                    'avg_volatility_pct': analysis['volatility_pct'],
+                    'current_price': analysis['current_price'],
+                    'data_points': analysis['data_points']
+                }
             else:
                 period_label = '1d' if period == 24 else f'{period}h'
                 results[period_label] = {'error': analysis['error']}
         
-        return {
+        # Validate logical consistency - longer periods should have >= swings than shorter periods
+        validation_errors = []
+        period_order = ['1h', '3h', '6h', '9h', '12h', '1d']
+        
+        for i in range(1, len(period_order)):
+            current_period = period_order[i]
+            prev_period = period_order[i-1]
+            
+            if current_period in results and prev_period in results:
+                current_data = results[current_period]
+                prev_data = results[prev_period]
+                
+                if not current_data.get('error') and not prev_data.get('error'):
+                    current_max_rise = current_data.get('max_highest_increase_pct', 0)
+                    prev_max_rise = prev_data.get('max_highest_increase_pct', 0)
+                    current_max_drop = abs(current_data.get('max_lowest_drop_pct', 0))
+                    prev_max_drop = abs(prev_data.get('max_lowest_drop_pct', 0))
+                    
+                    if current_max_rise < prev_max_rise:
+                        validation_errors.append(f"{current_period} max rise ({current_max_rise}%) < {prev_period} max rise ({prev_max_rise}%)")
+                    if current_max_drop < prev_max_drop:
+                        validation_errors.append(f"{current_period} max drop ({current_max_drop}%) < {prev_period} max drop ({prev_max_drop}%)")
+        
+        result = {
             'success': True,
             'days_analyzed': days_back,
             'periods': results
         }
+        
+        if validation_errors:
+            result['validation_warnings'] = validation_errors
+            logger.warning(f"Swing analysis validation warnings: {validation_errors}")
+        
+        return result
         
     except Exception as e:
         logger.error(f"Error in multi-period swing analysis: {e}")
