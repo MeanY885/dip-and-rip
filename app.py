@@ -412,16 +412,15 @@ class BTCBacktester:
             
             logger.info(f"Fetching Kraken data from {start_date} to {end_date}")
             
-            pairs_to_try = [
-                ("XXBTZGBP", "BTC-GBP"),
-                ("XXBTZUSD", "BTC-USD")
-            ]
+            # GBP only - Kraken only for backtester (simpler for now)
+            kraken_pair = "XXBTZGBP"
+            display_name = "BTC-GBP"
+            url = "https://api.kraken.com/0/public/OHLC"
             
-            for kraken_pair, display_name in pairs_to_try:
-                try:
-                    logger.info(f"Trying Kraken pair: {kraken_pair} ({display_name})")
-                    
-                    params = {
+            try:
+                logger.info(f"Trying Kraken pair: {kraken_pair} ({display_name})")
+                
+                params = {
                         'pair': kraken_pair,
                         'interval': 1440,
                         'since': since
@@ -1508,7 +1507,7 @@ def get_current_btc_price():
         
         if 'error' in data and data['error']:
             # Try USD if GBP fails
-            params = {'pair': 'XXBTZUSD'}
+            params = {'pair': 'XXBTZGBP'}
             response = requests.get(url, params=params, timeout=5)
             data = response.json()
         
@@ -1677,9 +1676,11 @@ def fetch_historical_data(days=365):
         start_date = end_date - timedelta(days=days + 30)
         since = int(start_date.timestamp())
         
-        pairs_to_try = [("XXBTZGBP", "BTC-GBP"), ("XXBTZUSD", "BTC-USD")]
+        # GBP only
+        kraken_pair = "XXBTZGBP"
+        display_name = "BTC-GBP"
         
-        for kraken_pair, display_name in pairs_to_try:
+        try:
             try:
                 params = {
                     'pair': kraken_pair,
@@ -1745,9 +1746,10 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
         since = int(start_date.timestamp())
         
         # Try GBP first, then USD
-        pairs_to_try = [("XXBTZGBP", "GBP"), ("XXBTZUSD", "USD")]
+        # GBP only
+        kraken_pair = "XXBTZGBP"
         
-        for kraken_pair, currency in pairs_to_try:
+        try:
             try:
                 params = {
                     'pair': kraken_pair,
@@ -1813,82 +1815,132 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
         return {'success': False, 'error': str(e)}
 
 def store_minute_price_data(minutes_back=1440):  # Default 24 hours (1440 minutes)
-    """Fetch and store 1-minute interval BTC price data"""
+    """Fetch and store 1-minute interval BTC price data - GBP only"""
     try:
-        url = "https://api.kraken.com/0/public/OHLC"
         end_date = datetime.now()
         start_date = end_date - timedelta(minutes=minutes_back)
-        since = int(start_date.timestamp())
         
-        # Try GBP first, then USD
-        pairs_to_try = [("XXBTZGBP", "GBP"), ("XXBTZUSD", "USD")]
+        # Try Kraken GBP first, then Binance GBP as fallback
+        sources_to_try = [
+            ("kraken", "XXBTZGBP", "https://api.kraken.com/0/public/OHLC"),
+            ("binance", "BTCGBP", "https://data-api.binance.vision/api/v3/klines")
+        ]
         
-        for kraken_pair, currency in pairs_to_try:
+        for source, pair, url in sources_to_try:
             try:
-                params = {
-                    'pair': kraken_pair,
-                    'interval': 1,  # 1 minute intervals
-                    'since': since
-                }
-                
-                response = requests.get(url, params=params, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                
-                if 'error' in data and data['error']:
-                    logger.warning(f"Kraken API error for {kraken_pair}: {data['error']}")
-                    continue
-                
-                if 'result' not in data or not data['result']:
-                    continue
-                
-                pair_data = None
-                for key in data['result'].keys():
-                    if key != 'last':
-                        pair_data = data['result'][key]
-                        break
-                
-                if not pair_data:
-                    continue
-                
-                # Store the data
-                stored_count = 0
-                for row in pair_data:
-                    timestamp = datetime.fromtimestamp(int(row[0]))
-                    open_price = float(row[1])
-                    high_price = float(row[2])
-                    low_price = float(row[3])
-                    close_price = float(row[4])
-                    volume = float(row[6])
+                if source == 'kraken':
+                    since = int(start_date.timestamp())
+                    params = {
+                        'pair': pair,
+                        'interval': 1,  # 1 minute intervals
+                        'since': since
+                    }
                     
-                    # Check if this timestamp already exists
-                    existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=timestamp).first()
-                    if not existing:
-                        price_record = BitcoinPriceHistoryMinute(
-                            timestamp=timestamp,
-                            price_gbp=close_price if currency == 'GBP' else None,
-                            price_usd=close_price if currency == 'USD' else None,
-                            open_price_gbp=open_price if currency == 'GBP' else None,
-                            high_price_gbp=high_price if currency == 'GBP' else None,
-                            low_price_gbp=low_price if currency == 'GBP' else None,
-                            close_price_gbp=close_price if currency == 'GBP' else None,
-                            volume=volume,
-                            source='kraken'
-                        )
-                        db.session.add(price_record)
-                        stored_count += 1
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if 'error' in data and data['error']:
+                        logger.warning(f"Kraken API error for {pair}: {data['error']}")
+                        continue
+                    
+                    if 'result' not in data or not data['result']:
+                        continue
+                    
+                    pair_data = None
+                    for key in data['result'].keys():
+                        if key != 'last':
+                            pair_data = data['result'][key]
+                            break
+                    
+                    if not pair_data:
+                        continue
+                    
+                    # Store Kraken data
+                    stored_count = 0
+                    for row in pair_data:
+                        timestamp = datetime.fromtimestamp(int(row[0]))
+                        open_price = float(row[1])
+                        high_price = float(row[2])
+                        low_price = float(row[3])
+                        close_price = float(row[4])
+                        volume = float(row[6])
+                        
+                        # Check if this timestamp already exists
+                        existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=timestamp).first()
+                        if not existing:
+                            price_record = BitcoinPriceHistoryMinute(
+                                timestamp=timestamp,
+                                price_gbp=close_price,
+                                price_usd=None,
+                                open_price_gbp=open_price,
+                                high_price_gbp=high_price,
+                                low_price_gbp=low_price,
+                                close_price_gbp=close_price,
+                                volume=volume,
+                                source='kraken'
+                            )
+                            db.session.add(price_record)
+                            stored_count += 1
+                    
+                elif source == 'binance':
+                    # Binance API uses different format
+                    start_time = int(start_date.timestamp() * 1000)  # Binance uses milliseconds
+                    end_time = int(end_date.timestamp() * 1000)
+                    
+                    params = {
+                        'symbol': pair,
+                        'interval': '1m',  # 1 minute intervals
+                        'startTime': start_time,
+                        'endTime': end_time,
+                        'limit': 1000
+                    }
+                    
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if not data:
+                        continue
+                    
+                    # Store Binance data
+                    stored_count = 0
+                    for row in data:
+                        timestamp = datetime.fromtimestamp(int(row[0]) / 1000)  # Convert from milliseconds
+                        open_price = float(row[1])
+                        high_price = float(row[2])
+                        low_price = float(row[3])
+                        close_price = float(row[4])
+                        volume = float(row[5])
+                        
+                        # Check if this timestamp already exists
+                        existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=timestamp).first()
+                        if not existing:
+                            price_record = BitcoinPriceHistoryMinute(
+                                timestamp=timestamp,
+                                price_gbp=close_price,
+                                price_usd=None,
+                                open_price_gbp=open_price,
+                                high_price_gbp=high_price,
+                                low_price_gbp=low_price,
+                                close_price_gbp=close_price,
+                                volume=volume,
+                                source='binance'
+                            )
+                            db.session.add(price_record)
+                            stored_count += 1
                 
                 db.session.commit()
-                logger.info(f"Stored {stored_count} minute-level price records for {currency}")
+                logger.info(f"Stored {stored_count} minute-level GBP price records from {source}")
                 return {
                     'success': True,
                     'stored_count': stored_count,
-                    'currency': currency,
+                    'source': source,
                     'minutes_back': minutes_back
                 }
                 
             except Exception as e:
-                logger.error(f"Error storing minute data for {kraken_pair}: {e}")
+                logger.error(f"Error storing minute data from {source} for {pair}: {e}")
                 db.session.rollback()
                 continue
         
@@ -2031,71 +2083,97 @@ def detect_and_fill_data_gaps(max_gap_hours=2):
         return {'success': False, 'error': str(e)}
 
 def collect_current_minute_price():
-    """Collect current BTC price and store in minute table - for scheduler"""
-    try:
-        url = "https://api.kraken.com/0/public/Ticker"
-        params = {'pair': 'XXBTZGBP'}
+    """Collect current BTC price and store in minute table - for scheduler - GBP only"""
+    with app.app_context():  # Add Flask app context for scheduler
+        # Try Kraken GBP first, then Binance GBP as fallback
+        sources_to_try = [
+            ("kraken", "XXBTZGBP", "https://api.kraken.com/0/public/Ticker"),
+            ("binance", "BTCGBP", "https://data-api.binance.vision/api/v3/ticker/price")
+        ]
         
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        for source, pair, url in sources_to_try:
+            try:
+                if source == "kraken":
+                    params = {'pair': pair}
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if 'error' in data and data['error']:
+                        logger.warning(f"Kraken ticker API error: {data['error']}")
+                        continue
+                    
+                    if 'result' not in data:
+                        continue
+                    
+                    # Get the pair data
+                    pair_data = None
+                    for key, value in data['result'].items():
+                        if key != 'last':
+                            pair_data = value
+                            break
+                    
+                    if not pair_data:
+                        continue
+                    
+                    # Extract current price
+                    current_price = float(pair_data['c'][0])  # Last trade closed price
+                    volume = float(pair_data.get('v', [0, 0])[1]) if 'v' in pair_data else None
+                    
+                elif source == "binance":
+                    params = {'symbol': pair}
+                    response = requests.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    if 'price' not in data:
+                        continue
+                    
+                    # Extract current price
+                    current_price = float(data['price'])
+                    volume = None  # Volume not available in this endpoint
+                
+                current_time = datetime.now()
+                
+                # Round timestamp to nearest minute to avoid too many entries
+                rounded_time = current_time.replace(second=0, microsecond=0)
+                
+                # Check if we already have data for this minute
+                existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=rounded_time).first()
+                
+                if not existing:
+                    # Store new minute-level price data
+                    price_record = BitcoinPriceHistoryMinute(
+                        timestamp=rounded_time,
+                        price_gbp=current_price,
+                        close_price_gbp=current_price,  # Use current price as close for real-time data
+                        volume=volume,
+                        source=source
+                    )
+                    db.session.add(price_record)
+                    db.session.commit()
+                    
+                    logger.info(f"Stored current minute price: £{current_price:.2f} at {rounded_time} from {source}")
+                    return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat(), 'source': source}
+                else:
+                    # Update existing record if needed (e.g., to set high/low within the minute)
+                    if existing.high_price_gbp is None or current_price > existing.high_price_gbp:
+                        existing.high_price_gbp = current_price
+                    if existing.low_price_gbp is None or current_price < existing.low_price_gbp:
+                        existing.low_price_gbp = current_price
+                    existing.close_price_gbp = current_price  # Always update close to latest
+                    
+                    db.session.commit()
+                    return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat(), 'updated': True, 'source': source}
+                    
+            except Exception as e:
+                logger.warning(f"Error collecting current minute price from {source}: {e}")
+                continue
         
-        if 'error' in data and data['error']:
-            logger.error(f"Kraken ticker API error: {data['error']}")
-            return {'success': False, 'error': str(data['error'])}
-        
-        if 'result' not in data:
-            return {'success': False, 'error': 'No result in API response'}
-        
-        # Get the pair data
-        pair_data = None
-        for key, value in data['result'].items():
-            if key != 'last':
-                pair_data = value
-                break
-        
-        if not pair_data:
-            return {'success': False, 'error': 'No pair data found'}
-        
-        # Extract current price
-        current_price = float(pair_data['c'][0])  # Last trade closed price
-        current_time = datetime.now()
-        
-        # Round timestamp to nearest minute to avoid too many entries
-        rounded_time = current_time.replace(second=0, microsecond=0)
-        
-        # Check if we already have data for this minute
-        existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=rounded_time).first()
-        
-        if not existing:
-            # Store new minute-level price data
-            price_record = BitcoinPriceHistoryMinute(
-                timestamp=rounded_time,
-                price_gbp=current_price,
-                close_price_gbp=current_price,  # Use current price as close for real-time data
-                volume=float(pair_data.get('v', [0, 0])[1]) if 'v' in pair_data else None,
-                source='kraken'
-            )
-            db.session.add(price_record)
-            db.session.commit()
-            
-            logger.info(f"Stored current minute price: £{current_price:.2f} at {rounded_time}")
-            return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat()}
-        else:
-            # Update existing record if needed (e.g., to set high/low within the minute)
-            if existing.high_price_gbp is None or current_price > existing.high_price_gbp:
-                existing.high_price_gbp = current_price
-            if existing.low_price_gbp is None or current_price < existing.low_price_gbp:
-                existing.low_price_gbp = current_price
-            existing.close_price_gbp = current_price  # Always update close to latest
-            
-            db.session.commit()
-            return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat(), 'updated': True}
-            
-    except Exception as e:
-        logger.error(f"Error collecting current minute price: {e}")
+        # If we get here, all sources failed
+        logger.error("All price data sources failed")
         db.session.rollback()
-        return {'success': False, 'error': str(e)}
+        return {'success': False, 'error': 'All price data sources failed'}
 
 def calculate_swing_analysis(period_hours, days_back=7):
     """Calculate swing analysis for specified time periods using backward-looking windows from current time"""
@@ -3296,7 +3374,7 @@ def test_data():
     try:
         url = "https://api.kraken.com/0/public/OHLC"
         params = {
-            'pair': 'XXBTZUSD',
+            'pair': 'XXBTZGBP',
             'interval': 1440,
             'count': 5
         }
