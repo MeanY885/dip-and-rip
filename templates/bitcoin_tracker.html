@@ -1470,32 +1470,39 @@
             <form id="dataForm">
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="dataType">📊 Data Type:</label>
+                        <select id="dataType">
+                            <option value="daily">Daily Data (OHLC)</option>
+                            <option value="minute">Minute Data (1-min intervals)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
                         <label for="days">📅 Data Period (Days):</label>
                         <select id="days">
-                            <option value="7">Last 7 days</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="14">Last 14 days</option>
                             <option value="30">Last 30 days</option>
                             <option value="90">Last 3 months</option>
                             <option value="180">Last 6 months</option>
-                            <option value="365" selected>Last year</option>
+                            <option value="365">Last year</option>
                             <option value="730">Last 2 years</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label for="dateFilter">📆 Filter Loaded Data:</label>
+                        <label for="dateFilter">📆 Date Filter:</label>
                         <select id="dateFilter">
-                            <option value="all">Show all loaded data</option>
-                            <option value="year">Show specific year only</option>
-                            <option value="month">Show specific month only</option>
-                            <option value="day">Show specific day only</option>
+                            <option value="all">All data</option>
+                            <option value="year">Filter by year</option>
+                            <option value="month">Filter by month</option>
+                            <option value="day">Filter by day</option>
                         </select>
-                        <div class="help-text">Filter the loaded data by specific dates</div>
                     </div>
                     
                     <div class="form-group" id="filterValueGroup" style="display: none;">
-                        <label for="filterValue">Enter Date to Filter:</label>
+                        <label for="filterValue">Filter Value:</label>
                         <input type="text" id="filterValue" placeholder="e.g. 2024, 2024-01, 2024-01-15">
-                        <div class="help-text" id="filterHelpText">Enter the date in the format shown above</div>
                     </div>
                 </div>
                 
@@ -1504,8 +1511,49 @@
                     <button type="button" id="copyData" class="copy-button" style="display: none;">📋 Copy All Data</button>
                     <button type="button" id="copyFiltered" class="copy-button" style="display: none;">📋 Copy Filtered Data</button>
                     <button type="button" id="exportCSV" class="copy-button" style="display: none;">💾 Export CSV</button>
+                    <button type="button" id="loadSwingAnalysis" style="background-color: #17a2b8;">🔄 Load Swing Analysis</button>
                 </div>
             </form>
+            
+            <!-- Swing Analysis Section -->
+            <div id="swingAnalysisContainer" class="container" style="display: none;">
+                <h2>🔄 Price Swing Analysis</h2>
+                <div class="info-box">
+                    <h3>📈 Multi-Period Swing Analysis</h3>
+                    <p><strong>Analyze price swings over different time periods</strong> using minute-level data</p>
+                    <p>Shows lowest drops and highest increases for 1h, 3h, 6h, 9h, 12h, and 1-day periods</p>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="swingDays">📅 Analysis Period (Days):</label>
+                        <select id="swingDays">
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="14">Last 14 days</option>
+                            <option value="30">Last 30 days</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="swingPeriod">⏰ Time Period:</label>
+                        <select id="swingPeriod">
+                            <option value="all">All Periods (1h, 3h, 6h, 9h, 12h, 1d)</option>
+                            <option value="1">1 Hour</option>
+                            <option value="3">3 Hours</option>
+                            <option value="6">6 Hours</option>
+                            <option value="9">9 Hours</option>
+                            <option value="12">12 Hours</option>
+                            <option value="24">1 Day</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="swingResults" class="summary" style="display: none;">
+                    <h3>📊 Swing Analysis Results</h3>
+                    <div id="swingStatsRow" class="stats-row"></div>
+                    <div id="swingSummaryText"></div>
+                </div>
+            </div>
             
             <div id="summary" class="summary" style="display: none;">
                 <h3>📊 Data Summary</h3>
@@ -1538,7 +1586,7 @@
                 </div>
             </div>
             
-            <div id="dataError" class="error" style="display: none;"></div>
+            <div id="error" class="error" style="display: none;"></div>
         </div>
 
         <!-- Single Backtest Tab -->
@@ -4190,13 +4238,24 @@
             
             try {
                 const days = document.getElementById('days').value;
+                const dataType = document.getElementById('dataType').value;
                 
-                const response = await fetch('/api/historical-data', {
+                let apiUrl, requestBody;
+                
+                if (dataType === 'minute') {
+                    apiUrl = '/api/bitcoin/minute-data';
+                    requestBody = { days: parseInt(days), limit: 5000 }; // Limit for performance
+                } else {
+                    apiUrl = '/api/historical-data';
+                    requestBody = { days: parseInt(days) };
+                }
+                
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ days: parseInt(days) })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 const data = await response.json();
@@ -5708,7 +5767,193 @@
         // Initialize smart inputs on page load
         document.addEventListener('DOMContentLoaded', function() {
             initializeSmartInputs();
+            
+            // Data viewer initialization
+            const dataTypeSelect = document.getElementById('dataType');
+            const loadSwingAnalysisBtn = document.getElementById('loadSwingAnalysis');
+            
+            if (dataTypeSelect) {
+                dataTypeSelect.addEventListener('change', function() {
+                    updateDataTypeOptions();
+                });
+                updateDataTypeOptions();
+            }
+            
+            if (loadSwingAnalysisBtn) {
+                loadSwingAnalysisBtn.addEventListener('click', async function() {
+                    await loadSwingAnalysis();
+                });
+            }
         });
+
+        // Data Type Options Update Function
+        function updateDataTypeOptions() {
+            const dataType = document.getElementById('dataType').value;
+            const daysSelect = document.getElementById('days');
+            
+            if (!daysSelect) return;
+            
+            // Reset options and update based on data type
+            daysSelect.innerHTML = '';
+            
+            if (dataType === 'minute') {
+                // For minute data, limit to shorter periods
+                daysSelect.innerHTML = `
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30">Last 30 days</option>
+                `;
+            } else {
+                // For daily data, allow longer periods
+                daysSelect.innerHTML = `
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 3 months</option>
+                    <option value="180">Last 6 months</option>
+                    <option value="365">Last year</option>
+                    <option value="730">Last 2 years</option>
+                `;
+            }
+        }
+        
+        // Swing Analysis Function
+        async function loadSwingAnalysis() {
+            const button = document.getElementById('loadSwingAnalysis');
+            const container = document.getElementById('swingAnalysisContainer');
+            const results = document.getElementById('swingResults');
+            
+            if (!button || !container || !results) return;
+            
+            button.disabled = true;
+            button.textContent = '⏳ Analyzing...';
+            
+            try {
+                const days = document.getElementById('swingDays').value;
+                const period = document.getElementById('swingPeriod').value;
+                
+                let apiUrl, requestBody;
+                
+                if (period === 'all') {
+                    apiUrl = '/api/bitcoin/multi-swing-analysis';
+                    requestBody = { days_back: parseInt(days) };
+                } else {
+                    apiUrl = '/api/bitcoin/swing-analysis';
+                    requestBody = { 
+                        period_hours: parseInt(period), 
+                        days_back: parseInt(days) 
+                    };
+                }
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySwingAnalysis(data);
+                    container.style.display = 'block';
+                    results.style.display = 'block';
+                    document.getElementById('error').style.display = 'none';
+                } else {
+                    document.getElementById('error').textContent = data.error || 'Failed to load swing analysis';
+                    document.getElementById('error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = 'Network error: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+            
+            button.disabled = false;
+            button.textContent = '🔄 Load Swing Analysis';
+        }
+        
+        // Display Swing Analysis Results
+        function displaySwingAnalysis(data) {
+            const statsRow = document.getElementById('swingStatsRow');
+            const summaryText = document.getElementById('swingSummaryText');
+            
+            if (!statsRow || !summaryText) return;
+            
+            if (data.periods) {
+                // Multi-period analysis
+                let statsHtml = '';
+                let summaryHtml = '<h4>Multi-Period Analysis Summary</h4>';
+                
+                Object.keys(data.periods).forEach(period => {
+                    const periodData = data.periods[period];
+                    if (!periodData.error) {
+                        statsHtml += `
+                            <div class="stat-item">
+                                <div class="stat-label">${period} - Avg Drop</div>
+                                <div class="stat-value" style="color: #dc3545">${periodData.avg_lowest_drop_pct || 0}%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">${period} - Max Drop</div>
+                                <div class="stat-value" style="color: #dc3545">${periodData.max_lowest_drop_pct || 0}%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">${period} - Avg Rise</div>
+                                <div class="stat-value" style="color: #28a745">${periodData.avg_highest_increase_pct || 0}%</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">${period} - Max Rise</div>
+                                <div class="stat-value" style="color: #28a745">${periodData.max_highest_increase_pct || 0}%</div>
+                            </div>
+                        `;
+                        
+                        summaryHtml += `
+                            <p><strong>${period} Period:</strong> 
+                            ${periodData.total_windows} windows analyzed, 
+                            Avg volatility: ${periodData.avg_volatility_pct || 0}%</p>
+                        `;
+                    }
+                });
+                
+                statsRow.innerHTML = statsHtml;
+                summaryText.innerHTML = summaryHtml;
+            } else if (data.summary) {
+                // Single period analysis
+                const summary = data.summary;
+                statsRow.innerHTML = `
+                    <div class="stat-item">
+                        <div class="stat-label">Period</div>
+                        <div class="stat-value">${summary.period_hours}h</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Lowest Drop</div>
+                        <div class="stat-value" style="color: #dc3545">${summary.avg_lowest_drop_pct}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Max Lowest Drop</div>
+                        <div class="stat-value" style="color: #dc3545">${summary.max_lowest_drop_pct}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Highest Rise</div>
+                        <div class="stat-value" style="color: #28a745">${summary.avg_highest_increase_pct}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Max Highest Rise</div>
+                        <div class="stat-value" style="color: #28a745">${summary.max_highest_increase_pct}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Avg Volatility</div>
+                        <div class="stat-value">${summary.avg_volatility_pct}%</div>
+                    </div>
+                `;
+                
+                summaryText.innerHTML = `
+                    <p><strong>Analysis Period:</strong> ${summary.days_analyzed} days</p>
+                    <p><strong>Total Windows:</strong> ${summary.total_windows}</p>
+                    <p><strong>Time Period:</strong> ${summary.period_hours} hours</p>
+                `;
+            }
+        }
 
         // Cleanup timers on page unload
         window.addEventListener('beforeunload', function() {
