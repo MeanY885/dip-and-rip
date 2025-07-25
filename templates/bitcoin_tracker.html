@@ -1526,38 +1526,14 @@
             
             <!-- Swing Analysis Section -->
             <div id="swingAnalysisContainer" class="container" style="display: none;">
-                <h2>🔄 Price Swing Analysis</h2>
+                <h2>🔄 Recent Price Volatility Analysis</h2>
                 <div class="info-box" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
-                    <h3>📈 Volatility Analysis</h3>
-                    <p><strong>Average price swings per period</strong> - helps identify optimal entry/exit timing</p>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="swingDays">📅 Analysis Period (Days):</label>
-                        <select id="swingDays">
-                            <option value="7" selected>Last 7 days</option>
-                            <option value="14">Last 14 days</option>
-                            <option value="30">Last 30 days</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="swingPeriod">⏰ Time Period:</label>
-                        <select id="swingPeriod">
-                            <option value="all">All Periods (1h, 3h, 6h, 9h, 12h, 1d)</option>
-                            <option value="1">1 Hour</option>
-                            <option value="3">3 Hours</option>
-                            <option value="6">6 Hours</option>
-                            <option value="9">9 Hours</option>
-                            <option value="12">12 Hours</option>
-                            <option value="24">1 Day</option>
-                        </select>
-                    </div>
+                    <h3>📈 Maximum Price Swings by Time Period</h3>
+                    <p><strong>Shows the highest/lowest BTC moved in recent time periods</strong> - analyzing actual minute-level data from current time backward</p>
                 </div>
                 
                 <div id="swingResults" class="summary" style="display: none;">
-                    <h3>📊 Swing Analysis Results</h3>
+                    <h3>📊 Volatility by Time Period</h3>
                     <div id="swingStatsRow" class="stats-row"></div>
                     <div id="swingSummaryText"></div>
                 </div>
@@ -5860,24 +5836,9 @@
             button.textContent = '⏳ Analyzing...';
             
             try {
-                const daysElement = document.getElementById('swingDays');
-                const periodElement = document.getElementById('swingPeriod');
-                
-                const days = daysElement ? daysElement.value : '7';  // Default to 7 days
-                const period = periodElement ? periodElement.value : 'all';  // Default to all periods
-                
-                let apiUrl, requestBody;
-                
-                if (period === 'all') {
-                    apiUrl = '/api/bitcoin/multi-swing-analysis';
-                    requestBody = { days_back: parseInt(days) };
-                } else {
-                    apiUrl = '/api/bitcoin/swing-analysis';
-                    requestBody = { 
-                        period_hours: parseInt(period), 
-                        days_back: parseInt(days) 
-                    };
-                }
+                // Always use multi-period analysis with default values
+                const apiUrl = '/api/bitcoin/multi-swing-analysis';
+                const requestBody = { days_back: 7 };  // Fixed to 7 days for recent analysis
                 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -5915,43 +5876,59 @@
             if (!statsRow || !summaryText) return;
             
             if (data.periods) {
-                // Multi-period analysis - ensure proper order and reduce clutter
+                // Multi-period analysis - clean single display
                 const orderedPeriods = ['1h', '3h', '6h', '9h', '12h', '1d'];
                 let statsHtml = '';
-                let summaryHtml = '<h4>📊 Swing Analysis Overview</h4><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; margin: 15px 0;">';
                 
                 orderedPeriods.forEach(period => {
                     const periodData = data.periods[period];
                     if (periodData && !periodData.error) {
-                        // Simplified stats - show only key metrics per period
+                        // Expected sample counts for validation
+                        const expectedSamples = {
+                            '1h': 60, '3h': 180, '6h': 360, 
+                            '9h': 540, '12h': 720, '1d': 1440
+                        };
+                        
+                        const actualSamples = periodData.data_points || 0;
+                        const expected = expectedSamples[period] || 0;
+                        const coveragePercent = expected > 0 ? ((actualSamples / expected) * 100).toFixed(0) : 0;
+                        
+                        // Clean single row per period with all key info
                         statsHtml += `
-                            <div class="stat-item" style="border-left: 3px solid #007bff;">
-                                <div class="stat-label">${period} Period</div>
-                                <div class="stat-value" style="font-size: 14px;">
-                                    <span style="color: #dc3545;">▼${Math.abs(periodData.avg_lowest_drop_pct || 0).toFixed(1)}%</span> / 
-                                    <span style="color: #28a745;">▲${(periodData.avg_highest_increase_pct || 0).toFixed(1)}%</span>
+                            <div class="stat-item" style="border-left: 3px solid #007bff; min-width: 200px;">
+                                <div class="stat-label" style="font-weight: bold; margin-bottom: 8px;">${period} Period</div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="color: #dc3545; font-weight: bold;">Max Drop: ${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span>
+                                    <span style="color: #28a745; font-weight: bold;">Max Rise: ${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
+                                </div>
+                                <div style="font-size: 11px; color: #666; margin-top: 8px;">
+                                    📊 ${actualSamples.toLocaleString()} of ${expected.toLocaleString()} samples (${coveragePercent}%)
                                 </div>
                             </div>
                         `;
-                        
-                        // Compact summary per period
-                        summaryHtml += `
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 3px solid #007bff;">
-                                <strong>${period}</strong><br>
-                                <small style="color: #666;">
-                                    ${periodData.total_windows} samples<br>
-                                    Max drop: <span style="color: #dc3545;">${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span><br>
-                                    Max rise: <span style="color: #28a745;">${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
-                                </small>
+                    } else if (periodData && periodData.error) {
+                        statsHtml += `
+                            <div class="stat-item" style="border-left: 3px solid #dc3545;">
+                                <div class="stat-label">${period} Period</div>
+                                <div style="color: #dc3545; font-size: 12px;">Error: ${periodData.error}</div>
                             </div>
                         `;
                     }
                 });
                 
-                summaryHtml += '</div>';
-                
                 statsRow.innerHTML = statsHtml;
-                summaryText.innerHTML = summaryHtml;
+                
+                // Simple summary
+                summaryText.innerHTML = `
+                    <div style="background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #495057;">📈 Analysis Summary</h4>
+                        <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">
+                            <strong>Analysis Time:</strong> ${new Date(data.analysis_time || Date.now()).toLocaleString()}<br>
+                            <strong>Method:</strong> Backward-looking from current time<br>
+                            <strong>Data Source:</strong> Minute-level BTC price data
+                        </p>
+                    </div>
+                `;
             } else if (data.summary) {
                 // Single period analysis
                 const summary = data.summary;

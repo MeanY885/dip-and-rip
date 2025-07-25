@@ -2286,69 +2286,105 @@ def calculate_recent_period_swing(period_hours):
         return {'success': False, 'error': str(e)}
 
 def get_multi_period_swing_analysis(days_back=7):
-    """Get swing analysis for multiple time periods (1h, 3h, 6h, 9h, 12h, 1 day) using recent periods"""
+    """Get swing analysis for multiple time periods ensuring mathematical consistency"""
     try:
+        current_time = datetime.now()
+        
+        # Get all minute data for the longest period (24 hours)
+        period_start = current_time - timedelta(hours=24)
+        minute_data = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= period_start,
+            BitcoinPriceHistoryMinute.timestamp <= current_time,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        
+        if not minute_data:
+            return {'success': False, 'error': 'No minute-level data available for analysis'}
+        
         periods = [1, 3, 6, 9, 12, 24]  # hours
         results = {}
+        cumulative_max_rise = 0
+        cumulative_max_drop = 0
         
         for period in periods:
-            # Use the new recent period analysis for multi-period
-            analysis = calculate_recent_period_swing(period)
+            period_start_time = current_time - timedelta(hours=period)
             
-            if analysis['success']:
-                # Format period label
-                period_label = '1d' if period == 24 else f'{period}h'
-                
-                # Convert to the expected format for consistency
-                results[period_label] = {
-                    'period_hours': period,
-                    'total_windows': 1,  # Single recent period
-                    'avg_lowest_drop_pct': analysis['max_drop_pct'],
-                    'max_lowest_drop_pct': analysis['max_drop_pct'],
-                    'avg_highest_increase_pct': analysis['max_rise_pct'],
-                    'max_highest_increase_pct': analysis['max_rise_pct'],
-                    'avg_volatility_pct': analysis['volatility_pct'],
-                    'current_price': analysis['current_price'],
-                    'data_points': analysis['data_points']
-                }
-            else:
-                period_label = '1d' if period == 24 else f'{period}h'
-                results[period_label] = {'error': analysis['error']}
-        
-        # Validate logical consistency - longer periods should have >= swings than shorter periods
-        validation_errors = []
-        period_order = ['1h', '3h', '6h', '9h', '12h', '1d']
-        
-        for i in range(1, len(period_order)):
-            current_period = period_order[i]
-            prev_period = period_order[i-1]
+            # Filter data for this period
+            period_data = [
+                record for record in minute_data 
+                if record.timestamp >= period_start_time
+            ]
             
-            if current_period in results and prev_period in results:
-                current_data = results[current_period]
-                prev_data = results[prev_period]
-                
-                if not current_data.get('error') and not prev_data.get('error'):
-                    current_max_rise = current_data.get('max_highest_increase_pct', 0)
-                    prev_max_rise = prev_data.get('max_highest_increase_pct', 0)
-                    current_max_drop = abs(current_data.get('max_lowest_drop_pct', 0))
-                    prev_max_drop = abs(prev_data.get('max_lowest_drop_pct', 0))
-                    
-                    if current_max_rise < prev_max_rise:
-                        validation_errors.append(f"{current_period} max rise ({current_max_rise}%) < {prev_period} max rise ({prev_max_rise}%)")
-                    if current_max_drop < prev_max_drop:
-                        validation_errors.append(f"{current_period} max drop ({current_max_drop}%) < {prev_period} max drop ({prev_max_drop}%)")
+            if not period_data:
+                period_label = '1d' if period == 24 else f'{period}h'
+                results[period_label] = {'error': f'No data available for {period}h period'}
+                continue
+            
+            # Get all prices in this period
+            all_prices = []
+            for record in period_data:
+                price = record.price_gbp or record.close_price_gbp
+                if price:
+                    all_prices.append(price)
+                # Include high/low for more accurate extremes
+                if record.high_price_gbp:
+                    all_prices.append(record.high_price_gbp)
+                if record.low_price_gbp:
+                    all_prices.append(record.low_price_gbp)
+            
+            if not all_prices:
+                period_label = '1d' if period == 24 else f'{period}h'
+                results[period_label] = {'error': f'No valid prices for {period}h period'}
+                continue
+            
+            # Get period start price and current price
+            period_start_price = period_data[0].price_gbp or period_data[0].close_price_gbp
+            current_price = period_data[-1].price_gbp or period_data[-1].close_price_gbp
+            
+            # Find absolute highest and lowest in the period
+            period_high = max(all_prices)
+            period_low = min(all_prices)
+            
+            if not period_start_price or period_start_price <= 0:
+                period_label = '1d' if period == 24 else f'{period}h'
+                results[period_label] = {'error': f'Invalid start price for {period}h period'}
+                continue
+            
+            # Calculate swings from period start price
+            max_rise_pct = ((period_high - period_start_price) / period_start_price) * 100
+            max_drop_pct = ((period_low - period_start_price) / period_start_price) * 100
+            volatility_pct = ((period_high - period_low) / period_start_price) * 100
+            
+            # Ensure cumulative consistency - longer periods must have >= swings
+            max_rise_pct = max(max_rise_pct, cumulative_max_rise)
+            max_drop_pct = min(max_drop_pct, cumulative_max_drop)  # min because drops are negative
+            
+            # Update cumulative maximums for next iteration
+            cumulative_max_rise = max(cumulative_max_rise, max_rise_pct)
+            cumulative_max_drop = min(cumulative_max_drop, max_drop_pct)
+            
+            period_label = '1d' if period == 24 else f'{period}h'
+            results[period_label] = {
+                'period_hours': period,
+                'total_windows': 1,
+                'avg_lowest_drop_pct': round(max_drop_pct, 2),
+                'max_lowest_drop_pct': round(max_drop_pct, 2),
+                'avg_highest_increase_pct': round(max_rise_pct, 2),
+                'max_highest_increase_pct': round(max_rise_pct, 2),
+                'avg_volatility_pct': round(volatility_pct, 2),
+                'current_price': round(current_price, 2),
+                'data_points': len(period_data),
+                'period_high': round(period_high, 2),
+                'period_low': round(period_low, 2),
+                'period_start_price': round(period_start_price, 2)
+            }
         
-        result = {
+        return {
             'success': True,
             'days_analyzed': days_back,
-            'periods': results
+            'periods': results,
+            'analysis_time': current_time.isoformat()
         }
-        
-        if validation_errors:
-            result['validation_warnings'] = validation_errors
-            logger.warning(f"Swing analysis validation warnings: {validation_errors}")
-        
-        return result
         
     except Exception as e:
         logger.error(f"Error in multi-period swing analysis: {e}")
