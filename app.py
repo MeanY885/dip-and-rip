@@ -5230,6 +5230,58 @@ scheduler.add_job(
     replace_existing=True
 )
 
+@app.route('/api/debug/template-deployment')
+def debug_template_deployment():
+    """Debug endpoint to verify template deployment in container"""
+    import os
+    import hashlib
+    
+    try:
+        template_path = os.path.join(app.template_folder, 'data_viewer.html')
+        
+        result = {
+            'template_folder': app.template_folder,
+            'template_path': template_path,
+            'file_exists': os.path.exists(template_path),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if os.path.exists(template_path):
+            # Get file hash
+            with open(template_path, 'rb') as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
+            result['file_hash'] = file_hash
+            
+            # Check for key features
+            with open(template_path, 'r') as f:
+                content = f.read()
+            
+            result['features'] = {
+                'has_data_type_dropdown': 'id="dataType"' in content,
+                'has_swing_button': 'loadSwingAnalysis' in content,
+                'has_swing_container': 'swingAnalysisContainer' in content,
+                'file_size': len(content)
+            }
+            
+            # Get file stats
+            stat = os.stat(template_path)
+            result['file_stats'] = {
+                'size': stat.st_size,
+                'modified_time': stat.st_mtime,
+                'modified_readable': datetime.fromtimestamp(stat.st_mtime).isoformat()
+            }
+        
+        return jsonify({
+            'success': True,
+            'debug_info': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port, debug=True)
