@@ -421,68 +421,65 @@ class BTCBacktester:
                 logger.info(f"Trying Kraken pair: {kraken_pair} ({display_name})")
                 
                 params = {
-                        'pair': kraken_pair,
-                        'interval': 1440,
-                        'since': since
-                    }
-                    
-                    response = requests.get(url, params=params, timeout=10)
-                    response.raise_for_status()
-                    
-                    data = response.json()
-                    
-                    if 'error' in data and data['error']:
-                        logger.error(f"Kraken API error for {kraken_pair}: {data['error']}")
-                        continue
-                    
-                    if 'result' not in data or not data['result']:
-                        logger.warning(f"No result data for {kraken_pair}")
-                        continue
-                    
-                    pair_data = None
-                    for key in data['result'].keys():
-                        if key != 'last':
-                            pair_data = data['result'][key]
-                            break
-                    
-                    # Adjust minimum data requirement based on lookback period
-                    min_data_points = max(5, min(10, self.lookback_days))
-                    if not pair_data or len(pair_data) < min_data_points:
-                        logger.warning(f"Insufficient data for {kraken_pair}: got {len(pair_data) if pair_data else 0}, need {min_data_points}")
-                        continue
-                    
-                    df_data = []
-                    logger.info(f"Processing {len(pair_data)} rows for {kraken_pair}")
-                    logger.info(f"Sample raw data: {pair_data[0] if pair_data else 'No data'}")
-                    
-                    for row in pair_data:
-                        df_data.append({
-                            'timestamp': int(row[0]),
-                            'Open': float(row[1]),
-                            'High': float(row[2]),
-                            'Low': float(row[3]),
-                            'Close': float(row[4]),
-                            'Volume': float(row[6])
-                        })
-                    
-                    df = pd.DataFrame(df_data)
-                    df['Date'] = pd.to_datetime(df['timestamp'], unit='s')
-                    df.set_index('Date', inplace=True)
-                    df.drop('timestamp', axis=1, inplace=True)
-                    df = df.sort_index()
-                    
-                    logger.info(f"Successfully fetched {len(df)} rows of data for {display_name}")
-                    logger.info(f"Price range: £{df['Close'].min():.2f} to £{df['Close'].max():.2f}")
-                    logger.info(f"First few prices: {df['Close'].head(3).tolist()}")
-                    self.data = df
-                    return True
-                    
-                except Exception as e:
-                    logger.error(f"Error processing {kraken_pair}: {str(e)}")
-                    continue
-            
-            logger.error("All Kraken pairs failed to fetch data")
-            return False
+                    'pair': kraken_pair,
+                    'interval': 1440,
+                    'since': since
+                }
+                
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                if 'error' in data and data['error']:
+                    logger.error(f"Kraken API error for {kraken_pair}: {data['error']}")
+                    return None
+                
+                if 'result' not in data or not data['result']:
+                    logger.warning(f"No result data for {kraken_pair}")
+                    return None
+                
+                pair_data = None
+                for key in data['result'].keys():
+                    if key != 'last':
+                        pair_data = data['result'][key]
+                        break
+                
+                # Adjust minimum data requirement based on lookback period
+                min_data_points = max(5, min(10, self.lookback_days))
+                if not pair_data or len(pair_data) < min_data_points:
+                    logger.warning(f"Insufficient data for {kraken_pair}: got {len(pair_data) if pair_data else 0}, need {min_data_points}")
+                    return None
+                
+                df_data = []
+                logger.info(f"Processing {len(pair_data)} rows for {kraken_pair}")
+                logger.info(f"Sample raw data: {pair_data[0] if pair_data else 'No data'}")
+                
+                for row in pair_data:
+                    df_data.append({
+                        'timestamp': int(row[0]),
+                        'Open': float(row[1]),
+                        'High': float(row[2]),
+                        'Low': float(row[3]),
+                        'Close': float(row[4]),
+                        'Volume': float(row[6])
+                    })
+                
+                df = pd.DataFrame(df_data)
+                df['Date'] = pd.to_datetime(df['timestamp'], unit='s')
+                df.set_index('Date', inplace=True)
+                df.drop('timestamp', axis=1, inplace=True)
+                df = df.sort_index()
+                
+                logger.info(f"Successfully fetched {len(df)} rows of data for {display_name}")
+                logger.info(f"Price range: £{df['Close'].min():.2f} to £{df['Close'].max():.2f}")
+                logger.info(f"First few prices: {df['Close'].head(3).tolist()}")
+                self.data = df
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error processing {kraken_pair}: {str(e)}")
+                return False
             
         except Exception as e:
             logger.error(f"General error fetching Kraken data: {str(e)}")
@@ -1680,59 +1677,52 @@ def fetch_historical_data(days=365):
         kraken_pair = "XXBTZGBP"
         display_name = "BTC-GBP"
         
-        try:
-            try:
-                params = {
-                    'pair': kraken_pair,
-                    'interval': 1440,
-                    'since': since
-                }
-                
-                response = requests.get(url, params=params, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                
-                if 'error' in data and data['error']:
-                    continue
-                
-                if 'result' not in data or not data['result']:
-                    continue
-                
-                pair_data = None
-                for key in data['result'].keys():
-                    if key != 'last':
-                        pair_data = data['result'][key]
-                        break
-                
-                if not pair_data or len(pair_data) < 10:
-                    continue
-                
-                df_data = []
-                for row in pair_data:
-                    df_data.append({
-                        'Date': datetime.fromtimestamp(int(row[0])).strftime('%Y-%m-%d'),
-                        'Open': float(row[1]),
-                        'High': float(row[2]),
-                        'Low': float(row[3]),
-                        'Close': float(row[4]),
-                        'Volume': float(row[6])
-                    })
-                
-                df = pd.DataFrame(df_data)
-                df['Date'] = pd.to_datetime(df['Date'])
-                df = df.sort_values('Date')
-                
-                return {
-                    'success': True,
-                    'data': df.to_dict('records'),
-                    'source': display_name,
-                    'total_rows': len(df)
-                }
-                
-            except Exception as e:
-                continue
+        params = {
+            'pair': kraken_pair,
+            'interval': 1440,
+            'since': since
+        }
         
-        return {'success': False, 'error': 'All data sources failed'}
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'error' in data and data['error']:
+            return {'success': False, 'error': str(data['error'])}
+        
+        if 'result' not in data or not data['result']:
+            return {'success': False, 'error': 'No result data'}
+        
+        pair_data = None
+        for key in data['result'].keys():
+            if key != 'last':
+                pair_data = data['result'][key]
+                break
+        
+        if not pair_data or len(pair_data) < 10:
+            return {'success': False, 'error': 'Insufficient data'}
+        
+        df_data = []
+        for row in pair_data:
+            df_data.append({
+                'Date': datetime.fromtimestamp(int(row[0])).strftime('%Y-%m-%d'),
+                'Open': float(row[1]),
+                'High': float(row[2]),
+                'Low': float(row[3]),
+                'Close': float(row[4]),
+                'Volume': float(row[6])
+            })
+        
+        df = pd.DataFrame(df_data)
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')
+        
+        return {
+            'success': True,
+            'data': df.to_dict('records'),
+            'source': display_name,
+            'total_rows': len(df)
+        }
         
     except Exception as e:
         return {'success': False, 'error': str(e)}
@@ -1745,70 +1735,60 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
         start_date = end_date - timedelta(hours=hours_back)
         since = int(start_date.timestamp())
         
-        # Try GBP first, then USD
         # GBP only
         kraken_pair = "XXBTZGBP"
         
-        try:
-            try:
-                params = {
-                    'pair': kraken_pair,
-                    'interval': 60,  # 1 hour intervals
-                    'since': since
-                }
-                
-                response = requests.get(url, params=params, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                
-                if 'error' in data and data['error']:
-                    continue
-                
-                if 'result' not in data or not data['result']:
-                    continue
-                
-                pair_data = None
-                for key in data['result'].keys():
-                    if key != 'last':
-                        pair_data = data['result'][key]
-                        break
-                
-                if not pair_data:
-                    continue
-                
-                # Store the data
-                stored_count = 0
-                for row in pair_data:
-                    timestamp = datetime.fromtimestamp(int(row[0]))
-                    close_price = float(row[4])
-                    volume = float(row[6])
-                    
-                    # Check if this timestamp already exists
-                    existing = BitcoinPriceHistory.query.filter_by(timestamp=timestamp).first()
-                    if not existing:
-                        price_record = BitcoinPriceHistory(
-                            timestamp=timestamp,
-                            price_gbp=close_price if currency == 'GBP' else None,
-                            price_usd=close_price if currency == 'USD' else None,
-                            volume=volume,
-                            source='kraken'
-                        )
-                        db.session.add(price_record)
-                        stored_count += 1
-                
-                db.session.commit()
-                return {
-                    'success': True,
-                    'stored_count': stored_count,
-                    'currency': currency,
-                    'hours_back': hours_back
-                }
-                
-            except Exception as e:
-                db.session.rollback()
-                continue
+        params = {
+            'pair': kraken_pair,
+            'interval': 60,  # 1 hour intervals
+            'since': since
+        }
         
-        return {'success': False, 'error': 'All data sources failed'}
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'error' in data and data['error']:
+            return {'success': False, 'error': str(data['error'])}
+        
+        if 'result' not in data or not data['result']:
+            return {'success': False, 'error': 'No result data'}
+        
+        pair_data = None
+        for key in data['result'].keys():
+            if key != 'last':
+                pair_data = data['result'][key]
+                break
+        
+        if not pair_data:
+            return {'success': False, 'error': 'No pair data found'}
+        
+        # Store the data
+        stored_count = 0
+        for row in pair_data:
+            timestamp = datetime.fromtimestamp(int(row[0]))
+            close_price = float(row[4])
+            volume = float(row[6])
+            
+            # Check if this timestamp already exists
+            existing = BitcoinPriceHistory.query.filter_by(timestamp=timestamp).first()
+            if not existing:
+                price_record = BitcoinPriceHistory(
+                    timestamp=timestamp,
+                    price_gbp=close_price,  # GBP only now
+                    price_usd=None,
+                    volume=volume,
+                    source='kraken'
+                )
+                db.session.add(price_record)
+                stored_count += 1
+        
+        db.session.commit()
+        return {
+            'success': True,
+            'stored_count': stored_count,
+            'hours_back': hours_back
+        }
         
     except Exception as e:
         db.session.rollback()
