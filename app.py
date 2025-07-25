@@ -1959,6 +1959,72 @@ def initialize_historical_minute_data(days_back=30):
         logger.error(f"Error in initialize_historical_minute_data: {e}")
         return {'success': False, 'error': str(e)}
 
+def detect_and_fill_data_gaps(max_gap_hours=2):
+    """Detect gaps in minute-level data and attempt to fill them"""
+    try:
+        logger.info("Starting data gap detection and backfill process")
+        
+        # Find all records from the last 7 days, ordered by timestamp
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        records = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= seven_days_ago
+        ).order_by(BitcoinPriceHistoryMinute.timestamp).all()
+        
+        if len(records) < 2:
+            return {'success': True, 'message': 'Insufficient data for gap detection', 'gaps_filled': 0}
+        
+        gaps_found = []
+        gaps_filled = 0
+        
+        # Check for gaps between consecutive records
+        for i in range(1, len(records)):
+            prev_time = records[i-1].timestamp
+            curr_time = records[i].timestamp
+            
+            # Calculate expected time difference (should be 1 minute)
+            time_diff = (curr_time - prev_time).total_seconds() / 60  # in minutes
+            
+            # If gap is larger than expected and within our fill threshold
+            if time_diff > 5 and time_diff <= (max_gap_hours * 60):  # 5+ minutes missing, up to max_gap_hours
+                gap_start = prev_time + timedelta(minutes=1)
+                gap_end = curr_time - timedelta(minutes=1)
+                
+                gaps_found.append({
+                    'start': gap_start,
+                    'end': gap_end,
+                    'duration_minutes': int(time_diff - 1)
+                })
+                
+                logger.info(f"Found gap: {gap_start} to {gap_end} ({int(time_diff-1)} minutes)")
+        
+        # Attempt to fill detected gaps
+        for gap in gaps_found:
+            try:
+                # Calculate minutes back from now to the gap start
+                minutes_back = int((datetime.now() - gap['start']).total_seconds() / 60)
+                
+                # Attempt to fetch data for this period
+                result = store_minute_price_data(minutes_back=minutes_back + gap['duration_minutes'])
+                
+                if result['success'] and result['stored_count'] > 0:
+                    gaps_filled += 1
+                    logger.info(f"Successfully filled gap from {gap['start']} to {gap['end']}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to fill gap from {gap['start']} to {gap['end']}: {e}")
+                continue
+        
+        return {
+            'success': True,
+            'gaps_found': len(gaps_found),
+            'gaps_filled': gaps_filled,
+            'message': f'Found {len(gaps_found)} gaps, successfully filled {gaps_filled}'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in detect_and_fill_data_gaps: {e}")
+        return {'success': False, 'error': str(e)}
+
 def collect_current_minute_price():
     """Collect current BTC price and store in minute table - for scheduler"""
     try:
@@ -4107,6 +4173,25 @@ def bitcoin_initialize_minute_data():
         logger.error(f"Error in manual initialization: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/bitcoin/fill-data-gaps', methods=['POST'])
+def bitcoin_fill_data_gaps():
+    """Manually trigger data gap detection and filling"""
+    try:
+        data = request.json or {}
+        max_gap_hours = int(data.get('max_gap_hours', 2))
+        
+        # Validate max_gap_hours
+        if max_gap_hours < 1:
+            return jsonify({'success': False, 'error': 'max_gap_hours must be at least 1'})
+        if max_gap_hours > 24:
+            return jsonify({'success': False, 'error': 'max_gap_hours cannot exceed 24'})
+        
+        result = detect_and_fill_data_gaps(max_gap_hours)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in gap filling: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/bitcoin/cleanup-minute-data', methods=['POST'])
 def bitcoin_cleanup_minute_data():
     """Manually trigger cleanup of old minute-level data"""
@@ -5288,6 +5373,16 @@ scheduler.add_job(
     name='Collect minute-level BTC price',
     replace_existing=True,
     max_instances=1  # Prevent overlapping executions
+)
+
+# Schedule data gap detection and filling (every 6 hours)
+scheduler.add_job(
+    func=detect_and_fill_data_gaps,
+    trigger=CronTrigger(hour='*/6', minute=30),  # Run every 6 hours at 30 minutes past the hour
+    id='fill_data_gaps',
+    name='Detect and fill data gaps',
+    replace_existing=True,
+    max_instances=1
 )
 
 # Schedule cleanup of old minute data (daily at 2 AM)
