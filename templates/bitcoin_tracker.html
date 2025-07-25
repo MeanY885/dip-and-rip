@@ -5901,7 +5901,11 @@
                                     <span style="color: #dc3545; font-weight: bold;">Max Drop: ${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span>
                                     <span style="color: #28a745; font-weight: bold;">Max Rise: ${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
                                 </div>
-                                <div style="font-size: 11px; color: #666; margin-top: 8px;">
+                                <div style="font-size: 12px; color: #495057; margin-bottom: 6px; padding: 4px 0; border-top: 1px solid #e9ecef;">
+                                    <strong>Lowest:</strong> £${(periodData.period_low || 0).toLocaleString()} | 
+                                    <strong>Highest:</strong> £${(periodData.period_high || 0).toLocaleString()}
+                                </div>
+                                <div style="font-size: 11px; color: #666;">
                                     📊 ${actualSamples.toLocaleString()} of ${expected.toLocaleString()} samples (${coveragePercent}%)
                                 </div>
                             </div>
