@@ -179,6 +179,26 @@ class BitcoinPriceHistory(db.Model):
     
     __table_args__ = (db.Index('idx_timestamp', 'timestamp'),)
 
+class BitcoinPriceHistoryMinute(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False, unique=True)
+    price_gbp = db.Column(db.Float, nullable=False)
+    price_usd = db.Column(db.Float, nullable=True)  # Optional USD price for reference
+    volume = db.Column(db.Float, nullable=True)  # Trading volume if available
+    source = db.Column(db.String(20), default='kraken')  # Data source
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Additional fields for minute-level analysis
+    high_price_gbp = db.Column(db.Float, nullable=True)  # High price within the minute
+    low_price_gbp = db.Column(db.Float, nullable=True)   # Low price within the minute
+    open_price_gbp = db.Column(db.Float, nullable=True)  # Opening price of the minute
+    close_price_gbp = db.Column(db.Float, nullable=True) # Closing price of the minute
+    
+    __table_args__ = (
+        db.Index('idx_minute_timestamp', 'timestamp'),
+        db.Index('idx_minute_created_at', 'created_at'),
+    )
+
 class FinanceCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
@@ -325,6 +345,46 @@ with app.app_context():
                 
     except Exception as e:
         logger.warning(f"FinanceTransaction migration check failed: {e}")
+    
+    # Optimize database for minute-level data collection
+    try:
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        # Check if the minute table exists and add additional indexes
+        if 'bitcoin_price_history_minute' in tables:
+            logger.info("Optimizing BitcoinPriceHistoryMinute table...")
+            
+            # Additional performance indexes for minute data
+            optimization_sql = """
+                CREATE INDEX IF NOT EXISTS idx_minute_price_timestamp_gbp ON bitcoin_price_history_minute(timestamp, price_gbp);
+                CREATE INDEX IF NOT EXISTS idx_minute_timestamp_desc ON bitcoin_price_history_minute(timestamp DESC);
+                CREATE INDEX IF NOT EXISTS idx_minute_created_timestamp ON bitcoin_price_history_minute(created_at, timestamp);
+                PRAGMA optimize;
+            """
+            
+            with db.engine.connect() as conn:
+                for statement in optimization_sql.strip().split(';'):
+                    if statement.strip():
+                        try:
+                            conn.execute(text(statement))
+                        except Exception as e:
+                            logger.warning(f"Could not create index: {e}")
+                conn.commit()
+            
+            logger.info("Database optimization completed")
+            
+            # Data retention check - log current data status
+            current_count = BitcoinPriceHistoryMinute.query.count()
+            if current_count > 0:
+                oldest = BitcoinPriceHistoryMinute.query.order_by(BitcoinPriceHistoryMinute.timestamp.asc()).first()
+                newest = BitcoinPriceHistoryMinute.query.order_by(BitcoinPriceHistoryMinute.timestamp.desc()).first()
+                logger.info(f"Minute data: {current_count} records from {oldest.timestamp} to {newest.timestamp}")
+            else:
+                logger.info("No minute-level data found - will start collecting on scheduler activation")
+    
+    except Exception as e:
+        logger.warning(f"Database optimization failed: {e}")
 
 class BTCBacktester:
     def __init__(self, lookback_days=365, investment_value=1000, buy_dip_percent=5, sell_gain_percent=10, transaction_fee_percent=0.1):
@@ -1408,6 +1468,36 @@ scheduler.add_job(
     replace_existing=True
 )
 
+# Schedule minute-level BTC price collection every minute
+scheduler.add_job(
+    func=collect_current_minute_price,
+    trigger=CronTrigger(second=0),  # Run at the start of every minute
+    id='collect_minute_price',
+    name='Collect minute-level BTC price',
+    replace_existing=True,
+    max_instances=1  # Prevent overlapping executions
+)
+
+# Schedule cleanup of old minute data (daily at 2 AM)
+scheduler.add_job(
+    func=cleanup_old_minute_data,
+    trigger=CronTrigger(hour=2, minute=0),
+    args=[30],  # Keep 30 days of minute data
+    id='cleanup_minute_data',
+    name='Cleanup old minute-level data',
+    replace_existing=True
+)
+
+# Schedule archiving of old hourly data (weekly on Sunday at 3 AM)
+scheduler.add_job(
+    func=archive_old_price_data,
+    trigger=CronTrigger(day_of_week=6, hour=3, minute=0),  # Sunday = 6
+    args=[365],  # Keep 1 year of hourly data
+    id='archive_hourly_data',
+    name='Archive old hourly data',
+    replace_existing=True
+)
+
 # Start the scheduler first
 try:
     scheduler.start()
@@ -1747,6 +1837,486 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
         return {'success': False, 'error': 'All data sources failed'}
         
     except Exception as e:
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
+
+def store_minute_price_data(minutes_back=1440):  # Default 24 hours (1440 minutes)
+    """Fetch and store 1-minute interval BTC price data"""
+    try:
+        url = "https://api.kraken.com/0/public/OHLC"
+        end_date = datetime.now()
+        start_date = end_date - timedelta(minutes=minutes_back)
+        since = int(start_date.timestamp())
+        
+        # Try GBP first, then USD
+        pairs_to_try = [("XXBTZGBP", "GBP"), ("XXBTZUSD", "USD")]
+        
+        for kraken_pair, currency in pairs_to_try:
+            try:
+                params = {
+                    'pair': kraken_pair,
+                    'interval': 1,  # 1 minute intervals
+                    'since': since
+                }
+                
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'error' in data and data['error']:
+                    logger.warning(f"Kraken API error for {kraken_pair}: {data['error']}")
+                    continue
+                
+                if 'result' not in data or not data['result']:
+                    continue
+                
+                pair_data = None
+                for key in data['result'].keys():
+                    if key != 'last':
+                        pair_data = data['result'][key]
+                        break
+                
+                if not pair_data:
+                    continue
+                
+                # Store the data
+                stored_count = 0
+                for row in pair_data:
+                    timestamp = datetime.fromtimestamp(int(row[0]))
+                    open_price = float(row[1])
+                    high_price = float(row[2])
+                    low_price = float(row[3])
+                    close_price = float(row[4])
+                    volume = float(row[6])
+                    
+                    # Check if this timestamp already exists
+                    existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=timestamp).first()
+                    if not existing:
+                        price_record = BitcoinPriceHistoryMinute(
+                            timestamp=timestamp,
+                            price_gbp=close_price if currency == 'GBP' else None,
+                            price_usd=close_price if currency == 'USD' else None,
+                            open_price_gbp=open_price if currency == 'GBP' else None,
+                            high_price_gbp=high_price if currency == 'GBP' else None,
+                            low_price_gbp=low_price if currency == 'GBP' else None,
+                            close_price_gbp=close_price if currency == 'GBP' else None,
+                            volume=volume,
+                            source='kraken'
+                        )
+                        db.session.add(price_record)
+                        stored_count += 1
+                
+                db.session.commit()
+                logger.info(f"Stored {stored_count} minute-level price records for {currency}")
+                return {
+                    'success': True,
+                    'stored_count': stored_count,
+                    'currency': currency,
+                    'minutes_back': minutes_back
+                }
+                
+            except Exception as e:
+                logger.error(f"Error storing minute data for {kraken_pair}: {e}")
+                db.session.rollback()
+                continue
+        
+        return {'success': False, 'error': 'All data sources failed'}
+        
+    except Exception as e:
+        logger.error(f"Error in store_minute_price_data: {e}")
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
+
+def collect_current_minute_price():
+    """Collect current BTC price and store in minute table - for scheduler"""
+    try:
+        url = "https://api.kraken.com/0/public/Ticker"
+        params = {'pair': 'XXBTZGBP'}
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'error' in data and data['error']:
+            logger.error(f"Kraken ticker API error: {data['error']}")
+            return {'success': False, 'error': str(data['error'])}
+        
+        if 'result' not in data:
+            return {'success': False, 'error': 'No result in API response'}
+        
+        # Get the pair data
+        pair_data = None
+        for key, value in data['result'].items():
+            if key != 'last':
+                pair_data = value
+                break
+        
+        if not pair_data:
+            return {'success': False, 'error': 'No pair data found'}
+        
+        # Extract current price
+        current_price = float(pair_data['c'][0])  # Last trade closed price
+        current_time = datetime.now()
+        
+        # Round timestamp to nearest minute to avoid too many entries
+        rounded_time = current_time.replace(second=0, microsecond=0)
+        
+        # Check if we already have data for this minute
+        existing = BitcoinPriceHistoryMinute.query.filter_by(timestamp=rounded_time).first()
+        
+        if not existing:
+            # Store new minute-level price data
+            price_record = BitcoinPriceHistoryMinute(
+                timestamp=rounded_time,
+                price_gbp=current_price,
+                close_price_gbp=current_price,  # Use current price as close for real-time data
+                volume=float(pair_data.get('v', [0, 0])[1]) if 'v' in pair_data else None,
+                source='kraken'
+            )
+            db.session.add(price_record)
+            db.session.commit()
+            
+            logger.info(f"Stored current minute price: £{current_price:.2f} at {rounded_time}")
+            return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat()}
+        else:
+            # Update existing record if needed (e.g., to set high/low within the minute)
+            if existing.high_price_gbp is None or current_price > existing.high_price_gbp:
+                existing.high_price_gbp = current_price
+            if existing.low_price_gbp is None or current_price < existing.low_price_gbp:
+                existing.low_price_gbp = current_price
+            existing.close_price_gbp = current_price  # Always update close to latest
+            
+            db.session.commit()
+            return {'success': True, 'price': current_price, 'timestamp': rounded_time.isoformat(), 'updated': True}
+            
+    except Exception as e:
+        logger.error(f"Error collecting current minute price: {e}")
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
+
+def calculate_swing_analysis(period_hours, days_back=7):
+    """Calculate swing analysis for specified time periods"""
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        
+        # Query minute-level data for the period
+        minute_data = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= start_date,
+            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        
+        if not minute_data:
+            return {'success': False, 'error': 'No minute-level data available'}
+        
+        # Convert to list of dictionaries for easier processing
+        data_points = []
+        for record in minute_data:
+            data_points.append({
+                'timestamp': record.timestamp,
+                'price': record.price_gbp or record.close_price_gbp,
+                'high': record.high_price_gbp,
+                'low': record.low_price_gbp,
+                'open': record.open_price_gbp,
+                'close': record.close_price_gbp
+            })
+        
+        # Calculate rolling windows for swing analysis
+        window_minutes = period_hours * 60
+        swing_results = []
+        
+        for i in range(len(data_points)):
+            current_time = data_points[i]['timestamp']
+            window_start = current_time - timedelta(hours=period_hours)
+            
+            # Get data points within the window
+            window_data = [
+                point for point in data_points 
+                if window_start <= point['timestamp'] <= current_time
+            ]
+            
+            if len(window_data) < 2:
+                continue
+            
+            # Find the highest and lowest prices in the window
+            prices = [point['price'] for point in window_data if point['price']]
+            highs = [point['high'] for point in window_data if point['high']]
+            lows = [point['low'] for point in window_data if point['low']]
+            
+            if not prices:
+                continue
+            
+            # Use high/low if available, otherwise use prices
+            window_high = max(highs) if highs else max(prices)
+            window_low = min(lows) if lows else min(prices)
+            window_start_price = window_data[0]['price']
+            window_end_price = data_points[i]['price']
+            
+            # Calculate swing metrics
+            if window_start_price and window_start_price > 0:
+                # Lowest drop % (how much it dropped from the start)
+                lowest_drop_pct = ((window_low - window_start_price) / window_start_price) * 100
+                
+                # Highest increase % (how much it increased from the start)
+                highest_increase_pct = ((window_high - window_start_price) / window_start_price) * 100
+                
+                # Volatility (high-low range as percentage of start price)
+                volatility_pct = ((window_high - window_low) / window_start_price) * 100
+                
+                swing_results.append({
+                    'timestamp': current_time.isoformat(),
+                    'period_hours': period_hours,
+                    'window_high': round(window_high, 2),
+                    'window_low': round(window_low, 2),
+                    'window_start_price': round(window_start_price, 2),
+                    'window_end_price': round(window_end_price, 2),
+                    'lowest_drop_pct': round(lowest_drop_pct, 2),
+                    'highest_increase_pct': round(highest_increase_pct, 2),
+                    'volatility_pct': round(volatility_pct, 2),
+                    'window_data_points': len(window_data)
+                })
+        
+        # Calculate summary statistics
+        if swing_results:
+            drops = [result['lowest_drop_pct'] for result in swing_results]
+            increases = [result['highest_increase_pct'] for result in swing_results]
+            volatilities = [result['volatility_pct'] for result in swing_results]
+            
+            summary = {
+                'period_hours': period_hours,
+                'days_analyzed': days_back,
+                'total_windows': len(swing_results),
+                'avg_lowest_drop_pct': round(sum(drops) / len(drops), 2),
+                'max_lowest_drop_pct': round(min(drops), 2),  # min because drops are negative
+                'avg_highest_increase_pct': round(sum(increases) / len(increases), 2),
+                'max_highest_increase_pct': round(max(increases), 2),
+                'avg_volatility_pct': round(sum(volatilities) / len(volatilities), 2),
+                'max_volatility_pct': round(max(volatilities), 2)
+            }
+        else:
+            summary = {
+                'period_hours': period_hours,
+                'days_analyzed': days_back,
+                'total_windows': 0
+            }
+        
+        return {
+            'success': True,
+            'summary': summary,
+            'swing_data': swing_results[-100:] if len(swing_results) > 100 else swing_results  # Return last 100 for performance
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in swing analysis: {e}")
+        return {'success': False, 'error': str(e)}
+
+def get_multi_period_swing_analysis(days_back=7):
+    """Get swing analysis for multiple time periods (1h, 3h, 6h, 9h, 12h, 1 day)"""
+    try:
+        periods = [1, 3, 6, 9, 12, 24]  # hours
+        results = {}
+        
+        for period in periods:
+            analysis = calculate_swing_analysis(period, days_back)
+            if analysis['success']:
+                # Format period label
+                if period == 24:
+                    period_label = '1d'
+                else:
+                    period_label = f'{period}h'
+                results[period_label] = analysis['summary']
+            else:
+                period_label = '1d' if period == 24 else f'{period}h'
+                results[period_label] = {'error': analysis['error']}
+        
+        return {
+            'success': True,
+            'days_analyzed': days_back,
+            'periods': results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in multi-period swing analysis: {e}")
+        return {'success': False, 'error': str(e)}
+
+def fetch_minute_data_for_viewer(days=7, limit=None):
+    """Fetch minute-level data for the data viewer"""
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        query = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= start_date,
+            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.desc())
+        
+        if limit:
+            query = query.limit(limit)
+        
+        minute_data = query.all()
+        
+        if not minute_data:
+            return {'success': False, 'error': 'No minute-level data available'}
+        
+        # Convert to data viewer format
+        data_points = []
+        for record in minute_data:
+            price = record.price_gbp or record.close_price_gbp
+            open_price = record.open_price_gbp or price
+            high_price = record.high_price_gbp or price
+            low_price = record.low_price_gbp or price
+            close_price = record.close_price_gbp or price
+            
+            data_points.append({
+                'Date': record.timestamp.strftime('%Y-%m-%d %H:%M'),
+                'Open': round(open_price, 2),
+                'High': round(high_price, 2),
+                'Low': round(low_price, 2),
+                'Close': round(close_price, 2),
+                'Volume': record.volume or 0
+            })
+        
+        # Reverse to get chronological order
+        data_points.reverse()
+        
+        return {
+            'success': True,
+            'data': data_points,
+            'source': 'minute-level kraken data',
+            'total_rows': len(data_points),
+            'period': f'Last {days} days (1-minute intervals)'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching minute data for viewer: {e}")
+        return {'success': False, 'error': str(e)}
+
+def cleanup_old_minute_data(days_to_keep=30):
+    """Clean up old minute-level data to manage database size"""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        
+        # Count records before cleanup
+        total_count = BitcoinPriceHistoryMinute.query.count()
+        old_count = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp < cutoff_date
+        ).count()
+        
+        if old_count == 0:
+            logger.info(f"No minute data older than {days_to_keep} days found - no cleanup needed")
+            return {'success': True, 'deleted_count': 0, 'total_count': total_count}
+        
+        logger.info(f"Cleaning up {old_count} minute records older than {cutoff_date}")
+        
+        # Delete old records in batches to avoid locking the database
+        batch_size = 1000
+        deleted_total = 0
+        
+        while True:
+            # Get a batch of old records
+            old_records = BitcoinPriceHistoryMinute.query.filter(
+                BitcoinPriceHistoryMinute.timestamp < cutoff_date
+            ).limit(batch_size).all()
+            
+            if not old_records:
+                break
+            
+            # Delete the batch
+            for record in old_records:
+                db.session.delete(record)
+            
+            db.session.commit()
+            deleted_total += len(old_records)
+            
+            logger.info(f"Deleted {deleted_total}/{old_count} old minute records...")
+            
+            # Small delay to prevent overwhelming the database
+            import time
+            time.sleep(0.1)
+        
+        # Optimize database after cleanup
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text("VACUUM"))
+                conn.execute(text("PRAGMA optimize"))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Database optimization after cleanup failed: {e}")
+        
+        remaining_count = BitcoinPriceHistoryMinute.query.count()
+        logger.info(f"Cleanup completed: deleted {deleted_total} records, {remaining_count} remaining")
+        
+        return {
+            'success': True,
+            'deleted_count': deleted_total,
+            'total_count': total_count,
+            'remaining_count': remaining_count,
+            'days_kept': days_to_keep
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_minute_data: {e}")
+        db.session.rollback()
+        return {'success': False, 'error': str(e)}
+
+def archive_old_price_data(days_to_keep=365):
+    """Archive old hourly price data (BitcoinPriceHistory) to manage database size"""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+        
+        # Count records before cleanup
+        total_count = BitcoinPriceHistory.query.count()
+        old_count = BitcoinPriceHistory.query.filter(
+            BitcoinPriceHistory.timestamp < cutoff_date
+        ).count()
+        
+        if old_count == 0:
+            logger.info(f"No hourly data older than {days_to_keep} days found - no archiving needed")
+            return {'success': True, 'archived_count': 0, 'total_count': total_count}
+        
+        logger.info(f"Archiving {old_count} hourly records older than {cutoff_date}")
+        
+        # For now, just delete old records (in a real system, you might export to files first)
+        batch_size = 500
+        archived_total = 0
+        
+        while True:
+            # Get a batch of old records
+            old_records = BitcoinPriceHistory.query.filter(
+                BitcoinPriceHistory.timestamp < cutoff_date
+            ).limit(batch_size).all()
+            
+            if not old_records:
+                break
+            
+            # Delete the batch
+            for record in old_records:
+                db.session.delete(record)
+            
+            db.session.commit()
+            archived_total += len(old_records)
+            
+            logger.info(f"Archived {archived_total}/{old_count} old hourly records...")
+            
+            # Small delay to prevent overwhelming the database
+            import time
+            time.sleep(0.1)
+        
+        remaining_count = BitcoinPriceHistory.query.count()
+        logger.info(f"Archiving completed: archived {archived_total} records, {remaining_count} remaining")
+        
+        return {
+            'success': True,
+            'archived_count': archived_total,
+            'total_count': total_count,
+            'remaining_count': remaining_count,
+            'days_kept': days_to_keep
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in archive_old_price_data: {e}")
         db.session.rollback()
         return {'success': False, 'error': str(e)}
 
@@ -3377,6 +3947,150 @@ def bitcoin_fetch_historical_data():
         result = store_historical_price_data(hours_back)
         return jsonify(result)
     except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/minute-data', methods=['POST'])
+def bitcoin_minute_data():
+    """Get minute-level BTC price data"""
+    try:
+        data = request.json or {}
+        days = int(data.get('days', 7))
+        limit = data.get('limit', None)
+        
+        # Limit days to prevent excessive data transfer
+        days = min(days, 30)  # Maximum 30 days of minute data
+        
+        if limit:
+            limit = min(limit, 10000)  # Maximum 10,000 records
+        
+        result = fetch_minute_data_for_viewer(days, limit)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in minute data API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/swing-analysis', methods=['POST'])
+def bitcoin_swing_analysis():
+    """Get swing analysis for specified periods"""
+    try:
+        data = request.json or {}
+        period_hours = int(data.get('period_hours', 1))
+        days_back = int(data.get('days_back', 7))
+        
+        # Validate parameters
+        if period_hours not in [1, 3, 6, 9, 12, 24]:
+            return jsonify({'success': False, 'error': 'period_hours must be 1, 3, 6, 9, 12, or 24'})
+        
+        days_back = min(days_back, 30)  # Maximum 30 days
+        
+        result = calculate_swing_analysis(period_hours, days_back)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in swing analysis API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/multi-swing-analysis', methods=['POST'])
+def bitcoin_multi_swing_analysis():
+    """Get swing analysis for all periods (1h, 3h, 6h, 9h)"""
+    try:
+        data = request.json or {}
+        days_back = int(data.get('days_back', 7))
+        
+        days_back = min(days_back, 30)  # Maximum 30 days
+        
+        result = get_multi_period_swing_analysis(days_back)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in multi-swing analysis API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/store-minute-data', methods=['POST'])
+def bitcoin_store_minute_data():
+    """Manually fetch and store minute-level BTC price data"""
+    try:
+        data = request.json or {}
+        minutes_back = int(data.get('minutes_back', 1440))  # Default 24 hours
+        
+        # Limit to prevent excessive API calls
+        minutes_back = min(minutes_back, 10080)  # Maximum 7 days
+        
+        result = store_minute_price_data(minutes_back)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error storing minute data: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/minute-collection-status')
+def bitcoin_minute_collection_status():
+    """Get status of minute-level data collection"""
+    try:
+        # Get latest minute data record
+        latest_record = BitcoinPriceHistoryMinute.query.order_by(
+            BitcoinPriceHistoryMinute.timestamp.desc()
+        ).first()
+        
+        # Get count of records in last 24 hours
+        twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+        recent_count = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= twenty_four_hours_ago
+        ).count()
+        
+        # Get total record count
+        total_count = BitcoinPriceHistoryMinute.query.count()
+        
+        status = {
+            'success': True,
+            'latest_record': {
+                'timestamp': latest_record.timestamp.isoformat() if latest_record else None,
+                'price_gbp': latest_record.price_gbp if latest_record else None
+            } if latest_record else None,
+            'records_last_24h': recent_count,
+            'total_records': total_count,
+            'collection_active': recent_count > 0,
+            'expected_records_24h': 1440  # 24 hours * 60 minutes
+        }
+        
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error getting collection status: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/cleanup-minute-data', methods=['POST'])
+def bitcoin_cleanup_minute_data():
+    """Manually trigger cleanup of old minute-level data"""
+    try:
+        data = request.json or {}
+        days_to_keep = int(data.get('days_to_keep', 30))
+        
+        # Validate days_to_keep
+        if days_to_keep < 7:
+            return jsonify({'success': False, 'error': 'Must keep at least 7 days of data'})
+        if days_to_keep > 90:
+            return jsonify({'success': False, 'error': 'Cannot keep more than 90 days of minute data'})
+        
+        result = cleanup_old_minute_data(days_to_keep)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in manual cleanup: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/archive-hourly-data', methods=['POST'])
+def bitcoin_archive_hourly_data():
+    """Manually trigger archiving of old hourly data"""
+    try:
+        data = request.json or {}
+        days_to_keep = int(data.get('days_to_keep', 365))
+        
+        # Validate days_to_keep
+        if days_to_keep < 30:
+            return jsonify({'success': False, 'error': 'Must keep at least 30 days of hourly data'})
+        if days_to_keep > 1095:  # 3 years
+            return jsonify({'success': False, 'error': 'Cannot keep more than 3 years of hourly data'})
+        
+        result = archive_old_price_data(days_to_keep)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in manual archiving: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/dashboard/summary')
