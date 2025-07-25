@@ -1909,12 +1909,17 @@ def initialize_historical_minute_data(days_back=30):
             BitcoinPriceHistoryMinute.timestamp.desc()
         ).first()
         
-        # If we have data from within the last hour, skip initialization
+        # If we have data from within the last 10 minutes, skip initialization
+        # Changed from 1 hour to 10 minutes to allow backfilling recent gaps
         if latest_record:
-            hours_since_latest = (datetime.now() - latest_record.timestamp).total_seconds() / 3600
-            if hours_since_latest < 1:
-                logger.info("Recent minute data exists, skipping initialization")
+            minutes_since_latest = (datetime.now() - latest_record.timestamp).total_seconds() / 60
+            if minutes_since_latest < 10:
+                logger.info("Very recent minute data exists, skipping initialization")
                 return {'success': True, 'message': 'Recent data exists, skipping initialization', 'stored_count': 0}
+            elif minutes_since_latest > 10:
+                logger.info(f"Data gap detected: {minutes_since_latest:.1f} minutes since last record. Proceeding with backfill.")
+        else:
+            logger.info("No existing minute data found. Proceeding with full initialization.")
         
         # Calculate total minutes to fetch
         total_minutes = days_back * 24 * 60
