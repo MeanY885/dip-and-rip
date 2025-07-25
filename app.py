@@ -1899,6 +1899,66 @@ def store_minute_price_data(minutes_back=1440):  # Default 24 hours (1440 minute
         db.session.rollback()
         return {'success': False, 'error': str(e)}
 
+def initialize_historical_minute_data(days_back=30):
+    """Initialize historical minute-level data on startup"""
+    try:
+        logger.info(f"Starting historical minute data initialization for {days_back} days")
+        
+        # Check if we already have recent data
+        latest_record = BitcoinPriceHistoryMinute.query.order_by(
+            BitcoinPriceHistoryMinute.timestamp.desc()
+        ).first()
+        
+        # If we have data from within the last hour, skip initialization
+        if latest_record:
+            hours_since_latest = (datetime.now() - latest_record.timestamp).total_seconds() / 3600
+            if hours_since_latest < 1:
+                logger.info("Recent minute data exists, skipping initialization")
+                return {'success': True, 'message': 'Recent data exists, skipping initialization', 'stored_count': 0}
+        
+        # Calculate total minutes to fetch
+        total_minutes = days_back * 24 * 60
+        
+        # Kraken API limits - fetch in chunks to avoid hitting rate limits
+        chunk_size = 1440  # 24 hours per chunk
+        total_stored = 0
+        chunks_processed = 0
+        
+        # Process in reverse chronological order (most recent first)
+        for chunk_start in range(0, total_minutes, chunk_size):
+            chunk_minutes = min(chunk_size, total_minutes - chunk_start)
+            
+            logger.info(f"Fetching chunk {chunks_processed + 1}: {chunk_minutes} minutes back from {chunk_start} minutes ago")
+            
+            # Fetch this chunk
+            result = store_minute_price_data(minutes_back=chunk_start + chunk_minutes)
+            
+            if result['success']:
+                total_stored += result['stored_count']
+                chunks_processed += 1
+                logger.info(f"Chunk {chunks_processed} completed: {result['stored_count']} records stored")
+            else:
+                logger.warning(f"Chunk {chunks_processed + 1} failed: {result.get('error', 'Unknown error')}")
+            
+            # Rate limiting - wait between chunks to avoid API limits
+            if chunk_start + chunk_size < total_minutes:  # Don't wait after the last chunk
+                import time
+                time.sleep(2)  # 2 second delay between chunks
+        
+        logger.info(f"Historical minute data initialization completed: {total_stored} records stored across {chunks_processed} chunks")
+        
+        return {
+            'success': True,
+            'message': f'Initialized {total_stored} minute-level records for {days_back} days',
+            'stored_count': total_stored,
+            'chunks_processed': chunks_processed,
+            'days_back': days_back
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in initialize_historical_minute_data: {e}")
+        return {'success': False, 'error': str(e)}
+
 def collect_current_minute_price():
     """Collect current BTC price and store in minute table - for scheduler"""
     try:
@@ -4027,6 +4087,26 @@ def bitcoin_minute_collection_status():
         logger.error(f"Error getting collection status: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/bitcoin/initialize-minute-data', methods=['POST'])
+def bitcoin_initialize_minute_data():
+    """Manually trigger initialization of historical minute-level data"""
+    try:
+        data = request.json or {}
+        days_back = int(data.get('days_back', 30))
+        
+        # Validate days_back
+        if days_back < 1:
+            return jsonify({'success': False, 'error': 'Must specify at least 1 day'})
+        if days_back > 30:
+            return jsonify({'success': False, 'error': 'Cannot initialize more than 30 days due to API limits'})
+        
+        logger.info(f"Manual initialization requested for {days_back} days")
+        result = initialize_historical_minute_data(days_back)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in manual initialization: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/bitcoin/cleanup-minute-data', methods=['POST'])
 def bitcoin_cleanup_minute_data():
     """Manually trigger cleanup of old minute-level data"""
@@ -5283,5 +5363,20 @@ def debug_template_deployment():
         })
 
 if __name__ == '__main__':
+    # Initialize database tables
+    with app.app_context():
+        db.create_all()
+        
+        # Initialize historical minute data on startup
+        logger.info("Starting application initialization...")
+        try:
+            initialization_result = initialize_historical_minute_data(days_back=30)
+            if initialization_result['success']:
+                logger.info(f"Startup initialization completed: {initialization_result['message']}")
+            else:
+                logger.warning(f"Startup initialization failed: {initialization_result.get('error', 'Unknown error')}")
+        except Exception as e:
+            logger.error(f"Error during startup initialization: {e}")
+    
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port, debug=True)

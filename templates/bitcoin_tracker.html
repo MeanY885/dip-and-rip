@@ -1512,8 +1512,17 @@
                     <button type="button" id="copyFiltered" class="copy-button" style="display: none;">📋 Copy Filtered Data</button>
                     <button type="button" id="exportCSV" class="copy-button" style="display: none;">💾 Export CSV</button>
                     <button type="button" id="loadSwingAnalysis" style="background-color: #17a2b8;">🔄 Load Swing Analysis</button>
+                    <button type="button" id="initializeMinuteData" style="background-color: #6c757d;">🚀 Initialize Historical Data</button>
                 </div>
             </form>
+            
+            <!-- Data Status Section -->
+            <div id="dataStatus" class="info-box" style="display: none; background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);">
+                <h3>📊 Data Availability Status</h3>
+                <div id="dataStatusContent">
+                    <p>Checking data availability...</p>
+                </div>
+            </div>
             
             <!-- Swing Analysis Section -->
             <div id="swingAnalysisContainer" class="container" style="display: none;">
@@ -5771,6 +5780,7 @@
             // Data viewer initialization
             const dataTypeSelect = document.getElementById('dataType');
             const loadSwingAnalysisBtn = document.getElementById('loadSwingAnalysis');
+            const initializeBtn = document.getElementById('initializeMinuteData');
             
             if (dataTypeSelect) {
                 dataTypeSelect.addEventListener('change', function() {
@@ -5784,6 +5794,15 @@
                     await loadSwingAnalysis();
                 });
             }
+            
+            if (initializeBtn) {
+                initializeBtn.addEventListener('click', async function() {
+                    await initializeHistoricalData();
+                });
+            }
+            
+            // Check data status on tab activation
+            checkDataStatus();
         });
 
         // Data Type Options Update Function
@@ -5953,6 +5972,120 @@
                     <p><strong>Time Period:</strong> ${summary.period_hours} hours</p>
                 `;
             }
+        }
+        
+        // Check Data Status Function
+        async function checkDataStatus() {
+            try {
+                const response = await fetch('/api/bitcoin/collection-status');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayDataStatus(data);
+                }
+            } catch (error) {
+                console.error('Error checking data status:', error);
+            }
+        }
+        
+        // Display Data Status
+        function displayDataStatus(status) {
+            const statusContainer = document.getElementById('dataStatus');
+            const statusContent = document.getElementById('dataStatusContent');
+            
+            if (!statusContainer || !statusContent) return;
+            
+            const latestRecord = status.latest_record;
+            const recentRecords = status.records_last_24h;
+            const expectedRecords = status.expected_records_24h;
+            const coveragePercent = ((recentRecords / expectedRecords) * 100).toFixed(1);
+            
+            let statusHtml = '';
+            
+            if (latestRecord) {
+                const lastUpdate = new Date(latestRecord.timestamp);
+                const hoursAgo = ((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60)).toFixed(1);
+                
+                statusHtml += `
+                    <p><strong>📊 Latest Data:</strong> ${lastUpdate.toLocaleString()} (${hoursAgo}h ago)</p>
+                    <p><strong>💰 Latest Price:</strong> £${latestRecord.price_gbp?.toLocaleString() || 'N/A'}</p>
+                    <p><strong>📈 24h Coverage:</strong> ${recentRecords}/${expectedRecords} records (${coveragePercent}%)</p>
+                    <p><strong>🗃️ Total Records:</strong> ${status.total_records.toLocaleString()}</p>
+                `;
+                
+                if (recentRecords < expectedRecords * 0.8) {
+                    statusHtml += `<p style="color: #ffc107;"><strong>⚠️ Warning:</strong> Low data coverage. Consider initializing historical data.</p>`;
+                }
+            } else {
+                statusHtml += `
+                    <p style="color: #dc3545;"><strong>❌ No Data Available</strong></p>
+                    <p>No minute-level data found. Click "Initialize Historical Data" to populate data from Kraken API.</p>
+                `;
+            }
+            
+            statusContent.innerHTML = statusHtml;
+            statusContainer.style.display = 'block';
+        }
+        
+        // Initialize Historical Data Function
+        async function initializeHistoricalData() {
+            const button = document.getElementById('initializeMinuteData');
+            const statusContainer = document.getElementById('dataStatus');
+            
+            if (!button) return;
+            
+            button.disabled = true;
+            button.textContent = '⏳ Initializing...';
+            
+            try {
+                const response = await fetch('/api/bitcoin/initialize-minute-data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ days_back: 30 })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update status display
+                    if (statusContainer) {
+                        const statusContent = document.getElementById('dataStatusContent');
+                        if (statusContent) {
+                            statusContent.innerHTML = `
+                                <p style="color: #28a745;"><strong>✅ Initialization Complete!</strong></p>
+                                <p>${data.message}</p>
+                                <p><strong>📊 Records Stored:</strong> ${data.stored_count}</p>
+                                <p><strong>🔄 Chunks Processed:</strong> ${data.chunks_processed}</p>
+                            `;
+                        }
+                    }
+                    
+                    // Refresh data status after a delay
+                    setTimeout(() => {
+                        checkDataStatus();
+                    }, 2000);
+                    
+                } else {
+                    if (statusContainer) {
+                        const statusContent = document.getElementById('dataStatusContent');
+                        if (statusContent) {
+                            statusContent.innerHTML = `
+                                <p style="color: #dc3545;"><strong>❌ Initialization Failed</strong></p>
+                                <p>${data.error}</p>
+                            `;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error initializing data:', error);
+                document.getElementById('error').textContent = 'Network error: ' + error.message;
+                document.getElementById('error').style.display = 'block';
+            }
+            
+            button.disabled = false;
+            button.textContent = '🚀 Initialize Historical Data';
         }
 
         // Cleanup timers on page unload
