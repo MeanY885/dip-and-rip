@@ -1468,35 +1468,7 @@ scheduler.add_job(
     replace_existing=True
 )
 
-# Schedule minute-level BTC price collection every minute
-scheduler.add_job(
-    func=collect_current_minute_price,
-    trigger=CronTrigger(second=0),  # Run at the start of every minute
-    id='collect_minute_price',
-    name='Collect minute-level BTC price',
-    replace_existing=True,
-    max_instances=1  # Prevent overlapping executions
-)
-
-# Schedule cleanup of old minute data (daily at 2 AM)
-scheduler.add_job(
-    func=cleanup_old_minute_data,
-    trigger=CronTrigger(hour=2, minute=0),
-    args=[30],  # Keep 30 days of minute data
-    id='cleanup_minute_data',
-    name='Cleanup old minute-level data',
-    replace_existing=True
-)
-
-# Schedule archiving of old hourly data (weekly on Sunday at 3 AM)
-scheduler.add_job(
-    func=archive_old_price_data,
-    trigger=CronTrigger(day_of_week=6, hour=3, minute=0),  # Sunday = 6
-    args=[365],  # Keep 1 year of hourly data
-    id='archive_hourly_data',
-    name='Archive old hourly data',
-    replace_existing=True
-)
+# Note: Additional scheduler jobs will be added after function definitions
 
 # Start the scheduler first
 try:
@@ -5226,6 +5198,37 @@ def migrate_final_value_column():
             return jsonify({'success': True, 'message': 'Successfully added final_value_gbp column'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# Add scheduler jobs after all functions are defined
+# Schedule minute-level BTC price collection every minute
+scheduler.add_job(
+    func=collect_current_minute_price,
+    trigger=CronTrigger(second=0),  # Run at the start of every minute
+    id='collect_minute_price',
+    name='Collect minute-level BTC price',
+    replace_existing=True,
+    max_instances=1  # Prevent overlapping executions
+)
+
+# Schedule cleanup of old minute data (daily at 2 AM)
+scheduler.add_job(
+    func=cleanup_old_minute_data,
+    trigger=CronTrigger(hour=2, minute=0),
+    args=[30],  # Keep 30 days of minute data
+    id='cleanup_minute_data',
+    name='Cleanup old minute-level data',
+    replace_existing=True
+)
+
+# Schedule archiving of old hourly data (weekly on Sunday at 3 AM)
+scheduler.add_job(
+    func=archive_old_price_data,
+    trigger=CronTrigger(day_of_week=6, hour=3, minute=0),  # Sunday = 6
+    args=[365],  # Keep 1 year of hourly data
+    id='archive_hourly_data',
+    name='Archive old hourly data',
+    replace_existing=True
+)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
