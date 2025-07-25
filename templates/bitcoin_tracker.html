@@ -5893,19 +5893,31 @@
                         const expected = expectedSamples[period] || 0;
                         const coveragePercent = expected > 0 ? ((actualSamples / expected) * 100).toFixed(0) : 0;
                         
-                        // Clean single row per period with all key info
+                        // Calculate current price change from period start for context
+                        const startPrice = periodData.period_start_price || 0;
+                        const currentPrice = periodData.current_price || 0;
+                        const currentChangePct = startPrice > 0 ? (((currentPrice - startPrice) / startPrice) * 100) : 0;
+                        const currentChangeColor = currentChangePct >= 0 ? '#28a745' : '#dc3545';
+                        const currentChangeSign = currentChangePct > 0 ? '+' : '';
+                        
+                        // Clean single row per period with clear context
                         statsHtml += `
-                            <div class="stat-item" style="border-left: 3px solid #007bff; min-width: 200px;">
-                                <div class="stat-label" style="font-weight: bold; margin-bottom: 8px;">${period} Period</div>
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                    <span style="color: #dc3545; font-weight: bold;">Max Drop: ${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span>
-                                    <span style="color: #28a745; font-weight: bold;">Max Rise: ${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
+                            <div class="stat-item" style="border-left: 3px solid #007bff; min-width: 220px;">
+                                <div class="stat-label" style="font-weight: bold; margin-bottom: 6px;">
+                                    ${period} Period Analysis
                                 </div>
-                                <div style="font-size: 12px; color: #495057; margin-bottom: 6px; padding: 4px 0; border-top: 1px solid #e9ecef;">
-                                    <strong>Lowest:</strong> £${(periodData.period_low || 0).toLocaleString()} | 
-                                    <strong>Highest:</strong> £${(periodData.period_high || 0).toLocaleString()}
+                                <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
+                                    Started: £${startPrice.toLocaleString()} → Now: £${currentPrice.toLocaleString()} 
+                                    (<span style="color: ${currentChangeColor};">${currentChangeSign}${currentChangePct.toFixed(2)}%</span>)
                                 </div>
-                                <div style="font-size: 11px; color: #666;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                    <span style="color: #dc3545; font-weight: bold;">Max Drop from start: ${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span>
+                                    <span style="color: #28a745; font-weight: bold;">Max Rise from start: ${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
+                                </div>
+                                <div style="font-size: 11px; color: #495057; margin-bottom: 6px; padding: 4px 0; border-top: 1px solid #e9ecef;">
+                                    <strong>Range:</strong> £${(periodData.period_low || 0).toLocaleString()} - £${(periodData.period_high || 0).toLocaleString()}
+                                </div>
+                                <div style="font-size: 10px; color: #999;">
                                     📊 ${actualSamples.toLocaleString()} of ${expected.toLocaleString()} samples (${coveragePercent}%)
                                 </div>
                             </div>
@@ -5922,7 +5934,7 @@
                 
                 statsRow.innerHTML = statsHtml;
                 
-                // Simple summary
+                // Summary with calculation explanation
                 summaryText.innerHTML = `
                     <div style="background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 15px;">
                         <h4 style="margin: 0 0 10px 0; color: #495057;">📈 Analysis Summary</h4>
@@ -5930,6 +5942,15 @@
                             <strong>Analysis Time:</strong> ${new Date(data.analysis_time || Date.now()).toLocaleString()}<br>
                             <strong>Method:</strong> Backward-looking from current time<br>
                             <strong>Data Source:</strong> Minute-level BTC price data
+                        </p>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #17a2b8;">
+                        <h5 style="margin: 0 0 8px 0; color: #495057; font-size: 13px;">📊 Calculation Method</h5>
+                        <p style="margin: 0; color: #6c757d; font-size: 12px; line-height: 1.4;">
+                            <strong>Percentages calculated from period start prices:</strong><br>
+                            • 1h analysis uses price from 1 hour ago as baseline<br>
+                            • Shows maximum price movements that occurred during each timeframe<br>
+                            • "Max Rise from start" = highest price reached vs period start price
                         </p>
                     </div>
                 `;
