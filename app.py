@@ -2445,7 +2445,9 @@ def get_multi_period_swing_analysis(days_back=7):
                 'data_points': len(period_data),
                 'period_high': round(period_high, 2),
                 'period_low': round(period_low, 2),
-                'period_start_price': round(period_start_price, 2)
+                'period_start_price': round(period_start_price, 2),
+                'period_start_time': period_start_time.isoformat(),
+                'period_end_time': current_time.isoformat()
             }
         
         return {
