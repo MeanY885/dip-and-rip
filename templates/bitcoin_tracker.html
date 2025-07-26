@@ -1541,7 +1541,7 @@
                 </div>
                 
                 <div id="swingResults" class="summary" style="display: none;">
-                    <h3>📊 Combined Analysis by Time Period</h3>
+                    <h3>📊 Combined Analysis by Time Period <span id="analysisLastUpdated" style="font-size: 0.8em; color: #666; font-weight: normal;"></span></h3>
                     <div id="swingStatsRow" class="stats-row"></div>
                     <div id="swingSummaryText"></div>
                 </div>
@@ -3590,6 +3590,7 @@
         let dataAutoRefreshInterval = null;
         let lastDataUpdate = null;
         let latestDataTimestamp = null;
+        let analysisRefreshCounter = 0; // Counter for Combined Analysis refresh
 
         // Price Monitor Functions
         function initializePriceMonitor() {
@@ -4370,15 +4371,31 @@
             // Clear any existing interval
             stopDataAutoRefresh();
             
+            // Reset analysis refresh counter
+            analysisRefreshCounter = 0;
+            
             // Start new interval for 60 seconds
-            dataAutoRefreshInterval = setInterval(() => {
-                loadData(true); // isAutoRefresh = true
+            dataAutoRefreshInterval = setInterval(async () => {
+                await loadData(true); // isAutoRefresh = true
+                
+                // Increment counter and refresh Combined Analysis every 3 minutes
+                analysisRefreshCounter++;
+                if (analysisRefreshCounter >= 3) {
+                    analysisRefreshCounter = 0;
+                    
+                    // Check if Combined Analysis is visible before refreshing
+                    const analysisContainer = document.getElementById('swingAnalysisContainer');
+                    if (analysisContainer && analysisContainer.style.display !== 'none') {
+                        console.log('Auto-refreshing Combined Analysis...');
+                        await loadSwingAnalysis();
+                    }
+                }
             }, 60000);
             
             // Update status indicator
             const statusElement = document.getElementById('autoRefreshStatus');
             if (statusElement) {
-                statusElement.textContent = '🔄 Auto-refreshing every minute';
+                statusElement.textContent = '🔄 Auto-refreshing every minute (Analysis every 3min)';
             }
         }
 
@@ -5970,6 +5987,13 @@
                     container.style.display = 'block';
                     results.style.display = 'block';
                     document.getElementById('error').style.display = 'none';
+                    
+                    // Update last updated timestamp
+                    const lastUpdatedElement = document.getElementById('analysisLastUpdated');
+                    if (lastUpdatedElement) {
+                        const now = new Date();
+                        lastUpdatedElement.textContent = `(Updated: ${now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`;
+                    }
                 } else {
                     document.getElementById('error').textContent = volatilityData.error || 'Failed to load analysis';
                     document.getElementById('error').style.display = 'block';

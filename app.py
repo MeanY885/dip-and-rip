@@ -2119,7 +2119,7 @@ def collect_current_minute_price():
                     current_price = float(data['price'])
                     volume = None  # Volume not available in this endpoint
                 
-                current_time = datetime.now()
+                current_time = datetime.utcnow()
                 
                 # Round timestamp to nearest minute to avoid too many entries
                 rounded_time = current_time.replace(second=0, microsecond=0)
@@ -2357,7 +2357,7 @@ def calculate_recent_period_swing(period_hours):
 def get_multi_period_swing_analysis(days_back=7):
     """Get swing analysis for multiple time periods ensuring mathematical consistency"""
     try:
-        current_time = datetime.now()
+        current_time = datetime.utcnow()
         
         # Get all minute data for the longest period (24 hours)
         period_start = current_time - timedelta(hours=24)
@@ -2462,7 +2462,7 @@ def get_multi_period_swing_analysis(days_back=7):
 def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
     """Fetch minute-level data for the data viewer"""
     try:
-        end_date = datetime.now()
+        end_date = datetime.utcnow()
         
         if since_timestamp:
             # For incremental updates, fetch only new records since the timestamp
@@ -2527,7 +2527,7 @@ def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
 def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
     """Analyze upswing patterns in minute-level data for a specific time period"""
     try:
-        end_date = datetime.now()
+        end_date = datetime.utcnow()
         start_date = end_date - timedelta(hours=period_hours)
         
         # Get minute data ordered by timestamp (earliest first)
@@ -4579,7 +4579,7 @@ def bitcoin_minute_collection_status():
         ).first()
         
         # Get count of records in last 24 hours
-        twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
         recent_count = BitcoinPriceHistoryMinute.query.filter(
             BitcoinPriceHistoryMinute.timestamp >= twenty_four_hours_ago
         ).count()
