@@ -6059,7 +6059,7 @@
                         const currentChangeColor = currentChangePct >= 0 ? '#28a745' : '#dc3545';
                         const currentChangeSign = currentChangePct > 0 ? '+' : '';
                         
-                        // Format timeframe display (convert UTC to local time)
+                        // Format timeframe display (already in local time from backend)
                         let timeframeText = '';
                         if (volatilityPeriod.period_start_time && volatilityPeriod.period_end_time) {
                             const startTime = new Date(volatilityPeriod.period_start_time).toLocaleTimeString('en-GB', { 

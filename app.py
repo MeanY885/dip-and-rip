@@ -2357,7 +2357,9 @@ def calculate_recent_period_swing(period_hours):
 def get_multi_period_swing_analysis(days_back=7):
     """Get swing analysis for multiple time periods ensuring mathematical consistency"""
     try:
+        # Use UTC for database queries but return local time periods for display
         current_time = datetime.utcnow()
+        local_current_time = datetime.now()  # For display purposes
         
         # Get all minute data for the longest period (24 hours)
         period_start = current_time - timedelta(hours=24)
@@ -2432,6 +2434,9 @@ def get_multi_period_swing_analysis(days_back=7):
             cumulative_max_rise = max(cumulative_max_rise, max_rise_pct)
             cumulative_max_drop = min(cumulative_max_drop, max_drop_pct)
             
+            # Calculate display times based on local time for user clarity
+            local_period_start_time = local_current_time - timedelta(hours=period)
+            
             period_label = '1d' if period == 24 else f'{period}h'
             results[period_label] = {
                 'period_hours': period,
@@ -2446,15 +2451,15 @@ def get_multi_period_swing_analysis(days_back=7):
                 'period_high': round(period_high, 2),
                 'period_low': round(period_low, 2),
                 'period_start_price': round(period_start_price, 2),
-                'period_start_time': period_start_time.isoformat(),
-                'period_end_time': current_time.isoformat()
+                'period_start_time': local_period_start_time.isoformat(),
+                'period_end_time': local_current_time.isoformat()
             }
         
         return {
             'success': True,
             'days_analyzed': days_back,
             'periods': results,
-            'analysis_time': current_time.isoformat()
+            'analysis_time': local_current_time.isoformat()
         }
         
     except Exception as e:
