@@ -1532,34 +1532,21 @@
             
             <!-- Swing Analysis Section -->
             <div id="swingAnalysisContainer" class="container" style="display: none;">
-                <h2>🔄 Recent Price Volatility Analysis</h2>
+                <h2>🔄 Price Analysis - Volatility & Upswing Patterns</h2>
                 <div class="info-box" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
-                    <h3>📈 Maximum Price Swings by Time Period</h3>
-                    <p><strong>Shows the highest/lowest BTC moved in recent time periods</strong> - analyzing actual minute-level data from current time backward</p>
+                    <h3>📈 Combined Volatility & Upswing Analysis by Time Period</h3>
+                    <p><strong>Shows maximum price swings AND upswing frequency patterns</strong> - analyzing minute-level data from current time backward</p>
+                    <p><strong>Volatility:</strong> Maximum price movements (drops/rises) from period start prices</p>
+                    <p><strong>Upswing Patterns:</strong> Sequential tracking of price increases by percentage thresholds (0.2%, 0.4%, 0.6%, 0.8%, 1.0%)</p>
                 </div>
                 
                 <div id="swingResults" class="summary" style="display: none;">
-                    <h3>📊 Volatility by Time Period</h3>
+                    <h3>📊 Combined Analysis by Time Period</h3>
                     <div id="swingStatsRow" class="stats-row"></div>
                     <div id="swingSummaryText"></div>
                 </div>
             </div>
             
-            <!-- Upswing Pattern Analysis Section -->
-            <div id="upswingAnalysisContainer" class="container" style="display: none;">
-                <h2>📈 Upswing Pattern Analysis</h2>
-                <div class="info-box" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
-                    <h3>📊 Price Upswing Frequency by Time Period</h3>
-                    <p><strong>Track upswing patterns across different timeframes</strong> - Shows how often BTC increases by specific percentages within each time period</p>
-                    <p>Algorithm: Start from beginning of period, track until target % increase reached, reset baseline and continue counting from that point</p>
-                </div>
-                
-                <div id="upswingResults" class="summary" style="display: none;">
-                    <h3>📊 Upswing Analysis by Time Period</h3>
-                    <div id="upswingStatsRow" class="stats-row"></div>
-                    <div id="upswingSummaryText"></div>
-                </div>
-            </div>
             
             <div id="summary" class="summary" style="display: none;">
                 <h3>📊 Data Summary</h3>
@@ -4409,90 +4396,6 @@
         }
 
 
-        async function loadUpswingAnalysis() {
-            const container = document.getElementById('upswingAnalysisContainer');
-            const results = document.getElementById('upswingResults');
-            
-            if (!container || !results) return;
-            
-            try {
-                // Load multi-period upswing analysis
-                const apiUrl = '/api/bitcoin/multi-upswing-analysis';
-                const requestBody = { thresholds: [0.2, 0.4, 0.6, 0.8, 1.0] };
-                
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    displayUpswingAnalysis(data);
-                    container.style.display = 'block';
-                    results.style.display = 'block';
-                } else {
-                    console.error('Failed to load upswing analysis:', data.error);
-                }
-            } catch (error) {
-                console.error('Network error loading upswing analysis:', error.message);
-            }
-        }
-
-        function displayUpswingAnalysis(data) {
-            const statsRow = document.getElementById('upswingStatsRow');
-            const summaryText = document.getElementById('upswingSummaryText');
-            
-            if (!statsRow || !summaryText || !data.periods) return;
-            
-            // Clear existing content
-            statsRow.innerHTML = '';
-            
-            // Create period stats for each time period
-            const periods = ['1h', '3h', '6h', '9h', '12h', '1day'];
-            
-            periods.forEach(periodKey => {
-                const periodData = data.periods[periodKey];
-                if (!periodData) return;
-                
-                const statBox = document.createElement('div');
-                statBox.className = 'stat-box';
-                
-                let content = `<h4>${periodData.period_label} Upswings</h4>`;
-                
-                if (periodData.error) {
-                    content += `<p class="error">Error: ${periodData.error}</p>`;
-                } else if (periodData.results) {
-                    // Show upswing counts for each threshold
-                    const thresholds = Object.keys(periodData.results).sort((a, b) => parseFloat(a) - parseFloat(b));
-                    
-                    content += '<div style="font-size: 0.9em;">';
-                    thresholds.forEach(threshold => {
-                        const result = periodData.results[threshold];
-                        content += `<p><strong>${threshold}%:</strong> ${result.count} (${result.success_rate_per_hour}/hr)</p>`;
-                    });
-                    content += '</div>';
-                    
-                    // Add data summary
-                    content += `<p style="font-size: 0.8em; color: #666; margin-top: 10px;">
-                        ${periodData.total_minutes} minutes analyzed
-                    </p>`;
-                }
-                
-                statBox.innerHTML = content;
-                statsRow.appendChild(statBox);
-            });
-            
-            // Update summary text
-            summaryText.innerHTML = `
-                <p><strong>Analysis shows upswing frequency across different time periods.</strong></p>
-                <p>Numbers show: <strong>Total Count</strong> (Rate per hour) for each percentage threshold.</p>
-                <p><strong>Thresholds:</strong> ${data.thresholds.join('%, ')}%</p>
-            `;
-        }
 
         function displaySummary(data) {
             const summary = document.getElementById('summary');
@@ -6042,30 +5945,33 @@
             button.textContent = '⏳ Analyzing...';
             
             try {
-                // Always use multi-period analysis with default values
-                const apiUrl = '/api/bitcoin/multi-swing-analysis';
-                const requestBody = { days_back: 7 };  // Fixed to 7 days for recent analysis
+                // Load both volatility and upswing data simultaneously
+                const [volatilityResponse, upswingResponse] = await Promise.all([
+                    fetch('/api/bitcoin/multi-swing-analysis', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ days_back: 7 })
+                    }),
+                    fetch('/api/bitcoin/multi-upswing-analysis', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ thresholds: [0.2, 0.4, 0.6, 0.8, 1.0] })
+                    })
+                ]);
                 
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
+                const [volatilityData, upswingData] = await Promise.all([
+                    volatilityResponse.json(),
+                    upswingResponse.json()
+                ]);
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    displaySwingAnalysis(data);
+                if (volatilityData.success) {
+                    // Combine both datasets and display
+                    displayCombinedAnalysis(volatilityData, upswingData.success ? upswingData : null);
                     container.style.display = 'block';
                     results.style.display = 'block';
                     document.getElementById('error').style.display = 'none';
-                    
-                    // Auto-load upswing analysis after swing analysis loads
-                    await loadUpswingAnalysis();
                 } else {
-                    document.getElementById('error').textContent = data.error || 'Failed to load swing analysis';
+                    document.getElementById('error').textContent = volatilityData.error || 'Failed to load analysis';
                     document.getElementById('error').style.display = 'block';
                 }
             } catch (error) {
@@ -6074,44 +5980,73 @@
             }
             
             button.disabled = false;
-            button.textContent = '🔄 Load Swing Analysis';
+            button.textContent = '🔄 Load Combined Analysis';
         }
         
-        // Display Swing Analysis Results
-        function displaySwingAnalysis(data) {
+        // Display Combined Volatility and Upswing Analysis
+        function displayCombinedAnalysis(volatilityData, upswingData) {
             const statsRow = document.getElementById('swingStatsRow');
             const summaryText = document.getElementById('swingSummaryText');
             
             if (!statsRow || !summaryText) return;
             
-            if (data.periods) {
-                // Multi-period analysis - clean single display
+            if (volatilityData.periods) {
+                // Multi-period analysis - combine volatility and upswing data
                 const orderedPeriods = ['1h', '3h', '6h', '9h', '12h', '1d'];
                 let statsHtml = '';
                 
                 orderedPeriods.forEach(period => {
-                    const periodData = data.periods[period];
-                    if (periodData && !periodData.error) {
+                    const volatilityPeriod = volatilityData.periods[period];
+                    const upswingKey = period === '1d' ? '1day' : period;
+                    const upswingPeriod = upswingData?.periods?.[upswingKey];
+                    
+                    if (volatilityPeriod && !volatilityPeriod.error) {
                         // Expected sample counts for validation
                         const expectedSamples = {
                             '1h': 60, '3h': 180, '6h': 360, 
                             '9h': 540, '12h': 720, '1d': 1440
                         };
                         
-                        const actualSamples = periodData.data_points || 0;
+                        const actualSamples = volatilityPeriod.data_points || 0;
                         const expected = expectedSamples[period] || 0;
                         const coveragePercent = expected > 0 ? ((actualSamples / expected) * 100).toFixed(0) : 0;
                         
                         // Calculate current price change from period start for context
-                        const startPrice = periodData.period_start_price || 0;
-                        const currentPrice = periodData.current_price || 0;
+                        const startPrice = volatilityPeriod.period_start_price || 0;
+                        const currentPrice = volatilityPeriod.current_price || 0;
                         const currentChangePct = startPrice > 0 ? (((currentPrice - startPrice) / startPrice) * 100) : 0;
                         const currentChangeColor = currentChangePct >= 0 ? '#28a745' : '#dc3545';
                         const currentChangeSign = currentChangePct > 0 ? '+' : '';
                         
-                        // Clean single row per period with clear context
+                        // Build upswing data section
+                        let upswingHtml = '';
+                        if (upswingPeriod && upswingPeriod.results && !upswingPeriod.error) {
+                            const thresholds = Object.keys(upswingPeriod.results).sort((a, b) => parseFloat(a) - parseFloat(b));
+                            upswingHtml = `
+                                <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #28a745;">
+                                    <div style="font-weight: bold; font-size: 11px; color: #28a745; margin-bottom: 4px;">📊 Upswing Patterns</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px;">
+                                        ${thresholds.map(threshold => {
+                                            const result = upswingPeriod.results[threshold];
+                                            return `<div><strong>${threshold}%:</strong> ${result.count} (${result.success_rate_per_hour}/hr)</div>`;
+                                        }).join('')}
+                                    </div>
+                                    <div style="font-size: 9px; color: #666; margin-top: 4px;">
+                                        ${upswingPeriod.total_minutes || 0} min analyzed
+                                    </div>
+                                </div>
+                            `;
+                        } else if (upswingPeriod?.error) {
+                            upswingHtml = `
+                                <div style="background: #f8d7da; padding: 8px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #dc3545;">
+                                    <div style="font-size: 10px; color: #721c24;">Upswing Error: ${upswingPeriod.error}</div>
+                                </div>
+                            `;
+                        }
+                        
+                        // Combined display with both volatility and upswing data
                         statsHtml += `
-                            <div class="stat-item" style="border-left: 3px solid #007bff; min-width: 220px;">
+                            <div class="stat-item" style="border-left: 3px solid #007bff; min-width: 240px;">
                                 <div class="stat-label" style="font-weight: bold; margin-bottom: 6px;">
                                     ${period} Period Analysis
                                 </div>
@@ -6120,22 +6055,23 @@
                                     (<span style="color: ${currentChangeColor};">${currentChangeSign}${currentChangePct.toFixed(2)}%</span>)
                                 </div>
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                                    <span style="color: #dc3545; font-weight: bold;">Max Drop from start: ${Math.abs(periodData.max_lowest_drop_pct || 0).toFixed(1)}%</span>
-                                    <span style="color: #28a745; font-weight: bold;">Max Rise from start: ${(periodData.max_highest_increase_pct || 0).toFixed(1)}%</span>
+                                    <span style="color: #dc3545; font-weight: bold;">Max Drop: ${Math.abs(volatilityPeriod.max_lowest_drop_pct || 0).toFixed(1)}%</span>
+                                    <span style="color: #28a745; font-weight: bold;">Max Rise: ${(volatilityPeriod.max_highest_increase_pct || 0).toFixed(1)}%</span>
                                 </div>
                                 <div style="font-size: 11px; color: #495057; margin-bottom: 6px; padding: 4px 0; border-top: 1px solid #e9ecef;">
-                                    <strong>Range:</strong> £${(periodData.period_low || 0).toLocaleString()} - £${(periodData.period_high || 0).toLocaleString()}
+                                    <strong>Range:</strong> £${(volatilityPeriod.period_low || 0).toLocaleString()} - £${(volatilityPeriod.period_high || 0).toLocaleString()}
                                 </div>
-                                <div style="font-size: 10px; color: #999;">
+                                ${upswingHtml}
+                                <div style="font-size: 10px; color: #999; margin-top: 8px;">
                                     📊 ${actualSamples.toLocaleString()} of ${expected.toLocaleString()} samples (${coveragePercent}%)
                                 </div>
                             </div>
                         `;
-                    } else if (periodData && periodData.error) {
+                    } else if (volatilityPeriod && volatilityPeriod.error) {
                         statsHtml += `
                             <div class="stat-item" style="border-left: 3px solid #dc3545;">
                                 <div class="stat-label">${period} Period</div>
-                                <div style="color: #dc3545; font-size: 12px;">Error: ${periodData.error}</div>
+                                <div style="color: #dc3545; font-size: 12px;">Error: ${volatilityPeriod.error}</div>
                             </div>
                         `;
                     }
@@ -6143,60 +6079,35 @@
                 
                 statsRow.innerHTML = statsHtml;
                 
-                // Summary with calculation explanation
+                // Combined summary with both analysis types
                 summaryText.innerHTML = `
                     <div style="background: #e9ecef; padding: 15px; border-radius: 8px; margin-top: 15px;">
-                        <h4 style="margin: 0 0 10px 0; color: #495057;">📈 Analysis Summary</h4>
+                        <h4 style="margin: 0 0 10px 0; color: #495057;">📈 Combined Analysis Summary</h4>
                         <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">
-                            <strong>Analysis Time:</strong> ${new Date(data.analysis_time || Date.now()).toLocaleString()}<br>
+                            <strong>Analysis Time:</strong> ${new Date(volatilityData.analysis_time || Date.now()).toLocaleString()}<br>
                             <strong>Method:</strong> Backward-looking from current time<br>
                             <strong>Data Source:</strong> Minute-level BTC price data
                         </p>
                     </div>
                     <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #17a2b8;">
-                        <h5 style="margin: 0 0 8px 0; color: #495057; font-size: 13px;">📊 Calculation Method</h5>
+                        <h5 style="margin: 0 0 8px 0; color: #495057; font-size: 13px;">📊 Volatility Analysis</h5>
                         <p style="margin: 0; color: #6c757d; font-size: 12px; line-height: 1.4;">
                             <strong>Percentages calculated from period start prices:</strong><br>
-                            • 1h analysis uses price from 1 hour ago as baseline<br>
+                            • Max Drop/Rise: Largest movement from period start price<br>
+                            • Shows maximum price movements that occurred during each timeframe
+                        </p>
+                    </div>
+                    <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #28a745;">
+                        <h5 style="margin: 0 0 8px 0; color: #495057; font-size: 13px;">📊 Upswing Pattern Analysis</h5>
+                        <p style="margin: 0; color: #6c757d; font-size: 12px; line-height: 1.4;">
+                            <strong>Sequential upswing tracking:</strong><br>
+                            • Counts how often price rises by percentage thresholds (0.2%, 0.4%, 0.6%, 0.8%, 1.0%)<br>
+                            • After each threshold reached, baseline resets to that new price<br>
+                            • Numbers show: Total Count (Rate per hour) for each threshold
                             • Shows maximum price movements that occurred during each timeframe<br>
                             • "Max Rise from start" = highest price reached vs period start price
                         </p>
                     </div>
-                `;
-            } else if (data.summary) {
-                // Single period analysis
-                const summary = data.summary;
-                statsRow.innerHTML = `
-                    <div class="stat-item">
-                        <div class="stat-label">Period</div>
-                        <div class="stat-value">${summary.period_hours}h</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Lowest Drop</div>
-                        <div class="stat-value" style="color: #dc3545">${summary.avg_lowest_drop_pct}%</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Max Lowest Drop</div>
-                        <div class="stat-value" style="color: #dc3545">${summary.max_lowest_drop_pct}%</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Highest Rise</div>
-                        <div class="stat-value" style="color: #28a745">${summary.avg_highest_increase_pct}%</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Max Highest Rise</div>
-                        <div class="stat-value" style="color: #28a745">${summary.max_highest_increase_pct}%</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Avg Volatility</div>
-                        <div class="stat-value">${summary.avg_volatility_pct}%</div>
-                    </div>
-                `;
-                
-                summaryText.innerHTML = `
-                    <p><strong>Analysis Period:</strong> ${summary.days_analyzed} days</p>
-                    <p><strong>Total Windows:</strong> ${summary.total_windows}</p>
-                    <p><strong>Time Period:</strong> ${summary.period_hours} hours</p>
                 `;
             }
         }

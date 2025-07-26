@@ -2462,30 +2462,29 @@ def get_multi_period_swing_analysis(days_back=7):
 def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
     """Fetch minute-level data for the data viewer"""
     try:
-        with db.session.begin():
-            end_date = datetime.now()
-            
-            if since_timestamp:
-                # For incremental updates, fetch only new records since the timestamp
-                try:
-                    since_date = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00')) if 'Z' in since_timestamp else datetime.fromisoformat(since_timestamp)
-                    start_date = since_date
-                except (ValueError, TypeError):
-                    # If timestamp is invalid, fall back to days-based query
-                    start_date = end_date - timedelta(days=days)
-            else:
+        end_date = datetime.now()
+        
+        if since_timestamp:
+            # For incremental updates, fetch only new records since the timestamp
+            try:
+                since_date = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00')) if 'Z' in since_timestamp else datetime.fromisoformat(since_timestamp)
+                start_date = since_date
+            except (ValueError, TypeError):
+                # If timestamp is invalid, fall back to days-based query
                 start_date = end_date - timedelta(days=days)
-            
-            query = BitcoinPriceHistoryMinute.query.filter(
-                BitcoinPriceHistoryMinute.timestamp >= start_date,
-                BitcoinPriceHistoryMinute.timestamp <= end_date,
-                BitcoinPriceHistoryMinute.price_gbp.isnot(None)
-            ).order_by(BitcoinPriceHistoryMinute.timestamp.desc())
-            
-            if limit:
-                query = query.limit(limit)
-            
-            minute_data = query.all()
+        else:
+            start_date = end_date - timedelta(days=days)
+        
+        query = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= start_date,
+            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.desc())
+        
+        if limit:
+            query = query.limit(limit)
+        
+        minute_data = query.all()
         
         if not minute_data:
             return {'success': False, 'error': 'No minute-level data available'}
@@ -2528,16 +2527,15 @@ def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
 def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
     """Analyze upswing patterns in minute-level data for a specific time period"""
     try:
-        with db.session.begin():
-            end_date = datetime.now()
-            start_date = end_date - timedelta(hours=period_hours)
-            
-            # Get minute data ordered by timestamp (earliest first)
-            minute_data = BitcoinPriceHistoryMinute.query.filter(
-                BitcoinPriceHistoryMinute.timestamp >= start_date,
-                BitcoinPriceHistoryMinute.timestamp <= end_date,
-                BitcoinPriceHistoryMinute.price_gbp.isnot(None)
-            ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        end_date = datetime.now()
+        start_date = end_date - timedelta(hours=period_hours)
+        
+        # Get minute data ordered by timestamp (earliest first)
+        minute_data = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= start_date,
+            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
         
         if not minute_data or len(minute_data) < 2:
             return {'success': False, 'error': 'Insufficient data for upswing analysis'}
