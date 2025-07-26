@@ -5983,6 +5983,23 @@
             button.textContent = '🔄 Load Combined Analysis';
         }
         
+        // Helper function to format time for display
+        function formatTimeDisplay(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+        
+        // Helper function to format duration
+        function formatDuration(minutes) {
+            if (minutes < 60) {
+                return `${Math.round(minutes)} min`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                const mins = Math.round(minutes % 60);
+                return mins > 0 ? `${hours}h ${mins}min` : `${hours}h`;
+            }
+        }
+
         // Display Combined Volatility and Upswing Analysis
         function displayCombinedAnalysis(volatilityData, upswingData) {
             const statsRow = document.getElementById('swingStatsRow');
@@ -6022,15 +6039,52 @@
                         let upswingHtml = '';
                         if (upswingPeriod && upswingPeriod.results && !upswingPeriod.error) {
                             const thresholds = Object.keys(upswingPeriod.results).sort((a, b) => parseFloat(a) - parseFloat(b));
+                            const periodId = period.replace(/[^a-zA-Z0-9]/g, ''); // Clean ID for use in HTML
+                            
+                            // Build threshold summary
+                            let thresholdHtml = thresholds.map(threshold => {
+                                const result = upswingPeriod.results[threshold];
+                                return `<div><strong>${threshold}%:</strong> ${result.count} (${result.success_rate_per_hour}/hr)</div>`;
+                            }).join('');
+                            
+                            // Build recent swings details (show last 3 for the first threshold with data)
+                            let recentSwingsHtml = '';
+                            const firstThresholdWithData = thresholds.find(t => {
+                                const result = upswingPeriod.results[t];
+                                return result.swing_details && result.swing_details.length > 0;
+                            });
+                            
+                            if (firstThresholdWithData) {
+                                const swingDetails = upswingPeriod.results[firstThresholdWithData].swing_details;
+                                const recentSwings = swingDetails.slice(-3); // Show last 3 swings
+                                
+                                if (recentSwings.length > 0) {
+                                    recentSwingsHtml = `
+                                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #dee2e6;">
+                                            <div style="font-weight: bold; font-size: 9px; color: #495057; margin-bottom: 3px;">
+                                                Recent ${firstThresholdWithData}% Swings:
+                                            </div>
+                                            ${recentSwings.map(swing => {
+                                                const startTime = formatTimeDisplay(swing.start_time);
+                                                const endTime = formatTimeDisplay(swing.end_time);
+                                                const duration = formatDuration(swing.duration_minutes);
+                                                return `<div style="font-size: 8px; color: #666; line-height: 1.2;">
+                                                    • ${startTime} - ${endTime} (${duration}): +${swing.percentage_achieved}%
+                                                </div>`;
+                                            }).join('')}
+                                            ${swingDetails.length > 3 ? `<div style="font-size: 8px; color: #28a745; margin-top: 2px; cursor: pointer;" onclick="toggleSwingDetails('${periodId}')">+ ${swingDetails.length - 3} more swings</div>` : ''}
+                                        </div>
+                                    `;
+                                }
+                            }
+                            
                             upswingHtml = `
                                 <div style="background: #f8f9fa; padding: 8px; border-radius: 4px; margin-top: 8px; border-left: 3px solid #28a745;">
                                     <div style="font-weight: bold; font-size: 11px; color: #28a745; margin-bottom: 4px;">📊 Upswing Patterns</div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 10px;">
-                                        ${thresholds.map(threshold => {
-                                            const result = upswingPeriod.results[threshold];
-                                            return `<div><strong>${threshold}%:</strong> ${result.count} (${result.success_rate_per_hour}/hr)</div>`;
-                                        }).join('')}
+                                        ${thresholdHtml}
                                     </div>
+                                    ${recentSwingsHtml}
                                     <div style="font-size: 9px; color: #666; margin-top: 4px;">
                                         ${upswingPeriod.total_minutes || 0} min analyzed
                                     </div>
@@ -6110,6 +6164,13 @@
                     </div>
                 `;
             }
+        }
+        
+        // Toggle function for showing/hiding additional swing details
+        function toggleSwingDetails(periodId) {
+            // This is a placeholder for expandable functionality
+            // For now, just show an alert with the period ID
+            alert(`Detailed swing view for ${periodId} period coming soon!`);
         }
         
         // Check Data Status Function

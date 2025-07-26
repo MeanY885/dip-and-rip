@@ -2553,6 +2553,7 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
         for threshold in thresholds:
             upswing_count = 0
             upswing_times = []
+            swing_details = []
             baseline_price = None
             baseline_time = None
             
@@ -2577,6 +2578,20 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
                     upswing_count += 1
                     upswing_times.append(current_time)
                     
+                    # Calculate duration in minutes
+                    duration_minutes = (current_time - baseline_time).total_seconds() / 60
+                    
+                    # Record swing details
+                    swing_detail = {
+                        'start_time': baseline_time.isoformat(),
+                        'end_time': current_time.isoformat(),
+                        'duration_minutes': round(duration_minutes, 1),
+                        'start_price': round(baseline_price, 2),
+                        'end_price': round(current_price, 2),
+                        'percentage_achieved': round(percentage_change, 2)
+                    }
+                    swing_details.append(swing_detail)
+                    
                     # Reset baseline to current price and time
                     baseline_price = current_price
                     baseline_time = current_time
@@ -2593,6 +2608,7 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
             results[threshold] = {
                 'count': upswing_count,
                 'upswings': [t.isoformat() for t in upswing_times],
+                'swing_details': swing_details,
                 'avg_time_between_minutes': round(avg_time_between, 2),
                 'success_rate_per_hour': round((upswing_count / period_hours), 2) if period_hours > 0 else 0
             }
