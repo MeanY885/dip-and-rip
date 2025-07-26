@@ -2518,11 +2518,11 @@ def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
         logger.error(f"Error fetching minute data for viewer: {e}")
         return {'success': False, 'error': str(e)}
 
-def calculate_upswing_analysis(days=7, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
-    """Analyze upswing patterns in minute-level data"""
+def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
+    """Analyze upswing patterns in minute-level data for a specific time period"""
     try:
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        start_date = end_date - timedelta(hours=period_hours)
         
         # Get minute data ordered by timestamp (earliest first)
         minute_data = BitcoinPriceHistoryMinute.query.filter(
@@ -2588,12 +2588,12 @@ def calculate_upswing_analysis(days=7, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
                 'count': upswing_count,
                 'upswings': [t.isoformat() for t in upswing_times],
                 'avg_time_between_minutes': round(avg_time_between, 2),
-                'success_rate_per_day': round((upswing_count / days), 2) if days > 0 else 0
+                'success_rate_per_hour': round((upswing_count / period_hours), 2) if period_hours > 0 else 0
             }
         
         return {
             'success': True,
-            'period_days': days,
+            'period_hours': period_hours,
             'total_minutes': len(minute_data),
             'analysis_period': f"{start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}",
             'results': results
@@ -2601,6 +2601,51 @@ def calculate_upswing_analysis(days=7, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
         
     except Exception as e:
         logger.error(f"Error in upswing analysis: {e}")
+        return {'success': False, 'error': str(e)}
+
+def get_multi_period_upswing_analysis(thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
+    """Get upswing analysis for all time periods (1h, 3h, 6h, 9h, 12h, 1 day)"""
+    try:
+        periods = [1, 3, 6, 9, 12, 24]  # hours
+        results = {}
+        
+        for period_hours in periods:
+            period_key = f"{period_hours}h" if period_hours < 24 else "1day"
+            
+            try:
+                analysis = calculate_upswing_analysis(period_hours, thresholds)
+                if analysis['success']:
+                    results[period_key] = {
+                        'period_hours': period_hours,
+                        'period_label': f"{period_hours}h" if period_hours < 24 else "1 day",
+                        'results': analysis['results'],
+                        'total_minutes': analysis['total_minutes'],
+                        'analysis_period': analysis['analysis_period']
+                    }
+                else:
+                    results[period_key] = {
+                        'period_hours': period_hours,
+                        'period_label': f"{period_hours}h" if period_hours < 24 else "1 day",
+                        'error': analysis.get('error', 'Unknown error'),
+                        'results': {}
+                    }
+            except Exception as e:
+                logger.error(f"Error analyzing {period_hours}h upswing period: {e}")
+                results[period_key] = {
+                    'period_hours': period_hours,
+                    'period_label': f"{period_hours}h" if period_hours < 24 else "1 day",
+                    'error': str(e),
+                    'results': {}
+                }
+        
+        return {
+            'success': True,
+            'periods': results,
+            'thresholds': thresholds
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in multi-period upswing analysis: {e}")
         return {'success': False, 'error': str(e)}
 
 def cleanup_old_minute_data(days_to_keep=30):
@@ -4420,11 +4465,11 @@ def bitcoin_upswing_analysis():
     """Analyze upswing patterns in minute-level data"""
     try:
         data = request.json or {}
-        days = int(data.get('days', 7))
+        period_hours = float(data.get('period_hours', 1))
         thresholds = data.get('thresholds', [0.2, 0.4, 0.6, 0.8, 1.0])
         
         # Validate and limit parameters
-        days = min(max(days, 1), 30)  # Between 1 and 30 days
+        period_hours = min(max(period_hours, 0.5), 168)  # Between 30 minutes and 7 days
         
         # Ensure thresholds are valid numbers
         valid_thresholds = []
@@ -4439,10 +4484,36 @@ def bitcoin_upswing_analysis():
         if not valid_thresholds:
             valid_thresholds = [0.2, 0.4, 0.6, 0.8, 1.0]
         
-        result = calculate_upswing_analysis(days, valid_thresholds)
+        result = calculate_upswing_analysis(period_hours, valid_thresholds)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in upswing analysis API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/multi-upswing-analysis', methods=['POST'])
+def bitcoin_multi_upswing_analysis():
+    """Get upswing analysis for all periods (1h, 3h, 6h, 9h, 12h, 1 day)"""
+    try:
+        data = request.json or {}
+        thresholds = data.get('thresholds', [0.2, 0.4, 0.6, 0.8, 1.0])
+        
+        # Ensure thresholds are valid numbers
+        valid_thresholds = []
+        for threshold in thresholds:
+            try:
+                t = float(threshold)
+                if 0.1 <= t <= 10.0:  # Between 0.1% and 10%
+                    valid_thresholds.append(t)
+            except (ValueError, TypeError):
+                continue
+        
+        if not valid_thresholds:
+            valid_thresholds = [0.2, 0.4, 0.6, 0.8, 1.0]
+        
+        result = get_multi_period_upswing_analysis(valid_thresholds)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in multi-upswing analysis API: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bitcoin/store-minute-data', methods=['POST'])

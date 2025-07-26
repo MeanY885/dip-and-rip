@@ -1545,6 +1545,22 @@
                 </div>
             </div>
             
+            <!-- Upswing Pattern Analysis Section -->
+            <div id="upswingAnalysisContainer" class="container" style="display: none;">
+                <h2>📈 Upswing Pattern Analysis</h2>
+                <div class="info-box" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                    <h3>📊 Price Upswing Frequency by Time Period</h3>
+                    <p><strong>Track upswing patterns across different timeframes</strong> - Shows how often BTC increases by specific percentages within each time period</p>
+                    <p>Algorithm: Start from beginning of period, track until target % increase reached, reset baseline and continue counting from that point</p>
+                </div>
+                
+                <div id="upswingResults" class="summary" style="display: none;">
+                    <h3>📊 Upswing Analysis by Time Period</h3>
+                    <div id="upswingStatsRow" class="stats-row"></div>
+                    <div id="upswingSummaryText"></div>
+                </div>
+            </div>
+            
             <div id="summary" class="summary" style="display: none;">
                 <h3>📊 Data Summary</h3>
                 <div class="stats-row" id="statsRow"></div>
@@ -1576,77 +1592,6 @@
                 </div>
             </div>
             
-            <!-- Upswing Analysis Section -->
-            <div id="upswingAnalysisSection" class="container" style="display: none; margin-top: 30px;">
-                <div class="info-box" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
-                    <h3>📈 Upswing Pattern Analysis</h3>
-                    <p><strong>Analyze price upswing patterns</strong> - Track how often BTC increases by specific percentages</p>
-                    <p>Starting from each minute, track until the price reaches the target percentage increase, then restart counting from that point</p>
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="upswingPeriod">📅 Analysis Period:</label>
-                        <select id="upswingPeriod">
-                            <option value="1">Last 1 day</option>
-                            <option value="3">Last 3 days</option>
-                            <option value="7" selected>Last 7 days</option>
-                            <option value="14">Last 14 days</option>
-                            <option value="30">Last 30 days</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Percentage Thresholds:</label>
-                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;">
-                            <label style="display: flex; align-items: center; gap: 5px;">
-                                <input type="checkbox" id="threshold_0_2" value="0.2" checked>
-                                <span>0.2%</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px;">
-                                <input type="checkbox" id="threshold_0_4" value="0.4" checked>
-                                <span>0.4%</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px;">
-                                <input type="checkbox" id="threshold_0_6" value="0.6" checked>
-                                <span>0.6%</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px;">
-                                <input type="checkbox" id="threshold_0_8" value="0.8" checked>
-                                <span>0.8%</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 5px;">
-                                <input type="checkbox" id="threshold_1_0" value="1.0" checked>
-                                <span>1.0%</span>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <button type="button" id="analyzeUpswings" style="background-color: #28a745;">📊 Analyze Upswings</button>
-                    </div>
-                </div>
-                
-                <!-- Upswing Results -->
-                <div id="upswingResults" style="display: none; margin-top: 20px;">
-                    <h3>📊 Upswing Analysis Results</h3>
-                    <div id="upswingSummary" class="info-box" style="background: #f8f9fa;"></div>
-                    <div class="data-container">
-                        <table class="data-table" id="upswingTable">
-                            <thead>
-                                <tr>
-                                    <th>Threshold %</th>
-                                    <th>Total Count</th>
-                                    <th>Per Day Average</th>
-                                    <th>Avg Time Between (min)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="upswingTableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
             
             <div id="error" class="error" style="display: none;"></div>
         </div>
@@ -4278,8 +4223,6 @@
             document.getElementById('exportCSV').addEventListener('click', function() {
                 exportToCSV(filteredData.length > 0 ? filteredData : allData);
             });
-
-            document.getElementById('analyzeUpswings').addEventListener('click', analyzeUpswings);
             
             // Mark as having event listeners
             document.getElementById('dataForm').hasEventListener = true;
@@ -4390,13 +4333,11 @@
                     // Update last updated time
                     updateLastUpdatedTime();
                     
-                    // Start auto-refresh for minute data and show upswing analysis
+                    // Start auto-refresh for minute data
                     if (dataType === 'minute') {
                         startDataAutoRefresh();
-                        showUpswingAnalysisSection();
                     } else {
                         stopDataAutoRefresh();
-                        hideUpswingAnalysisSection();
                     }
                     
                     const errorDiv = document.getElementById('dataError');
@@ -4467,111 +4408,90 @@
             }
         }
 
-        function showUpswingAnalysisSection() {
-            const upswingSection = document.getElementById('upswingAnalysisSection');
-            if (upswingSection) {
-                upswingSection.style.display = 'block';
-            }
-        }
 
-        function hideUpswingAnalysisSection() {
-            const upswingSection = document.getElementById('upswingAnalysisSection');
-            if (upswingSection) {
-                upswingSection.style.display = 'none';
-            }
-        }
-
-        async function analyzeUpswings() {
-            const button = document.getElementById('analyzeUpswings');
-            const originalText = button.textContent;
-            button.disabled = true;
-            button.textContent = '⏳ Analyzing...';
+        async function loadUpswingAnalysis() {
+            const container = document.getElementById('upswingAnalysisContainer');
+            const results = document.getElementById('upswingResults');
+            
+            if (!container || !results) return;
             
             try {
-                // Get selected parameters
-                const days = parseInt(document.getElementById('upswingPeriod').value);
-                const thresholds = [];
+                // Load multi-period upswing analysis
+                const apiUrl = '/api/bitcoin/multi-upswing-analysis';
+                const requestBody = { thresholds: [0.2, 0.4, 0.6, 0.8, 1.0] };
                 
-                // Get checked thresholds
-                const checkboxes = ['threshold_0_2', 'threshold_0_4', 'threshold_0_6', 'threshold_0_8', 'threshold_1_0'];
-                checkboxes.forEach(id => {
-                    const checkbox = document.getElementById(id);
-                    if (checkbox && checkbox.checked) {
-                        thresholds.push(parseFloat(checkbox.value));
-                    }
-                });
-                
-                if (thresholds.length === 0) {
-                    alert('Please select at least one percentage threshold');
-                    return;
-                }
-                
-                // Call the API
-                const response = await fetch('/api/bitcoin/upswing-analysis', {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        days: days,
-                        thresholds: thresholds
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    displayUpswingResults(data);
+                    displayUpswingAnalysis(data);
+                    container.style.display = 'block';
+                    results.style.display = 'block';
                 } else {
-                    alert('Error: ' + (data.error || 'Failed to analyze upswings'));
+                    console.error('Failed to load upswing analysis:', data.error);
                 }
-                
             } catch (error) {
-                alert('Network error: ' + error.message);
-            } finally {
-                button.disabled = false;
-                button.textContent = originalText;
+                console.error('Network error loading upswing analysis:', error.message);
             }
         }
 
-        function displayUpswingResults(data) {
-            const resultsDiv = document.getElementById('upswingResults');
-            const summaryDiv = document.getElementById('upswingSummary');
-            const tableBody = document.getElementById('upswingTableBody');
+        function displayUpswingAnalysis(data) {
+            const statsRow = document.getElementById('upswingStatsRow');
+            const summaryText = document.getElementById('upswingSummaryText');
             
-            // Show results section
-            resultsDiv.style.display = 'block';
+            if (!statsRow || !summaryText || !data.periods) return;
             
-            // Update summary
-            summaryDiv.innerHTML = `
-                <h4>Analysis Summary</h4>
-                <p><strong>Analysis Period:</strong> ${data.analysis_period}</p>
-                <p><strong>Total Minutes Analyzed:</strong> ${data.total_minutes.toLocaleString()}</p>
-                <p><strong>Period:</strong> ${data.period_days} days</p>
-            `;
+            // Clear existing content
+            statsRow.innerHTML = '';
             
-            // Clear and populate results table
-            tableBody.innerHTML = '';
+            // Create period stats for each time period
+            const periods = ['1h', '3h', '6h', '9h', '12h', '1day'];
             
-            // Sort thresholds for display
-            const sortedThresholds = Object.keys(data.results).map(t => parseFloat(t)).sort((a, b) => a - b);
-            
-            sortedThresholds.forEach(threshold => {
-                const result = data.results[threshold];
-                const row = document.createElement('tr');
+            periods.forEach(periodKey => {
+                const periodData = data.periods[periodKey];
+                if (!periodData) return;
                 
-                row.innerHTML = `
-                    <td>${threshold}%</td>
-                    <td>${result.count}</td>
-                    <td>${result.success_rate_per_day}</td>
-                    <td>${result.avg_time_between_minutes || 'N/A'}</td>
-                `;
+                const statBox = document.createElement('div');
+                statBox.className = 'stat-box';
                 
-                tableBody.appendChild(row);
+                let content = `<h4>${periodData.period_label} Upswings</h4>`;
+                
+                if (periodData.error) {
+                    content += `<p class="error">Error: ${periodData.error}</p>`;
+                } else if (periodData.results) {
+                    // Show upswing counts for each threshold
+                    const thresholds = Object.keys(periodData.results).sort((a, b) => parseFloat(a) - parseFloat(b));
+                    
+                    content += '<div style="font-size: 0.9em;">';
+                    thresholds.forEach(threshold => {
+                        const result = periodData.results[threshold];
+                        content += `<p><strong>${threshold}%:</strong> ${result.count} (${result.success_rate_per_hour}/hr)</p>`;
+                    });
+                    content += '</div>';
+                    
+                    // Add data summary
+                    content += `<p style="font-size: 0.8em; color: #666; margin-top: 10px;">
+                        ${periodData.total_minutes} minutes analyzed
+                    </p>`;
+                }
+                
+                statBox.innerHTML = content;
+                statsRow.appendChild(statBox);
             });
             
-            // Scroll to results
-            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            // Update summary text
+            summaryText.innerHTML = `
+                <p><strong>Analysis shows upswing frequency across different time periods.</strong></p>
+                <p>Numbers show: <strong>Total Count</strong> (Rate per hour) for each percentage threshold.</p>
+                <p><strong>Thresholds:</strong> ${data.thresholds.join('%, ')}%</p>
+            `;
         }
 
         function displaySummary(data) {
@@ -6141,6 +6061,9 @@
                     container.style.display = 'block';
                     results.style.display = 'block';
                     document.getElementById('error').style.display = 'none';
+                    
+                    // Auto-load upswing analysis after swing analysis loads
+                    await loadUpswingAnalysis();
                 } else {
                     document.getElementById('error').textContent = data.error || 'Failed to load swing analysis';
                     document.getElementById('error').style.display = 'block';
