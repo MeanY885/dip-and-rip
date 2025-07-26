@@ -1516,6 +1516,12 @@
                 </div>
             </form>
             
+            <!-- Last Updated Indicator -->
+            <div id="lastUpdated" style="display: none; text-align: center; margin: 10px 0; font-size: 0.9em; color: #666;">
+                <span id="lastUpdatedText">Last updated: Never</span>
+                <span id="autoRefreshStatus" style="margin-left: 15px; color: #28a745;"></span>
+            </div>
+            
             <!-- Data Status Section -->
             <div id="dataStatus" class="info-box" style="display: none; background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);">
                 <h3>📊 Data Availability Status</h3>
@@ -1567,6 +1573,78 @@
                         <tbody id="dataTableBody">
                         </tbody>
                     </table>
+                </div>
+            </div>
+            
+            <!-- Upswing Analysis Section -->
+            <div id="upswingAnalysisSection" class="container" style="display: none; margin-top: 30px;">
+                <div class="info-box" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                    <h3>📈 Upswing Pattern Analysis</h3>
+                    <p><strong>Analyze price upswing patterns</strong> - Track how often BTC increases by specific percentages</p>
+                    <p>Starting from each minute, track until the price reaches the target percentage increase, then restart counting from that point</p>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="upswingPeriod">📅 Analysis Period:</label>
+                        <select id="upswingPeriod">
+                            <option value="1">Last 1 day</option>
+                            <option value="3">Last 3 days</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="14">Last 14 days</option>
+                            <option value="30">Last 30 days</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Percentage Thresholds:</label>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 5px;">
+                            <label style="display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" id="threshold_0_2" value="0.2" checked>
+                                <span>0.2%</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" id="threshold_0_4" value="0.4" checked>
+                                <span>0.4%</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" id="threshold_0_6" value="0.6" checked>
+                                <span>0.6%</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" id="threshold_0_8" value="0.8" checked>
+                                <span>0.8%</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px;">
+                                <input type="checkbox" id="threshold_1_0" value="1.0" checked>
+                                <span>1.0%</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="button" id="analyzeUpswings" style="background-color: #28a745;">📊 Analyze Upswings</button>
+                    </div>
+                </div>
+                
+                <!-- Upswing Results -->
+                <div id="upswingResults" style="display: none; margin-top: 20px;">
+                    <h3>📊 Upswing Analysis Results</h3>
+                    <div id="upswingSummary" class="info-box" style="background: #f8f9fa;"></div>
+                    <div class="data-container">
+                        <table class="data-table" id="upswingTable">
+                            <thead>
+                                <tr>
+                                    <th>Threshold %</th>
+                                    <th>Total Count</th>
+                                    <th>Per Day Average</th>
+                                    <th>Avg Time Between (min)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="upswingTableBody">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             
@@ -3558,6 +3636,7 @@
                 // Stop all auto-refresh when switching to other tabs
                 stopTradingRecordsAutoRefresh();
                 stopPriceMonitorAutoRefresh();
+                stopDataAutoRefresh();
             }
             
             if (tabName === 'data') {
@@ -3576,6 +3655,9 @@
         // Data Viewer Variables
         let allData = [];
         let filteredData = [];
+        let dataAutoRefreshInterval = null;
+        let lastDataUpdate = null;
+        let latestDataTimestamp = null;
 
         // Price Monitor Functions
         function initializePriceMonitor() {
@@ -4173,8 +4255,15 @@
                 }
             });
 
+            // Stop auto-refresh when data type changes and reset timestamp
+            document.getElementById('dataType').addEventListener('change', function() {
+                stopDataAutoRefresh();
+                latestDataTimestamp = null; // Reset for fresh data load
+            });
+
             document.getElementById('dataForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
+                latestDataTimestamp = null; // Reset for fresh data load
                 await loadData();
             });
 
@@ -4189,6 +4278,8 @@
             document.getElementById('exportCSV').addEventListener('click', function() {
                 exportToCSV(filteredData.length > 0 ? filteredData : allData);
             });
+
+            document.getElementById('analyzeUpswings').addEventListener('click', analyzeUpswings);
             
             // Mark as having event listeners
             document.getElementById('dataForm').hasEventListener = true;
@@ -4215,10 +4306,12 @@
             }
         }
 
-        async function loadData() {
+        async function loadData(isAutoRefresh = false) {
             const button = document.getElementById('loadData');
-            button.disabled = true;
-            button.textContent = '⏳ Loading...';
+            if (!isAutoRefresh) {
+                button.disabled = true;
+                button.textContent = '⏳ Loading...';
+            }
             
             try {
                 const days = document.getElementById('days').value;
@@ -4229,6 +4322,11 @@
                 if (dataType === 'minute') {
                     apiUrl = '/api/bitcoin/minute-data';
                     requestBody = { days: parseInt(days), limit: 5000 }; // Limit for performance
+                    
+                    // For auto-refresh, use incremental update if we have a latest timestamp
+                    if (isAutoRefresh && latestDataTimestamp) {
+                        requestBody.since_timestamp = latestDataTimestamp;
+                    }
                 } else {
                     apiUrl = '/api/historical-data';
                     requestBody = { days: parseInt(days) };
@@ -4248,7 +4346,7 @@
                     // Sort data by date in descending order (most recent first)
                     const sortedData = data.data.sort((a, b) => new Date(b.Date) - new Date(a.Date));
                     
-                    allData = sortedData.map((row, index) => {
+                    const processedData = sortedData.map((row, index) => {
                         const dailyChange = row.Close - row.Open;
                         const dailyChangePercent = ((row.Close - row.Open) / row.Open) * 100;
                         const lowestDipPercent = ((row.Low - row.Open) / row.Open) * 100;
@@ -4263,8 +4361,44 @@
                         };
                     });
                     
+                    // Handle incremental vs full data load
+                    if (data.is_incremental && allData.length > 0) {
+                        // Merge new data with existing data, avoiding duplicates
+                        const existingDates = new Set(allData.map(row => row.Date));
+                        const newData = processedData.filter(row => !existingDates.has(row.Date));
+                        
+                        // Add new data to the beginning (most recent first)
+                        allData = [...newData, ...allData];
+                        
+                        // Limit total data to prevent memory issues (keep last 10,000 records)
+                        if (allData.length > 10000) {
+                            allData = allData.slice(0, 10000);
+                        }
+                    } else {
+                        // Full data load
+                        allData = processedData;
+                    }
+                    
+                    // Update latest timestamp for incremental updates
+                    if (data.latest_timestamp) {
+                        latestDataTimestamp = data.latest_timestamp;
+                    }
+                    
                     displaySummary(data);
                     applyDateFilter();
+                    
+                    // Update last updated time
+                    updateLastUpdatedTime();
+                    
+                    // Start auto-refresh for minute data and show upswing analysis
+                    if (dataType === 'minute') {
+                        startDataAutoRefresh();
+                        showUpswingAnalysisSection();
+                    } else {
+                        stopDataAutoRefresh();
+                        hideUpswingAnalysisSection();
+                    }
+                    
                     const errorDiv = document.getElementById('dataError');
                     if (errorDiv) {
                         errorDiv.style.display = 'none';
@@ -4284,8 +4418,160 @@
                 }
             }
             
-            button.disabled = false;
-            button.textContent = '📥 Load Data';
+            if (!isAutoRefresh) {
+                button.disabled = false;
+                button.textContent = '📥 Load Data';
+            }
+        }
+
+        function updateLastUpdatedTime() {
+            lastDataUpdate = new Date();
+            const lastUpdatedElement = document.getElementById('lastUpdatedText');
+            const lastUpdatedContainer = document.getElementById('lastUpdated');
+            
+            if (lastUpdatedElement) {
+                lastUpdatedElement.textContent = `Last updated: ${lastDataUpdate.toLocaleTimeString()}`;
+            }
+            
+            if (lastUpdatedContainer) {
+                lastUpdatedContainer.style.display = 'block';
+            }
+        }
+
+        function startDataAutoRefresh() {
+            // Clear any existing interval
+            stopDataAutoRefresh();
+            
+            // Start new interval for 60 seconds
+            dataAutoRefreshInterval = setInterval(() => {
+                loadData(true); // isAutoRefresh = true
+            }, 60000);
+            
+            // Update status indicator
+            const statusElement = document.getElementById('autoRefreshStatus');
+            if (statusElement) {
+                statusElement.textContent = '🔄 Auto-refreshing every minute';
+            }
+        }
+
+        function stopDataAutoRefresh() {
+            if (dataAutoRefreshInterval) {
+                clearInterval(dataAutoRefreshInterval);
+                dataAutoRefreshInterval = null;
+            }
+            
+            // Clear status indicator
+            const statusElement = document.getElementById('autoRefreshStatus');
+            if (statusElement) {
+                statusElement.textContent = '';
+            }
+        }
+
+        function showUpswingAnalysisSection() {
+            const upswingSection = document.getElementById('upswingAnalysisSection');
+            if (upswingSection) {
+                upswingSection.style.display = 'block';
+            }
+        }
+
+        function hideUpswingAnalysisSection() {
+            const upswingSection = document.getElementById('upswingAnalysisSection');
+            if (upswingSection) {
+                upswingSection.style.display = 'none';
+            }
+        }
+
+        async function analyzeUpswings() {
+            const button = document.getElementById('analyzeUpswings');
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '⏳ Analyzing...';
+            
+            try {
+                // Get selected parameters
+                const days = parseInt(document.getElementById('upswingPeriod').value);
+                const thresholds = [];
+                
+                // Get checked thresholds
+                const checkboxes = ['threshold_0_2', 'threshold_0_4', 'threshold_0_6', 'threshold_0_8', 'threshold_1_0'];
+                checkboxes.forEach(id => {
+                    const checkbox = document.getElementById(id);
+                    if (checkbox && checkbox.checked) {
+                        thresholds.push(parseFloat(checkbox.value));
+                    }
+                });
+                
+                if (thresholds.length === 0) {
+                    alert('Please select at least one percentage threshold');
+                    return;
+                }
+                
+                // Call the API
+                const response = await fetch('/api/bitcoin/upswing-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        days: days,
+                        thresholds: thresholds
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayUpswingResults(data);
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to analyze upswings'));
+                }
+                
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+
+        function displayUpswingResults(data) {
+            const resultsDiv = document.getElementById('upswingResults');
+            const summaryDiv = document.getElementById('upswingSummary');
+            const tableBody = document.getElementById('upswingTableBody');
+            
+            // Show results section
+            resultsDiv.style.display = 'block';
+            
+            // Update summary
+            summaryDiv.innerHTML = `
+                <h4>Analysis Summary</h4>
+                <p><strong>Analysis Period:</strong> ${data.analysis_period}</p>
+                <p><strong>Total Minutes Analyzed:</strong> ${data.total_minutes.toLocaleString()}</p>
+                <p><strong>Period:</strong> ${data.period_days} days</p>
+            `;
+            
+            // Clear and populate results table
+            tableBody.innerHTML = '';
+            
+            // Sort thresholds for display
+            const sortedThresholds = Object.keys(data.results).map(t => parseFloat(t)).sort((a, b) => a - b);
+            
+            sortedThresholds.forEach(threshold => {
+                const result = data.results[threshold];
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${threshold}%</td>
+                    <td>${result.count}</td>
+                    <td>${result.success_rate_per_day}</td>
+                    <td>${result.avg_time_between_minutes || 'N/A'}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Scroll to results
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
         function displaySummary(data) {

@@ -2453,11 +2453,21 @@ def get_multi_period_swing_analysis(days_back=7):
         logger.error(f"Error in multi-period swing analysis: {e}")
         return {'success': False, 'error': str(e)}
 
-def fetch_minute_data_for_viewer(days=7, limit=None):
+def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
     """Fetch minute-level data for the data viewer"""
     try:
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        
+        if since_timestamp:
+            # For incremental updates, fetch only new records since the timestamp
+            try:
+                since_date = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00')) if 'Z' in since_timestamp else datetime.fromisoformat(since_timestamp)
+                start_date = since_date
+            except (ValueError, TypeError):
+                # If timestamp is invalid, fall back to days-based query
+                start_date = end_date - timedelta(days=days)
+        else:
+            start_date = end_date - timedelta(days=days)
         
         query = BitcoinPriceHistoryMinute.query.filter(
             BitcoinPriceHistoryMinute.timestamp >= start_date,
@@ -2499,11 +2509,98 @@ def fetch_minute_data_for_viewer(days=7, limit=None):
             'data': data_points,
             'source': 'minute-level kraken data',
             'total_rows': len(data_points),
-            'period': f'Last {days} days (1-minute intervals)'
+            'period': f'Last {days} days (1-minute intervals)' if not since_timestamp else 'Incremental update',
+            'is_incremental': bool(since_timestamp),
+            'latest_timestamp': data_points[-1]['Date'] if data_points else None
         }
         
     except Exception as e:
         logger.error(f"Error fetching minute data for viewer: {e}")
+        return {'success': False, 'error': str(e)}
+
+def calculate_upswing_analysis(days=7, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
+    """Analyze upswing patterns in minute-level data"""
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get minute data ordered by timestamp (earliest first)
+        minute_data = BitcoinPriceHistoryMinute.query.filter(
+            BitcoinPriceHistoryMinute.timestamp >= start_date,
+            BitcoinPriceHistoryMinute.timestamp <= end_date,
+            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        
+        if not minute_data or len(minute_data) < 2:
+            return {'success': False, 'error': 'Insufficient data for upswing analysis'}
+        
+        # Initialize results
+        results = {}
+        for threshold in thresholds:
+            results[threshold] = {
+                'count': 0,
+                'upswings': [],
+                'avg_time_between': 0
+            }
+        
+        # Process each threshold percentage
+        for threshold in thresholds:
+            upswing_count = 0
+            upswing_times = []
+            baseline_price = None
+            baseline_time = None
+            
+            for record in minute_data:
+                current_price = record.price_gbp or record.close_price_gbp
+                current_time = record.timestamp
+                
+                if current_price is None:
+                    continue
+                
+                # Set initial baseline
+                if baseline_price is None:
+                    baseline_price = current_price
+                    baseline_time = current_time
+                    continue
+                
+                # Calculate percentage change from baseline
+                percentage_change = ((current_price - baseline_price) / baseline_price) * 100
+                
+                # Check if we hit the upswing threshold
+                if percentage_change >= threshold:
+                    upswing_count += 1
+                    upswing_times.append(current_time)
+                    
+                    # Reset baseline to current price and time
+                    baseline_price = current_price
+                    baseline_time = current_time
+            
+            # Calculate average time between upswings
+            avg_time_between = 0
+            if len(upswing_times) > 1:
+                total_time_diff = 0
+                for i in range(1, len(upswing_times)):
+                    time_diff = (upswing_times[i] - upswing_times[i-1]).total_seconds() / 60  # in minutes
+                    total_time_diff += time_diff
+                avg_time_between = total_time_diff / (len(upswing_times) - 1)
+            
+            results[threshold] = {
+                'count': upswing_count,
+                'upswings': [t.isoformat() for t in upswing_times],
+                'avg_time_between_minutes': round(avg_time_between, 2),
+                'success_rate_per_day': round((upswing_count / days), 2) if days > 0 else 0
+            }
+        
+        return {
+            'success': True,
+            'period_days': days,
+            'total_minutes': len(minute_data),
+            'analysis_period': f"{start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}",
+            'results': results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in upswing analysis: {e}")
         return {'success': False, 'error': str(e)}
 
 def cleanup_old_minute_data(days_to_keep=30):
@@ -4269,6 +4366,7 @@ def bitcoin_minute_data():
         data = request.json or {}
         days = int(data.get('days', 7))
         limit = data.get('limit', None)
+        since_timestamp = data.get('since_timestamp', None)
         
         # Limit days to prevent excessive data transfer
         days = min(days, 30)  # Maximum 30 days of minute data
@@ -4276,7 +4374,7 @@ def bitcoin_minute_data():
         if limit:
             limit = min(limit, 10000)  # Maximum 10,000 records
         
-        result = fetch_minute_data_for_viewer(days, limit)
+        result = fetch_minute_data_for_viewer(days, limit, since_timestamp)
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in minute data API: {e}")
@@ -4315,6 +4413,36 @@ def bitcoin_multi_swing_analysis():
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error in multi-swing analysis API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/bitcoin/upswing-analysis', methods=['POST'])
+def bitcoin_upswing_analysis():
+    """Analyze upswing patterns in minute-level data"""
+    try:
+        data = request.json or {}
+        days = int(data.get('days', 7))
+        thresholds = data.get('thresholds', [0.2, 0.4, 0.6, 0.8, 1.0])
+        
+        # Validate and limit parameters
+        days = min(max(days, 1), 30)  # Between 1 and 30 days
+        
+        # Ensure thresholds are valid numbers
+        valid_thresholds = []
+        for threshold in thresholds:
+            try:
+                t = float(threshold)
+                if 0.1 <= t <= 10.0:  # Between 0.1% and 10%
+                    valid_thresholds.append(t)
+            except (ValueError, TypeError):
+                continue
+        
+        if not valid_thresholds:
+            valid_thresholds = [0.2, 0.4, 0.6, 0.8, 1.0]
+        
+        result = calculate_upswing_analysis(days, valid_thresholds)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error in upswing analysis API: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bitcoin/store-minute-data', methods=['POST'])
