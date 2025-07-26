@@ -43,6 +43,12 @@ ALLOWED_EXTENSIONS = {'txt'}
 database_url = os.environ.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///finance_tracker.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_timeout': 30,
+    'pool_recycle': 3600,
+    'pool_pre_ping': True,
+    'connect_args': {'timeout': 30, 'check_same_thread': False}
+}
 
 # Handle database directory creation for file-based SQLite
 if database_url.startswith('sqlite:///'):
@@ -2456,29 +2462,30 @@ def get_multi_period_swing_analysis(days_back=7):
 def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
     """Fetch minute-level data for the data viewer"""
     try:
-        end_date = datetime.now()
-        
-        if since_timestamp:
-            # For incremental updates, fetch only new records since the timestamp
-            try:
-                since_date = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00')) if 'Z' in since_timestamp else datetime.fromisoformat(since_timestamp)
-                start_date = since_date
-            except (ValueError, TypeError):
-                # If timestamp is invalid, fall back to days-based query
+        with db.session.begin():
+            end_date = datetime.now()
+            
+            if since_timestamp:
+                # For incremental updates, fetch only new records since the timestamp
+                try:
+                    since_date = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00')) if 'Z' in since_timestamp else datetime.fromisoformat(since_timestamp)
+                    start_date = since_date
+                except (ValueError, TypeError):
+                    # If timestamp is invalid, fall back to days-based query
+                    start_date = end_date - timedelta(days=days)
+            else:
                 start_date = end_date - timedelta(days=days)
-        else:
-            start_date = end_date - timedelta(days=days)
-        
-        query = BitcoinPriceHistoryMinute.query.filter(
-            BitcoinPriceHistoryMinute.timestamp >= start_date,
-            BitcoinPriceHistoryMinute.timestamp <= end_date,
-            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
-        ).order_by(BitcoinPriceHistoryMinute.timestamp.desc())
-        
-        if limit:
-            query = query.limit(limit)
-        
-        minute_data = query.all()
+            
+            query = BitcoinPriceHistoryMinute.query.filter(
+                BitcoinPriceHistoryMinute.timestamp >= start_date,
+                BitcoinPriceHistoryMinute.timestamp <= end_date,
+                BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+            ).order_by(BitcoinPriceHistoryMinute.timestamp.desc())
+            
+            if limit:
+                query = query.limit(limit)
+            
+            minute_data = query.all()
         
         if not minute_data:
             return {'success': False, 'error': 'No minute-level data available'}
@@ -2521,15 +2528,16 @@ def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
 def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
     """Analyze upswing patterns in minute-level data for a specific time period"""
     try:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(hours=period_hours)
-        
-        # Get minute data ordered by timestamp (earliest first)
-        minute_data = BitcoinPriceHistoryMinute.query.filter(
-            BitcoinPriceHistoryMinute.timestamp >= start_date,
-            BitcoinPriceHistoryMinute.timestamp <= end_date,
-            BitcoinPriceHistoryMinute.price_gbp.isnot(None)
-        ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
+        with db.session.begin():
+            end_date = datetime.now()
+            start_date = end_date - timedelta(hours=period_hours)
+            
+            # Get minute data ordered by timestamp (earliest first)
+            minute_data = BitcoinPriceHistoryMinute.query.filter(
+                BitcoinPriceHistoryMinute.timestamp >= start_date,
+                BitcoinPriceHistoryMinute.timestamp <= end_date,
+                BitcoinPriceHistoryMinute.price_gbp.isnot(None)
+            ).order_by(BitcoinPriceHistoryMinute.timestamp.asc()).all()
         
         if not minute_data or len(minute_data) < 2:
             return {'success': False, 'error': 'Insufficient data for upswing analysis'}
@@ -2603,6 +2611,20 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
         logger.error(f"Error in upswing analysis: {e}")
         return {'success': False, 'error': str(e)}
 
+def format_time_period(hours):
+    """Format time period display: minutes for <1hr, hr:min for >1hr"""
+    if hours < 1:
+        minutes = int(hours * 60)
+        return f"{minutes}min"
+    elif hours == 24:
+        return "1 day"
+    elif hours % 1 == 0:  # Whole hours
+        return f"{int(hours)}h"
+    else:  # Fractional hours
+        h = int(hours)
+        m = int((hours - h) * 60)
+        return f"{h}h:{m:02d}min"
+
 def get_multi_period_upswing_analysis(thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
     """Get upswing analysis for all time periods (1h, 3h, 6h, 9h, 12h, 1 day)"""
     try:
@@ -2617,7 +2639,7 @@ def get_multi_period_upswing_analysis(thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
                 if analysis['success']:
                     results[period_key] = {
                         'period_hours': period_hours,
-                        'period_label': f"{period_hours}h" if period_hours < 24 else "1 day",
+                        'period_label': format_time_period(period_hours),
                         'results': analysis['results'],
                         'total_minutes': analysis['total_minutes'],
                         'analysis_period': analysis['analysis_period']
@@ -2625,7 +2647,7 @@ def get_multi_period_upswing_analysis(thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
                 else:
                     results[period_key] = {
                         'period_hours': period_hours,
-                        'period_label': f"{period_hours}h" if period_hours < 24 else "1 day",
+                        'period_label': format_time_period(period_hours),
                         'error': analysis.get('error', 'Unknown error'),
                         'results': {}
                     }
@@ -4532,6 +4554,7 @@ def bitcoin_store_minute_data():
         logger.error(f"Error storing minute data: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/bitcoin/collection-status')
 @app.route('/api/bitcoin/minute-collection-status')
 def bitcoin_minute_collection_status():
     """Get status of minute-level data collection"""
