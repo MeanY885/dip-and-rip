@@ -4936,7 +4936,7 @@
                         <tbody>
                             ${results.recent_trades.map(trade => `
                                 <tr>
-                                    <td>${new Date(trade.date).toLocaleDateString()}</td>
+                                    <td>${new Date(trade.date + 'T12:00:00').toLocaleDateString()}</td>
                                     <td style="color: ${trade.action === 'BUY' ? '#28a745' : '#dc3545'}">
                                         ${trade.action === 'BUY' ? '🟢' : '🔴'} ${trade.action}
                                     </td>

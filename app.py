@@ -10,7 +10,7 @@ import plotly.utils
 from plotly.subplots import make_subplots
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 import logging
 import itertools
@@ -1519,7 +1519,7 @@ def get_current_btc_price():
                 if 'c' in pair_data:  # 'c' is current price
                     price = float(pair_data['c'][0])
                     currency = 'GBP' if 'GBP' in pair_name else 'USD'
-                    current_time = datetime.now()
+                    current_time = datetime.utcnow()
                     
                     # Store this price as historical data
                     try:
@@ -1737,7 +1737,7 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
     """Fetch and store historical BTC price data"""
     try:
         url = "https://api.kraken.com/0/public/OHLC"
-        end_date = datetime.now()
+        end_date = datetime.utcnow()
         start_date = end_date - timedelta(hours=hours_back)
         since = int(start_date.timestamp())
         
@@ -1803,7 +1803,7 @@ def store_historical_price_data(hours_back=168):  # Default 7 days (168 hours)
 def store_minute_price_data(minutes_back=1440):  # Default 24 hours (1440 minutes)
     """Fetch and store 1-minute interval BTC price data - GBP only"""
     try:
-        end_date = datetime.now()
+        end_date = datetime.utcnow()
         start_date = end_date - timedelta(minutes=minutes_back)
         
         # Try Kraken GBP first, then Binance GBP as fallback
@@ -2534,8 +2534,13 @@ def fetch_minute_data_for_viewer(days=7, limit=None, since_timestamp=None):
 def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1.0]):
     """Analyze upswing patterns in minute-level data for a specific time period"""
     try:
+        # Use UTC for database queries but local time for display
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(hours=period_hours)
+        
+        # Local time for display purposes
+        local_end_date = datetime.now()
+        local_start_date = local_end_date - timedelta(hours=period_hours)
         
         # Get minute data ordered by timestamp (earliest first)
         minute_data = BitcoinPriceHistoryMinute.query.filter(
@@ -2588,10 +2593,13 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
                     # Calculate duration in minutes
                     duration_minutes = (current_time - baseline_time).total_seconds() / 60
                     
-                    # Record swing details
+                    # Record swing details (convert UTC to local time for display)
+                    local_baseline_time = baseline_time.replace(tzinfo=timezone.utc).astimezone()
+                    local_current_time = current_time.replace(tzinfo=timezone.utc).astimezone()
+                    
                     swing_detail = {
-                        'start_time': baseline_time.isoformat(),
-                        'end_time': current_time.isoformat(),
+                        'start_time': local_baseline_time.isoformat(),
+                        'end_time': local_current_time.isoformat(),
                         'duration_minutes': round(duration_minutes, 1),
                         'start_price': round(baseline_price, 2),
                         'end_price': round(current_price, 2),
@@ -2612,9 +2620,12 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
                     total_time_diff += time_diff
                 avg_time_between = total_time_diff / (len(upswing_times) - 1)
             
+            # Convert upswing times to local time for display
+            local_upswing_times = [t.replace(tzinfo=timezone.utc).astimezone().isoformat() for t in upswing_times]
+            
             results[threshold] = {
                 'count': upswing_count,
-                'upswings': [t.isoformat() for t in upswing_times],
+                'upswings': local_upswing_times,
                 'swing_details': swing_details,
                 'avg_time_between_minutes': round(avg_time_between, 2),
                 'success_rate_per_hour': round((upswing_count / period_hours), 2) if period_hours > 0 else 0
@@ -2624,7 +2635,9 @@ def calculate_upswing_analysis(period_hours=1, thresholds=[0.2, 0.4, 0.6, 0.8, 1
             'success': True,
             'period_hours': period_hours,
             'total_minutes': len(minute_data),
-            'analysis_period': f"{start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}",
+            'analysis_period': f"{local_start_date.strftime('%Y-%m-%d %H:%M')} to {local_end_date.strftime('%Y-%m-%d %H:%M')}",
+            'period_start_time': local_start_date.isoformat(),
+            'period_end_time': local_end_date.isoformat(),
             'results': results
         }
         
