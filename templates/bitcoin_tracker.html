@@ -2702,21 +2702,39 @@
             let totalFees = 0;
             let totalInvestment = 0;
             let closedTrades = 0;
+            let totalGainPercentage = 0;
+            let tradesWithGain = 0;
             
             trades.forEach(trade => {
                 if (trade.profit !== null) {
                     totalProfit += trade.profit;
                     closedTrades++;
                 }
-                if (trade.fee_gbp) {
-                    totalFees += trade.fee_gbp;
+                if (trade.fee !== null) {
+                    totalFees += trade.fee;
                 }
                 if (trade.initial_investment_gbp) {
                     totalInvestment += trade.initial_investment_gbp;
                 }
+                
+                // Calculate percentage gain for average
+                if (trade.btc_buy_price) {
+                    if (trade.btc_sell_price !== null) {
+                        // Closed trade - use actual sell price
+                        const gain = ((trade.btc_sell_price - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        totalGainPercentage += gain;
+                        tradesWithGain++;
+                    } else if (currentBTCPrice && trade.status === 'Open') {
+                        // Open trade - use current BTC price for estimate
+                        const gain = ((currentBTCPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                        totalGainPercentage += gain;
+                        tradesWithGain++;
+                    }
+                }
             });
             
             const roi = closedTrades > 0 ? ((totalProfit / totalInvestment) * 100) : 0;
+            const averageGain = tradesWithGain > 0 ? (totalGainPercentage / tradesWithGain) : 0;
             
             return {
                 totalTrades: trades.length,
@@ -2724,7 +2742,8 @@
                 totalFees,
                 totalInvestment,
                 roi,
-                closedTrades
+                closedTrades,
+                averageGain
             };
         }
         
@@ -2832,7 +2851,8 @@
                     totalsRow.dataset.monthKey = monthKey;
                     
                     const roiClass = totals.totalProfit >= 0 ? 'profit-positive' : 'profit-negative';
-                    const roiSign = totals.roi >= 0 ? '+' : '';
+                    const gainClass = totals.averageGain >= 0 ? 'profit-positive' : 'profit-negative';
+                    const gainSign = totals.averageGain >= 0 ? '+' : '';
                     
                     totalsRow.innerHTML = `
                         <td><strong>TOTALS</strong></td>
@@ -2842,7 +2862,7 @@
                         <td>-</td>
                         <td>-</td>
                         <td>-</td>
-                        <td>-</td>
+                        <td class="${gainClass}"><strong>${gainSign}${totals.averageGain.toFixed(2)}%</strong></td>
                         <td><strong>£${totals.totalFees.toFixed(2)}</strong></td>
                         <td class="${roiClass}"><strong>£${totals.totalProfit.toFixed(2)}</strong></td>
                         <td>-</td>
