@@ -6024,8 +6024,8 @@
             return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
         }
         
-        // Helper function to format duration
-        function formatDuration(minutes) {
+        // Helper function to format duration in minutes for swing analysis
+        function formatSwingDuration(minutes) {
             if (minutes < 60) {
                 return `${Math.round(minutes)} min`;
             } else {
@@ -6114,7 +6114,7 @@
                                             ${recentSwings.map(swing => {
                                                 const startTime = formatTimeDisplay(swing.start_time);
                                                 const endTime = formatTimeDisplay(swing.end_time);
-                                                const duration = formatDuration(swing.duration_minutes);
+                                                const duration = formatSwingDuration(swing.duration_minutes);
                                                 return `<div style="font-size: 8px; color: #666; line-height: 1.2;">
                                                     • ${startTime} - ${endTime} (${duration}): +${swing.percentage_achieved}%
                                                 </div>`;
