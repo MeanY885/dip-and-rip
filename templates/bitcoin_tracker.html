@@ -187,11 +187,11 @@
             border-bottom: 3px solid #dee2e6 !important;
         }
         
-        .month-section {
-            display: table-row-group;
+        .month-section-row {
+            display: table-row;
         }
         
-        .month-section.collapsed {
+        .month-section-row.collapsed {
             display: none;
         }
         
@@ -2770,12 +2770,8 @@
                     `;
                     tbody.appendChild(headerRow);
                     
-                    // Create month section container
-                    const monthSection = document.createElement('tbody');
-                    monthSection.className = 'month-section';
-                    monthSection.id = `section-${monthKey}`;
-                    
-                    // Add trades for this month
+                    // Add trades for this month (directly to tbody, not separate tbody)
+                    const monthRows = [];
                     monthTrades.forEach(trade => {
                         const row = document.createElement('tr');
                         
@@ -2820,13 +2816,20 @@
                                 '</div>' +
                             '</td>';
                         
-                        monthSection.appendChild(row);
+                        // Add CSS class to identify month section rows
+                        row.classList.add('month-section-row');
+                        row.dataset.monthKey = monthKey;
+                        
+                        monthRows.push(row);
+                        tbody.appendChild(row);
                     });
                     
                     // Add monthly totals row
                     const totals = calculateMonthlyTotals(monthTrades);
                     const totalsRow = document.createElement('tr');
                     totalsRow.className = 'month-totals';
+                    totalsRow.classList.add('month-section-row');
+                    totalsRow.dataset.monthKey = monthKey;
                     
                     const roiClass = totals.totalProfit >= 0 ? 'profit-positive' : 'profit-negative';
                     const roiSign = totals.roi >= 0 ? '+' : '';
@@ -2845,8 +2848,7 @@
                         <td>-</td>
                     `;
                     
-                    monthSection.appendChild(totalsRow);
-                    tbody.appendChild(monthSection);
+                    tbody.appendChild(totalsRow);
                 });
             });
             
@@ -2855,16 +2857,24 @@
 
         // Toggle month section visibility
         function toggleMonthSection(monthKey) {
-            const section = document.getElementById(`section-${monthKey}`);
             const header = document.getElementById(`header-${monthKey}`);
             const icon = header.querySelector('.expand-collapse-icon');
+            const sectionRows = document.querySelectorAll(`[data-month-key="${monthKey}"]`);
             
-            if (section.classList.contains('collapsed')) {
-                section.classList.remove('collapsed');
+            const isCollapsed = sectionRows[0] && sectionRows[0].classList.contains('collapsed');
+            
+            sectionRows.forEach(row => {
+                if (isCollapsed) {
+                    row.classList.remove('collapsed');
+                } else {
+                    row.classList.add('collapsed');
+                }
+            });
+            
+            if (isCollapsed) {
                 header.classList.remove('collapsed-header');
                 icon.textContent = '▼';
             } else {
-                section.classList.add('collapsed');
                 header.classList.add('collapsed-header');
                 icon.textContent = '▶';
             }
