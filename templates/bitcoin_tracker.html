@@ -153,6 +153,58 @@
             background-color: #f8f9fa;
         }
         
+        .month-header {
+            background-color: #343a40 !important;
+            color: white !important;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .month-header:hover {
+            background-color: #495057 !important;
+        }
+        
+        .month-header td {
+            padding: 15px 12px !important;
+            font-size: 16px;
+            border-bottom: 2px solid #495057 !important;
+        }
+        
+        .month-totals {
+            background-color: #f8f9fa !important;
+            font-weight: bold;
+            border-top: 2px solid #dee2e6 !important;
+        }
+        
+        .month-totals:hover {
+            background-color: #e9ecef !important;
+        }
+        
+        .month-totals td {
+            padding: 12px !important;
+            color: #495057;
+            border-bottom: 3px solid #dee2e6 !important;
+        }
+        
+        .month-section {
+            display: table-row-group;
+        }
+        
+        .month-section.collapsed {
+            display: none;
+        }
+        
+        .expand-collapse-icon {
+            font-size: 12px;
+            margin-right: 8px;
+            transition: transform 0.2s;
+        }
+        
+        .collapsed-header .expand-collapse-icon {
+            transform: rotate(-90deg);
+        }
+        
         .status-badge {
             padding: 4px 12px;
             border-radius: 20px;
@@ -2618,58 +2670,204 @@
             }
         }
 
+        // Group trades by year and month
+        function groupTradesByMonth(trades) {
+            const grouped = {};
+            
+            trades.forEach(trade => {
+                if (!trade.created_at) return;
+                
+                const date = new Date(trade.created_at);
+                if (isNaN(date.getTime())) return;
+                
+                const year = date.getFullYear();
+                const month = date.getMonth(); // 0-based
+                
+                if (!grouped[year]) {
+                    grouped[year] = {};
+                }
+                if (!grouped[year][month]) {
+                    grouped[year][month] = [];
+                }
+                
+                grouped[year][month].push(trade);
+            });
+            
+            return grouped;
+        }
+        
+        // Calculate monthly totals
+        function calculateMonthlyTotals(trades) {
+            let totalProfit = 0;
+            let totalFees = 0;
+            let totalInvestment = 0;
+            let closedTrades = 0;
+            
+            trades.forEach(trade => {
+                if (trade.profit !== null) {
+                    totalProfit += trade.profit;
+                    closedTrades++;
+                }
+                if (trade.fee_gbp) {
+                    totalFees += trade.fee_gbp;
+                }
+                if (trade.initial_investment_gbp) {
+                    totalInvestment += trade.initial_investment_gbp;
+                }
+            });
+            
+            const roi = closedTrades > 0 ? ((totalProfit / totalInvestment) * 100) : 0;
+            
+            return {
+                totalTrades: trades.length,
+                totalProfit,
+                totalFees,
+                totalInvestment,
+                roi,
+                closedTrades
+            };
+        }
+        
+        // Format month name
+        function formatMonthYear(year, month) {
+            const date = new Date(year, month, 1);
+            return date.toLocaleDateString('en-GB', { 
+                year: 'numeric', 
+                month: 'long' 
+            });
+        }
+
         function renderTrades() {
             const tbody = document.getElementById('tradesTableBody');
             tbody.innerHTML = '';
             
-            trades.forEach(trade => {
-                const row = document.createElement('tr');
+            // Group trades by month
+            const groupedTrades = groupTradesByMonth(trades);
+            
+            // Sort years in descending order (newest first)
+            const years = Object.keys(groupedTrades).sort((a, b) => b - a);
+            
+            years.forEach(year => {
+                // Sort months in descending order (newest first)
+                const months = Object.keys(groupedTrades[year]).sort((a, b) => b - a);
                 
-                const statusClass = trade.status.toLowerCase();
-                const profitClass = trade.profit !== null ? (trade.profit >= 0 ? 'profit-positive' : 'profit-negative') : '';
-                
-                // Calculate percentage gain - use current price for open trades
-                let percentGain = '-';
-                let percentGainClass = '';
-                let isCurrentEstimate = false;
-                
-                if (trade.btc_buy_price) {
-                    if (trade.btc_sell_price !== null) {
-                        // Closed trade - use actual sell price
-                        const gain = ((trade.btc_sell_price - trade.btc_buy_price) / trade.btc_buy_price) * 100;
-                        percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%';
-                        percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
-                    } else if (currentBTCPrice && trade.status === 'Open') {
-                        // Open trade - use current BTC price for estimate
-                        const gain = ((currentBTCPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
-                        percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%*';
-                        percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
-                        isCurrentEstimate = true;
-                    }
-                }
-                
-                row.innerHTML = 
-                    '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
-                    '<td>' + formatTradeDateTime(trade.created_at) + '</td>' +
-                    '<td>' + formatDuration(trade) + '</td>' +
-                    '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
-                    '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
-                    '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +
-                    '<td>' + (trade.btc_sell_price !== null ? '£' + trade.btc_sell_price.toFixed(2) : (currentBTCPrice ? '£' + currentBTCPrice.toFixed(2) + '*' : '-')) + '</td>' +
-                    '<td class="' + percentGainClass + ' clickable-profit" onclick="openGraphModal(\'gain\', ' + trade.id + ')">' + percentGain + '</td>' +
-                    '<td>' + (trade.fee !== null ? '£' + trade.fee.toFixed(2) : '-') + '</td>' +
-                    '<td class="' + profitClass + ' clickable-profit" onclick="openGraphModal(\'profit\', ' + trade.id + ')">' + renderProfitCell(trade, currentBTCPrice) + '</td>' +
-                    '<td>' +
-                        '<div class="action-buttons">' +
-                            '<button class="edit-btn" onclick="editTrade(' + trade.id + ')">Edit</button>' +
-                            '<button class="delete-btn" onclick="deleteTrade(' + trade.id + ')">Delete</button>' +
-                        '</div>' +
-                    '</td>';
-                
-                tbody.appendChild(row);
+                months.forEach(month => {
+                    const monthTrades = groupedTrades[year][month];
+                    const monthKey = `${year}-${month}`;
+                    
+                    // Create month header row
+                    const headerRow = document.createElement('tr');
+                    headerRow.className = 'month-header';
+                    headerRow.id = `header-${monthKey}`;
+                    headerRow.onclick = () => toggleMonthSection(monthKey);
+                    
+                    const monthName = formatMonthYear(parseInt(year), parseInt(month));
+                    headerRow.innerHTML = `
+                        <td colspan="11">
+                            <span class="expand-collapse-icon">▼</span>
+                            ${monthName} (${monthTrades.length} trades)
+                        </td>
+                    `;
+                    tbody.appendChild(headerRow);
+                    
+                    // Create month section container
+                    const monthSection = document.createElement('tbody');
+                    monthSection.className = 'month-section';
+                    monthSection.id = `section-${monthKey}`;
+                    
+                    // Add trades for this month
+                    monthTrades.forEach(trade => {
+                        const row = document.createElement('tr');
+                        
+                        const statusClass = trade.status.toLowerCase();
+                        const profitClass = trade.profit !== null ? (trade.profit >= 0 ? 'profit-positive' : 'profit-negative') : '';
+                        
+                        // Calculate percentage gain - use current price for open trades
+                        let percentGain = '-';
+                        let percentGainClass = '';
+                        let isCurrentEstimate = false;
+                        
+                        if (trade.btc_buy_price) {
+                            if (trade.btc_sell_price !== null) {
+                                // Closed trade - use actual sell price
+                                const gain = ((trade.btc_sell_price - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                                percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%';
+                                percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
+                            } else if (currentBTCPrice && trade.status === 'Open') {
+                                // Open trade - use current BTC price for estimate
+                                const gain = ((currentBTCPrice - trade.btc_buy_price) / trade.btc_buy_price) * 100;
+                                percentGain = (gain >= 0 ? '+' : '') + gain.toFixed(2) + '%*';
+                                percentGainClass = gain >= 0 ? 'profit-positive' : 'profit-negative';
+                                isCurrentEstimate = true;
+                            }
+                        }
+                        
+                        row.innerHTML = 
+                            '<td><span class="status-badge status-' + statusClass + '">' + trade.status + '</span></td>' +
+                            '<td>' + formatTradeDateTime(trade.created_at) + '</td>' +
+                            '<td>' + formatDuration(trade) + '</td>' +
+                            '<td>£' + trade.initial_investment_gbp.toFixed(2) + '</td>' +
+                            '<td>£' + trade.btc_buy_price.toFixed(2) + '</td>' +
+                            '<td>' + (trade.btc_amount ? trade.btc_amount.toFixed(8) : '-') + '</td>' +
+                            '<td>' + (trade.btc_sell_price !== null ? '£' + trade.btc_sell_price.toFixed(2) : (currentBTCPrice ? '£' + currentBTCPrice.toFixed(2) + '*' : '-')) + '</td>' +
+                            '<td class="' + percentGainClass + ' clickable-profit" onclick="openGraphModal(\'gain\', ' + trade.id + ')">' + percentGain + '</td>' +
+                            '<td>' + (trade.fee !== null ? '£' + trade.fee.toFixed(2) : '-') + '</td>' +
+                            '<td class="' + profitClass + ' clickable-profit" onclick="openGraphModal(\'profit\', ' + trade.id + ')">' + renderProfitCell(trade, currentBTCPrice) + '</td>' +
+                            '<td>' +
+                                '<div class="action-buttons">' +
+                                    '<button class="edit-btn" onclick="editTrade(' + trade.id + ')">Edit</button>' +
+                                    '<button class="delete-btn" onclick="deleteTrade(' + trade.id + ')">Delete</button>' +
+                                '</div>' +
+                            '</td>';
+                        
+                        monthSection.appendChild(row);
+                    });
+                    
+                    // Add monthly totals row
+                    const totals = calculateMonthlyTotals(monthTrades);
+                    const totalsRow = document.createElement('tr');
+                    totalsRow.className = 'month-totals';
+                    
+                    const roiClass = totals.totalProfit >= 0 ? 'profit-positive' : 'profit-negative';
+                    const roiSign = totals.roi >= 0 ? '+' : '';
+                    
+                    totalsRow.innerHTML = `
+                        <td><strong>TOTALS</strong></td>
+                        <td><strong>${totals.totalTrades} trades</strong></td>
+                        <td>-</td>
+                        <td><strong>£${totals.totalInvestment.toFixed(2)}</strong></td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td>-</td>
+                        <td class="${roiClass}"><strong>${roiSign}${totals.roi.toFixed(2)}%</strong></td>
+                        <td><strong>£${totals.totalFees.toFixed(2)}</strong></td>
+                        <td class="${roiClass}"><strong>£${totals.totalProfit.toFixed(2)}</strong></td>
+                        <td>-</td>
+                    `;
+                    
+                    monthSection.appendChild(totalsRow);
+                    tbody.appendChild(monthSection);
+                });
             });
             
             updateTabTitle();
+        }
+
+        // Toggle month section visibility
+        function toggleMonthSection(monthKey) {
+            const section = document.getElementById(`section-${monthKey}`);
+            const header = document.getElementById(`header-${monthKey}`);
+            const icon = header.querySelector('.expand-collapse-icon');
+            
+            if (section.classList.contains('collapsed')) {
+                section.classList.remove('collapsed');
+                header.classList.remove('collapsed-header');
+                icon.textContent = '▼';
+            } else {
+                section.classList.add('collapsed');
+                header.classList.add('collapsed-header');
+                icon.textContent = '▶';
+            }
         }
 
         function updateSummary() {
