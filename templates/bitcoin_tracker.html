@@ -2572,11 +2572,19 @@
             if (!trade.created_at) return '-';
             
             const startTime = new Date(trade.created_at);
+            
+            // Check if startTime is valid
+            if (isNaN(startTime.getTime())) return '-';
+            
             let endTime;
             
             if (trade.status === 'Closed' && trade.updated_at) {
                 // For closed trades, use updated_at as end time
                 endTime = new Date(trade.updated_at);
+                // Check if endTime is valid, fallback to current time if not
+                if (isNaN(endTime.getTime())) {
+                    endTime = new Date();
+                }
             } else {
                 // For open trades, use current time
                 endTime = new Date();
@@ -2585,6 +2593,9 @@
             // Calculate duration in milliseconds
             const durationMs = endTime - startTime;
             const durationMinutes = Math.floor(durationMs / (1000 * 60));
+            
+            // Handle negative or invalid durations
+            if (durationMinutes < 0 || isNaN(durationMinutes)) return '-';
             
             return formatDurationFromMinutes(durationMinutes);
         }
