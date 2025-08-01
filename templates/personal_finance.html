@@ -2254,7 +2254,15 @@
                     }
                     
                     const contributionIndicator = hasContributionThisMonth ? ' 💰' : '';
-                    const titleSuffix = hasContributionThisMonth ? ' | Contains contribution' : '';
+                    let titleSuffix = '';
+                    if (hasContributionThisMonth) {
+                        const contributionsThisMonth = contributions.filter(c => {
+                            const contribDate = new Date(c.date);
+                            return contribDate >= monthStart && contribDate <= monthEnd;
+                        });
+                        const totalContributionAmount = contributionsThisMonth.reduce((sum, c) => sum + c.amount, 0);
+                        titleSuffix = ` | Contains contribution: £${totalContributionAmount.toLocaleString()}`;
+                    }
                     
                     return `
                         <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer; ${cellStyle}" 
