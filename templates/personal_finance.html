@@ -130,6 +130,24 @@
             background-color: #218838;
         }
         
+        .total-invested-amount {
+            cursor: pointer;
+            text-decoration: underline;
+            color: #007bff;
+        }
+        .total-invested-amount:hover {
+            color: #0056b3;
+            background-color: rgba(0, 123, 255, 0.1);
+            border-radius: 3px;
+            padding: 2px 4px;
+        }
+        
+        .total-invested-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
         .edit-button {
             background-color: #28a745;
         }
@@ -1421,8 +1439,10 @@
                 row.innerHTML = `
                     <td><span class="drag-handle" style="margin-right: 8px; pointer-events: none;">⋮⋮</span>${investment.name}</td>
                     <td>${formatDate(investment.startDate)}</td>
-                    <td>
-                        £${totalInvested.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    <td class="total-invested-cell">
+                        <span class="total-invested-amount" onclick="showContributionModal(${investment.id})" title="Click to manage contributions">
+                            £${totalInvested.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        </span>
                         <button class="add-money-button" onclick="showAddMoneyModal(${investment.id})" title="Add additional investment">💰+</button>
                     </td>
                     <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'currentValue', ${investment.currentValue})" 
@@ -2484,49 +2504,62 @@
              console.log('Historical Performance is now displayed on homepage dashboard');
          }
          
-         function calculateYearlyProfits() {
+         async function calculateYearlyProfits() {
              const profits = {};
              
              // Get all years that have data
              const years = [...new Set(yearlyData.map(record => record.year))].sort();
              
-             years.forEach(year => {
+             for (const year of years) {
                  let totalYearProfit = 0;
                  
                  // Get all investments that have data for this year
                  const investmentsThisYear = [...new Set(yearlyData.filter(r => r.year === year).map(r => r.investmentName))];
                  
-                 investmentsThisYear.forEach(investmentName => {
+                 for (const investmentName of investmentsThisYear) {
                      const investmentObj = investmentData.find(inv => inv.name === investmentName);
-                     if (!investmentObj) return;
+                     if (!investmentObj) continue;
                      
                      const recordThisYear = yearlyData.find(r => r.investmentName === investmentName && r.year === year);
-                     if (!recordThisYear) return;
+                     if (!recordThisYear) continue;
                      
                      let baseValue;
                      
-                     // Find the previous year's value or use start investment
+                     // Find the previous year's value or calculate contribution-aware baseline
                      const previousYearRecord = yearlyData.find(r => r.investmentName === investmentName && r.year === year - 1);
                      if (previousYearRecord) {
                          baseValue = previousYearRecord.value;
                      } else {
-                         // No previous year data, check if this is the first year after start
+                         // No previous year data - need to calculate contributions up to end of previous year
                          const startYear = new Date(investmentObj.startDate).getFullYear();
                          if (year === startYear || year === startYear + 1) {
-                             baseValue = investmentObj.startInvestment;
+                             // For the first year or year after start, get contributions up to Dec 31 of previous year
+                             const endOfPreviousYear = `${year - 1}-12-31`;
+                             try {
+                                 const response = await fetch(`/api/finance/investments/${investmentObj.id}/contributions-timeline?end_date=${endOfPreviousYear}`);
+                                 const result = await response.json();
+                                 if (result.success) {
+                                     baseValue = result.data.total_invested;
+                                 } else {
+                                     baseValue = investmentObj.startInvestment; // Fallback
+                                 }
+                             } catch (error) {
+                                 console.error('Error getting contribution timeline:', error);
+                                 baseValue = investmentObj.startInvestment; // Fallback
+                             }
                          } else {
                              // Skip this investment for this year as we can't determine base value
-                             return;
+                             continue;
                          }
                      }
                      
                      // Calculate profit for this investment this year
                      const profit = recordThisYear.value - baseValue;
                      totalYearProfit += profit;
-                 });
+                 }
                  
                  profits[year] = totalYearProfit;
-             });
+             }
              
              return profits;
          }
@@ -2643,6 +2676,142 @@
             }
         }
 
+        // Contribution Management Functions
+        let currentContributions = [];
+        
+        async function showContributionModal(investmentId) {
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) return;
+            
+            document.getElementById('contributionInvestmentName').textContent = investment.name;
+            document.getElementById('contributionInvestmentId').value = investmentId;
+            
+            // Load contributions
+            await loadContributions(investmentId);
+            
+            document.getElementById('contributionModal').style.display = 'flex';
+        }
+        
+        function hideContributionModal() {
+            document.getElementById('contributionModal').style.display = 'none';
+        }
+        
+        async function loadContributions(investmentId) {
+            try {
+                const response = await fetch(`/api/finance/investments/${investmentId}/contributions`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentContributions = result.data;
+                    renderContributionList();
+                } else {
+                    console.error('Error loading contributions:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading contributions:', error);
+            }
+        }
+        
+        function renderContributionList() {
+            const container = document.getElementById('contributionList');
+            container.innerHTML = '';
+            
+            let totalAmount = 0;
+            
+            currentContributions.forEach(contribution => {
+                totalAmount += contribution.amount;
+                
+                const item = document.createElement('div');
+                item.className = 'contribution-item';
+                item.innerHTML = `
+                    <div class="contribution-info">
+                        <div class="contribution-type">${contribution.type === 'initial' ? '🏁 Initial Investment' : '💰 Additional Investment'}</div>
+                        <div class="contribution-amount">£${contribution.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div class="contribution-date">${new Date(contribution.date).toLocaleDateString()}</div>
+                        ${contribution.notes ? `<div class="contribution-notes">${contribution.notes}</div>` : ''}
+                    </div>
+                    <div class="contribution-actions">
+                        ${contribution.type !== 'initial' ? `
+                            <button class="edit-contribution-button" onclick="editContribution(${contribution.id})">✏️</button>
+                            <button class="delete-contribution-button" onclick="deleteContribution(${contribution.id})">🗑️</button>
+                        ` : '<span class="protected-label">Protected</span>'}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+            
+            document.getElementById('contributionTotal').textContent = `Total: £${totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        async function editContribution(contributionId) {
+            const contribution = currentContributions.find(c => c.id === contributionId);
+            if (!contribution) return;
+            
+            const newAmount = prompt(`Edit amount for contribution from ${new Date(contribution.date).toLocaleDateString()}:`, contribution.amount);
+            if (newAmount === null) return;
+            
+            const amount = parseFloat(newAmount);
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/finance/contributions/${contributionId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Reload contributions and refresh investment data
+                    const investmentId = document.getElementById('contributionInvestmentId').value;
+                    await loadContributions(investmentId);
+                    await loadFinanceData();
+                } else {
+                    alert('Error updating contribution: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error updating contribution:', error);
+                alert('Error updating contribution');
+            }
+        }
+        
+        async function deleteContribution(contributionId) {
+            const contribution = currentContributions.find(c => c.id === contributionId);
+            if (!contribution) return;
+            
+            if (!confirm(`Are you sure you want to delete the contribution of £${contribution.amount.toLocaleString()} from ${new Date(contribution.date).toLocaleDateString()}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/finance/contributions/${contributionId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Reload contributions and refresh investment data
+                    const investmentId = document.getElementById('contributionInvestmentId').value;
+                    await loadContributions(investmentId);
+                    await loadFinanceData();
+                } else {
+                    alert('Error deleting contribution: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting contribution:', error);
+                alert('Error deleting contribution');
+            }
+        }
+
     </script>
 
     <!-- Add Money Modal -->
@@ -2674,6 +2843,34 @@
             <div class="modal-footer">
                 <button onclick="hideAddMoneyModal()">Cancel</button>
                 <button onclick="submitAddMoney()" class="primary">Add Investment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contribution Management Modal -->
+    <div id="contributionModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📊 Manage Contributions</h3>
+                <button class="modal-close" onclick="hideContributionModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Investment: <strong id="contributionInvestmentName"></strong></p>
+                <input type="hidden" id="contributionInvestmentId">
+                
+                <div id="contributionTotal" class="contribution-total"></div>
+                
+                <div id="contributionList" class="contribution-list">
+                    <!-- Contributions will be loaded here -->
+                </div>
+                
+                <div class="contribution-help">
+                    <small>💡 Click ✏️ to edit or 🗑️ to delete additional investments. Initial investments are protected.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="hideContributionModal()">Close</button>
+                <button onclick="showAddMoneyModal(parseInt(document.getElementById('contributionInvestmentId').value))" class="primary">Add More Money</button>
             </div>
         </div>
     </div>
@@ -2750,6 +2947,101 @@
         .modal-footer button.primary {
             background: #007bff;
             color: white;
+        }
+        
+        /* Contribution Management Styles */
+        .contribution-total {
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            text-align: center;
+        }
+        
+        .contribution-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .contribution-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .contribution-item:last-child {
+            border-bottom: none;
+        }
+        
+        .contribution-info {
+            flex-grow: 1;
+        }
+        
+        .contribution-type {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .contribution-amount {
+            font-size: 16px;
+            color: #007bff;
+            font-weight: bold;
+        }
+        
+        .contribution-date {
+            font-size: 12px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        .contribution-notes {
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        
+        .contribution-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .edit-contribution-button, .delete-contribution-button {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        
+        .edit-contribution-button:hover {
+            background: rgba(0, 123, 255, 0.1);
+        }
+        
+        .delete-contribution-button:hover {
+            background: rgba(220, 53, 69, 0.1);
+        }
+        
+        .protected-label {
+            font-size: 12px;
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .contribution-help {
+            color: #666;
+            font-style: italic;
         }
     </style>
 </body>

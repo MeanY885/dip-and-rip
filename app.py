@@ -3781,19 +3781,95 @@ def investment_contributions(investment_id):
             return jsonify({'success': False, 'error': str(e)}), 400
 
 
-@app.route('/api/finance/contributions/<int:contribution_id>', methods=['DELETE'])
-def delete_contribution(contribution_id):
+@app.route('/api/finance/contributions/<int:contribution_id>', methods=['PUT', 'DELETE'])
+def manage_contribution(contribution_id):
     contribution = InvestmentContribution.query.get_or_404(contribution_id)
     
-    try:
-        db.session.delete(contribution)
-        db.session.commit()
-        
-        return jsonify({'success': True})
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 400
+    if request.method == 'PUT':
+        # Edit contribution
+        try:
+            data = request.json
+            
+            # Prevent editing initial contributions
+            if contribution.type == 'initial':
+                return jsonify({'success': False, 'error': 'Cannot edit initial investment contribution'}), 400
+            
+            if 'amount' in data:
+                contribution.amount = float(data['amount'])
+            if 'date' in data:
+                contribution.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            if 'notes' in data:
+                contribution.notes = data['notes']
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id': contribution.id,
+                    'amount': contribution.amount,
+                    'date': contribution.date.isoformat(),
+                    'type': contribution.type,
+                    'notes': contribution.notes
+                }
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    elif request.method == 'DELETE':
+        # Delete contribution
+        try:
+            # Prevent deleting initial contributions
+            if contribution.type == 'initial':
+                return jsonify({'success': False, 'error': 'Cannot delete initial investment contribution'}), 400
+            
+            db.session.delete(contribution)
+            db.session.commit()
+            
+            return jsonify({'success': True})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/finance/investments/<int:investment_id>/contributions-timeline', methods=['GET'])
+def investment_contributions_timeline(investment_id):
+    """Get contributions for an investment up to a specific date"""
+    investment = Investment.query.get_or_404(investment_id)
+    
+    # Get optional date parameter (if not provided, return all contributions)
+    end_date_str = request.args.get('end_date')
+    
+    query = InvestmentContribution.query.filter_by(investment_id=investment_id)
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            query = query.filter(InvestmentContribution.date <= end_date)
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+    
+    contributions = query.order_by(InvestmentContribution.date.asc()).all()
+    
+    # Calculate cumulative total
+    cumulative_total = sum(contrib.amount for contrib in contributions)
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'contributions': [{
+                'id': contrib.id,
+                'amount': contrib.amount,
+                'date': contrib.date.isoformat(),
+                'type': contrib.type,
+                'notes': contrib.notes
+            } for contrib in contributions],
+            'total_invested': cumulative_total
+        }
+    })
 
 
 @app.route('/api/finance/monthly-records', methods=['GET', 'POST'])
