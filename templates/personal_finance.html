@@ -119,6 +119,17 @@
             background-color: #c82333;
         }
         
+        .add-money-button {
+            background-color: #28a745;
+            font-size: 12px;
+            padding: 4px 8px;
+            margin-left: 8px;
+            border-radius: 4px;
+        }
+        .add-money-button:hover {
+            background-color: #218838;
+        }
+        
         .edit-button {
             background-color: #28a745;
         }
@@ -528,10 +539,10 @@
                         <tr>
                             <th>Investment</th>
                             <th>Start Date</th>
-                            <th>Start Investment</th>
+                            <th>Total Invested</th>
                             <th>Current Value</th>
-                            <th>Profit/Loss (£)</th>
-                            <th>Profit/Loss (%)</th>
+                            <th>True Performance (£)</th>
+                            <th>True Performance (%)</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1396,11 +1407,12 @@
             let totalCurrentValue = 0;
 
             orderedData.forEach(investment => {
-                const profitLoss = investment.currentValue - investment.startInvestment;
-                const profitLossPercent = ((profitLoss / investment.startInvestment) * 100);
-                const profitClass = profitLoss >= 0 ? 'positive' : 'negative';
+                const totalInvested = investment.totalInvested || investment.startInvestment;
+                const truePerformance = investment.currentValue - totalInvested;
+                const truePerformancePercent = ((truePerformance / totalInvested) * 100);
+                const profitClass = truePerformance >= 0 ? 'positive' : 'negative';
 
-                totalStartInvestment += investment.startInvestment;
+                totalStartInvestment += totalInvested;
                 totalCurrentValue += investment.currentValue;
 
                 const row = document.createElement('tr');
@@ -1409,16 +1421,16 @@
                 row.innerHTML = `
                     <td><span class="drag-handle" style="margin-right: 8px; pointer-events: none;">⋮⋮</span>${investment.name}</td>
                     <td>${formatDate(investment.startDate)}</td>
-                    <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'startInvestment', ${investment.startInvestment})" 
-                        title="Click to edit start investment" style="cursor: pointer;">
-                        £${investment.startInvestment.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    <td>
+                        £${totalInvested.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        <button class="add-money-button" onclick="showAddMoneyModal(${investment.id})" title="Add additional investment">💰+</button>
                     </td>
                     <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'currentValue', ${investment.currentValue})" 
                         title="Click to edit current value" style="cursor: pointer;">
                         £${investment.currentValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </td>
-                    <td class="${profitClass}">£${profitLoss.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="${profitClass}">${profitLoss >= 0 ? '+' : ''}${profitLossPercent.toFixed(2)}%</td>
+                    <td class="${profitClass}">£${truePerformance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="${profitClass}">${truePerformance >= 0 ? '+' : ''}${truePerformancePercent.toFixed(2)}%</td>
                     <td>
                         <button class="delete-button" onclick="deleteInvestment(${investment.id})">🗑️ Delete</button>
                     </td>
@@ -1482,13 +1494,14 @@
             
             // Calculate performance for each investment
             const performances = investmentData.map(investment => {
-                const profitLoss = investment.currentValue - investment.startInvestment;
-                const profitLossPercent = investment.startInvestment > 0 ? ((profitLoss / investment.startInvestment) * 100) : 0;
+                const totalInvested = investment.totalInvested || investment.startInvestment;
+                const truePerformance = investment.currentValue - totalInvested;
+                const truePerformancePercent = totalInvested > 0 ? ((truePerformance / totalInvested) * 100) : 0;
                 
                 return {
                     name: investment.name,
-                    percentage: profitLossPercent,
-                    profit: profitLoss
+                    percentage: truePerformancePercent,
+                    profit: truePerformance
                 };
             });
             
@@ -2572,6 +2585,172 @@
             });
         }
 
+        // Add Money Modal Functions
+        function showAddMoneyModal(investmentId) {
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) return;
+            
+            document.getElementById('addMoneyInvestmentName').textContent = investment.name;
+            document.getElementById('addMoneyInvestmentId').value = investmentId;
+            document.getElementById('addMoneyAmount').value = '';
+            document.getElementById('addMoneyDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('addMoneyNotes').value = '';
+            document.getElementById('addMoneyModal').style.display = 'flex';
+        }
+        
+        function hideAddMoneyModal() {
+            document.getElementById('addMoneyModal').style.display = 'none';
+        }
+        
+        async function submitAddMoney() {
+            const investmentId = document.getElementById('addMoneyInvestmentId').value;
+            const amount = parseFloat(document.getElementById('addMoneyAmount').value);
+            const date = document.getElementById('addMoneyDate').value;
+            const notes = document.getElementById('addMoneyNotes').value;
+            
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/finance/investments/${investmentId}/contributions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        date: date,
+                        type: 'additional',
+                        notes: notes
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Refresh investment data to show updated totals
+                    await loadFinanceData();
+                    hideAddMoneyModal();
+                    alert('Additional investment added successfully!');
+                } else {
+                    alert('Error adding investment: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding investment:', error);
+                alert('Error adding investment');
+            }
+        }
+
     </script>
+
+    <!-- Add Money Modal -->
+    <div id="addMoneyModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>💰 Add Additional Investment</h3>
+                <button class="modal-close" onclick="hideAddMoneyModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Adding money to: <strong id="addMoneyInvestmentName"></strong></p>
+                <input type="hidden" id="addMoneyInvestmentId">
+                
+                <div class="form-group">
+                    <label for="addMoneyAmount">Amount (£):</label>
+                    <input type="number" id="addMoneyAmount" step="0.01" min="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="addMoneyDate">Date:</label>
+                    <input type="date" id="addMoneyDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="addMoneyNotes">Notes (optional):</label>
+                    <textarea id="addMoneyNotes" rows="3" placeholder="e.g., Monthly contribution, bonus investment..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="hideAddMoneyModal()">Cancel</button>
+                <button onclick="submitAddMoney()" class="primary">Add Investment</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .modal-footer button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .modal-footer button:first-child {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .modal-footer button.primary {
+            background: #007bff;
+            color: white;
+        }
+    </style>
 </body>
 </html> 

@@ -142,6 +142,18 @@ class MonthlyRecord(db.Model):
     
     __table_args__ = (db.UniqueConstraint('investment_id', 'year', 'month', name='unique_investment_year_month'),)
 
+class InvestmentContribution(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    investment_id = db.Column(db.Integer, db.ForeignKey('investment.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    type = db.Column(db.String(20), nullable=False, default='additional')  # 'initial' or 'additional'
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    investment = db.relationship('Investment', backref='contributions', lazy=True)
+
 class UserPreferences(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     widget_order = db.Column(db.Text)  # JSON string of widget order
@@ -3614,15 +3626,26 @@ def finance_investments():
             
             investments = ordered_investments + unordered_investments
         
-        return jsonify({
-            'success': True,
-            'data': [{
+        # Calculate total contributions for each investment
+        investment_data = []
+        for inv in investments:
+            # Get total contributions for this investment
+            total_contributions = db.session.query(db.func.sum(InvestmentContribution.amount))\
+                                          .filter_by(investment_id=inv.id)\
+                                          .scalar() or inv.start_investment
+            
+            investment_data.append({
                 'id': inv.id,
                 'name': inv.name,
                 'startDate': inv.start_date.isoformat(),
                 'startInvestment': inv.start_investment,
-                'currentValue': inv.current_value
-            } for inv in investments]
+                'currentValue': inv.current_value,
+                'totalInvested': total_contributions
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': investment_data
         })
     
     elif request.method == 'POST':
@@ -3705,6 +3728,72 @@ def finance_investment_detail(investment_id):
         except Exception as e:
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/finance/investments/<int:investment_id>/contributions', methods=['GET', 'POST'])
+def investment_contributions(investment_id):
+    investment = Investment.query.get_or_404(investment_id)
+    
+    if request.method == 'GET':
+        # Get all contributions for this investment
+        contributions = InvestmentContribution.query.filter_by(investment_id=investment_id).order_by(InvestmentContribution.date.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'data': [{
+                'id': contrib.id,
+                'amount': contrib.amount,
+                'date': contrib.date.isoformat(),
+                'type': contrib.type,
+                'notes': contrib.notes
+            } for contrib in contributions]
+        })
+    
+    elif request.method == 'POST':
+        # Add new contribution
+        try:
+            data = request.json
+            
+            contribution = InvestmentContribution(
+                investment_id=investment_id,
+                amount=float(data['amount']),
+                date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
+                type=data.get('type', 'additional'),
+                notes=data.get('notes', '')
+            )
+            
+            db.session.add(contribution)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'id': contribution.id,
+                    'amount': contribution.amount,
+                    'date': contribution.date.isoformat(),
+                    'type': contribution.type,
+                    'notes': contribution.notes
+                }
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/finance/contributions/<int:contribution_id>', methods=['DELETE'])
+def delete_contribution(contribution_id):
+    contribution = InvestmentContribution.query.get_or_404(contribution_id)
+    
+    try:
+        db.session.delete(contribution)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 
 @app.route('/api/finance/monthly-records', methods=['GET', 'POST'])
