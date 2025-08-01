@@ -2052,13 +2052,28 @@
             this.classList.remove('drag-over');
         }
 
-        function loadMonthlyTrackingData() {
+        async function loadMonthlyTrackingData() {
             const container = document.getElementById('monthlyTrackingTables');
             container.innerHTML = '';
 
             if (monthlyData.length === 0) {
                 container.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">No monthly records yet. Start tracking monthly performance from 2025!</p>';
                 return;
+            }
+            
+            // Load contribution data for all investments to calculate correct performance
+            const contributionsByInvestment = {};
+            for (const investment of investmentData) {
+                try {
+                    const response = await fetch(`/api/finance/investments/${investment.id}/contributions`);
+                    const result = await response.json();
+                    if (result.success) {
+                        contributionsByInvestment[investment.name] = result.data;
+                    }
+                } catch (error) {
+                    console.error(`Error loading contributions for ${investment.name}:`, error);
+                    contributionsByInvestment[investment.name] = [];
+                }
             }
 
             // Get unique investments and year-months
@@ -2158,11 +2173,26 @@
                         if (lastYearlyRecord) {
                             baseValue = lastYearlyRecord.value;
                         } else {
-                            // For first tracked month, use total invested amount which includes all contributions
-                            baseValue = investmentObj.totalInvested || investmentObj.startInvestment;
+                            // For first tracked month, calculate true performance excluding contributions
+                            const monthStart = new Date(parseInt(year), parseInt(month) - 1, 1);
+                            const monthEnd = new Date(parseInt(year), parseInt(month), 0); // Last day of month
+                            const contributions = contributionsByInvestment[investment] || [];
+                            
+                            // Get contributions before this month (base investment)
+                            const contributionsBeforeMonth = contributions.filter(c => new Date(c.date) < monthStart);
+                            baseValue = contributionsBeforeMonth.reduce((sum, c) => sum + c.amount, 0) || investmentObj.startInvestment;
+                            
+                            // Get contributions made during this month
+                            const contributionsDuringMonth = contributions.filter(c => {
+                                const contribDate = new Date(c.date);
+                                return contribDate >= monthStart && contribDate <= monthEnd;
+                            });
+                            const contributionsDuringAmount = contributionsDuringMonth.reduce((sum, c) => sum + c.amount, 0);
+                            
+                            // True performance = end value - base value - contributions during month
+                            change = record.value - baseValue - contributionsDuringAmount;
                         }
                         
-                        change = record.value - baseValue;
                         changePercent = baseValue > 0 ? ((change / baseValue) * 100) : 0;
                     } else {
                         // Compare with previous month
@@ -2173,11 +2203,26 @@
                             change = record.value - prevRecord.value;
                             changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
                         } else {
-                            // If no previous month data, need to account for contributions
-                            // Use the total invested amount up to this point
-                            const totalInvested = investmentObj.totalInvested || investmentObj.startInvestment;
-                            change = record.value - totalInvested;
-                            changePercent = totalInvested > 0 ? ((change / totalInvested) * 100) : 0;
+                            // If no previous month data, calculate true performance excluding contributions during month
+                            const [currentYear, currentMonth] = yearMonth.split('-');
+                            const monthStart = new Date(parseInt(currentYear), parseInt(currentMonth) - 1, 1);
+                            const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
+                            const contributions = contributionsByInvestment[investment] || [];
+                            
+                            // Get contributions before this month
+                            const contributionsBeforeMonth = contributions.filter(c => new Date(c.date) < monthStart);
+                            const baseValue = contributionsBeforeMonth.reduce((sum, c) => sum + c.amount, 0) || investmentObj.startInvestment;
+                            
+                            // Get contributions during this month
+                            const contributionsDuringMonth = contributions.filter(c => {
+                                const contribDate = new Date(c.date);
+                                return contribDate >= monthStart && contribDate <= monthEnd;
+                            });
+                            const contributionsDuringAmount = contributionsDuringMonth.reduce((sum, c) => sum + c.amount, 0);
+                            
+                            // True performance = end value - base value - contributions during month
+                            change = record.value - baseValue - contributionsDuringAmount;
+                            changePercent = baseValue > 0 ? ((change / baseValue) * 100) : 0;
                         }
                     }
 
