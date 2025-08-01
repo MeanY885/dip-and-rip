@@ -2127,12 +2127,12 @@
             });
 
             // Create combined table
-            const combinedTable = createMonthlyMatrixTable(matrix, investments, yearMonths, 'combined');
+            const combinedTable = createMonthlyMatrixTable(matrix, investments, yearMonths, 'combined', contributionsByInvestment);
 
             container.innerHTML = combinedTable;
         }
 
-        function createMonthlyMatrixTable(matrix, investments, yearMonths, viewType) {
+        function createMonthlyMatrixTable(matrix, investments, yearMonths, viewType, contributionsByInvestment) {
             const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             
             const headerRow = `
@@ -2239,14 +2239,32 @@
                         cellContent = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
                     }
 
-                    // Add styling for current month data
-                    const currentMonthStyle = record.isCurrent ? 'font-weight: bold; background-color: #e8f5e8;' : '';
+                    // Check if there were contributions during this month
+                    const [currentYear, currentMonth] = yearMonth.split('-');
+                    const monthStart = new Date(parseInt(currentYear), parseInt(currentMonth) - 1, 1);
+                    const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
+                    const contributions = contributionsByInvestment[investment] || [];
+                    const hasContributionThisMonth = contributions.some(c => {
+                        const contribDate = new Date(c.date);
+                        return contribDate >= monthStart && contribDate <= monthEnd;
+                    });
+
+                    // Add styling for current month data and contributions
+                    let cellStyle = '';
+                    if (record.isCurrent) {
+                        cellStyle = 'font-weight: bold; background-color: #e8f5e8;';
+                    } else if (hasContributionThisMonth) {
+                        cellStyle = 'background-color: #fff3cd; border-left: 3px solid #ffc107;';
+                    }
+                    
+                    const contributionIndicator = hasContributionThisMonth ? ' 💰' : '';
+                    const titleSuffix = hasContributionThisMonth ? ' | Contains contribution' : '';
                     
                     return `
-                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer; ${currentMonthStyle}" 
+                        <td class="${changeClass} editable-cell" style="position: relative; cursor: pointer; ${cellStyle}" 
                             onclick="editMonthlyCellValue(${record.id}, '${investment}', ${year}, ${parseInt(monthNum)}, ${record.value})"
-                            title="Value: £${record.value.toLocaleString()}${record.isCurrent ? '*' : ''} | Click to edit">
-                            ${cellContent}
+                            title="Value: £${record.value.toLocaleString()}${record.isCurrent ? '*' : ''}${titleSuffix} | Click to edit">
+                            ${cellContent}${contributionIndicator}
                             <button class="cell-delete-btn" onclick="event.stopPropagation(); deleteMonthlyCellValue(${record.id})" title="Delete">×</button>
                         </td>
                     `;
