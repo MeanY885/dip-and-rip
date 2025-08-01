@@ -2053,7 +2053,6 @@
         }
 
         async function loadMonthlyTrackingData() {
-            console.log('🚀 NEW loadMonthlyTrackingData function called - v2.0 - Cache bust test!');
             const container = document.getElementById('monthlyTrackingTables');
             container.innerHTML = '';
 
@@ -2070,10 +2069,6 @@
                     const result = await response.json();
                     if (result.success) {
                         contributionsByInvestment[investment.name] = result.data;
-                        // Debug logging for Revolut X
-                        if (investment.name === 'Revolut X (Bitcoin)') {
-                            console.log(`Loaded contributions for ${investment.name}:`, result.data);
-                        }
                     }
                 } catch (error) {
                     console.error(`Error loading contributions for ${investment.name}:`, error);
@@ -2085,16 +2080,13 @@
             let investments = [...new Set(monthlyData.map(record => record.investmentName))];
             
             // Apply investment order if available
-            console.log('loadMonthlyTrackingData - current investmentOrder:', investmentOrder);
-            console.log('loadMonthlyTrackingData - investments before sorting:', investments);
             if (investmentOrder.length > 0) {
                 const investmentNameOrder = investmentOrder.map(id => {
                     const investment = investmentData.find(inv => inv.id === id);
                     return investment ? investment.name : null;
                 }).filter(name => name !== null);
                 
-                console.log('loadMonthlyTrackingData - investmentNameOrder:', investmentNameOrder);
-                
+                    
                 investments.sort((a, b) => {
                     const aIndex = investmentNameOrder.indexOf(a);
                     const bIndex = investmentNameOrder.indexOf(b);
@@ -2104,8 +2096,7 @@
                     return aIndex - bIndex;
                 });
                 
-                console.log('loadMonthlyTrackingData - investments after sorting:', investments);
-            } else {
+                } else {
                 investments.sort();
             }
             
@@ -2151,15 +2142,6 @@
             `;
 
             const dataRows = investments.map(investment => {
-                // Debug which months are being processed for Revolut X
-                if (investment === 'Revolut X (Bitcoin)') {
-                    console.log(`🗓️ Processing months for ${investment}:`, yearMonths);
-                    console.log(`📊 Matrix data for ${investment}:`, yearMonths.map(ym => ({
-                        month: ym,
-                        hasRecord: !!matrix[ym][investment],
-                        recordValue: matrix[ym][investment]?.value
-                    })));
-                }
                 
                 const cells = yearMonths.map((yearMonth, index) => {
                     const record = matrix[yearMonth][investment];
@@ -2219,33 +2201,9 @@
                             const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0, 23, 59, 59, 999);
                             const contributions = contributionsByInvestment[investment] || [];
                             
-                            // Debug contribution filtering for Revolut X
-                            if (investment === 'Revolut X (Bitcoin)' && yearMonth === '2025-07') {
-                                console.log(`🔍 Debug contribution filtering for ${investment} ${yearMonth}:`, {
-                                    monthStart,
-                                    monthEnd,
-                                    allContributions: contributions,
-                                    contributionDates: contributions.map(c => ({ date: c.date, parsed: new Date(c.date), amount: c.amount }))
-                                });
-                            }
-                            
                             const contributionsDuringMonth = contributions.filter(c => {
                                 const contribDate = new Date(c.date);
-                                const isInRange = contribDate >= monthStart && contribDate <= monthEnd;
-                                
-                                // Debug each contribution check for July
-                                if (investment === 'Revolut X (Bitcoin)' && yearMonth === '2025-07') {
-                                    console.log(`📅 Checking contribution:`, {
-                                        originalDate: c.date,
-                                        parsedDate: contribDate,
-                                        monthStart,
-                                        monthEnd,
-                                        isInRange,
-                                        amount: c.amount
-                                    });
-                                }
-                                
-                                return isInRange;
+                                return contribDate >= monthStart && contribDate <= monthEnd;
                             });
                             const contributionsDuringAmount = contributionsDuringMonth.reduce((sum, c) => sum + c.amount, 0);
                             
@@ -2253,52 +2211,17 @@
                             change = record.value - prevRecord.value - contributionsDuringAmount;
                             changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
                             
-                            // Debug logging for Revolut X month-to-month comparisons
-                            if (investment === 'Revolut X (Bitcoin)') {
-                                console.log(`📈 Monthly calc (month-to-month) for ${investment} ${yearMonth}:`, {
-                                    recordValue: record.value,
-                                    prevRecordValue: prevRecord.value,
-                                    contributionsDuringAmount,
-                                    contributionsDuringMonth: contributionsDuringMonth.length,
-                                    change,
-                                    changePercent,
-                                    calculationMethod: 'month-to-month with contributions'
-                                });
-                            }
                         } else {
                             // Simplified approach: use totalInvested as baseline (like yearly calculation)
                             const totalInvested = investmentObj.totalInvested || investmentObj.startInvestment;
                             change = record.value - totalInvested;
                             changePercent = totalInvested > 0 ? ((change / totalInvested) * 100) : 0;
                             
-                            // Debug logging for Revolut X
-                            if (investment === 'Revolut X (Bitcoin)') {
-                                console.log(`Monthly calc (no prev month, simplified) for ${investment} ${yearMonth}:`, {
-                                    recordValue: record.value,
-                                    totalInvested,
-                                    change,
-                                    changePercent,
-                                    calculationMethod: 'simplified totalInvested',
-                                    investmentObj: {
-                                        totalInvested: investmentObj.totalInvested,
-                                        startInvestment: investmentObj.startInvestment
-                                    }
-                                });
-                            }
                         }
                     }
 
                     changeClass = change >= 0 ? 'positive' : 'negative';
 
-                    // Debug: Log the final values being used for display
-                    if (investment === 'Revolut X (Bitcoin)') {
-                        console.log(`🖥️ Display values for ${investment} ${yearMonth}:`, {
-                            change,
-                            changePercent,
-                            viewType,
-                            changeClass
-                        });
-                    }
 
                     let cellContent = '';
                     if (viewType === 'combined') {
