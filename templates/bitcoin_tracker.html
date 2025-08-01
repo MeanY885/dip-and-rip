@@ -2675,9 +2675,17 @@
             const grouped = {};
             
             trades.forEach(trade => {
-                if (!trade.created_at) return;
+                // For closed trades, use the end date (updated_at). For open trades, use start date (created_at)
+                let groupingDate;
+                if (trade.status === 'Closed' && trade.updated_at) {
+                    groupingDate = trade.updated_at;
+                } else if (trade.created_at) {
+                    groupingDate = trade.created_at;
+                } else {
+                    return; // Skip trades without valid dates
+                }
                 
-                const date = new Date(trade.created_at);
+                const date = new Date(groupingDate);
                 if (isNaN(date.getTime())) return;
                 
                 const year = date.getFullYear();
