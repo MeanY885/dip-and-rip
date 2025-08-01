@@ -768,7 +768,7 @@
                 if (data.success) {
                     const currentPrice = data.price;
                     const diff = Math.abs(currentPrice - savedPriceAlarm);
-                    const percentDiff = (diff / savedPriceAlarm) * 100;
+                    const percentDiff = savedPriceAlarm > 0 ? (diff / savedPriceAlarm) * 100 : 0;
                     
                     if (percentDiff <= 1) {
                         localStorage.setItem('priceAlarmTriggered', 'true');
@@ -1427,7 +1427,7 @@
             orderedData.forEach(investment => {
                 const totalInvested = investment.totalInvested || investment.startInvestment;
                 const truePerformance = investment.currentValue - totalInvested;
-                const truePerformancePercent = ((truePerformance / totalInvested) * 100);
+                const truePerformancePercent = totalInvested > 0 ? ((truePerformance / totalInvested) * 100) : 0;
                 const profitClass = truePerformance >= 0 ? 'positive' : 'negative';
 
                 totalStartInvestment += totalInvested;
@@ -1450,7 +1450,7 @@
                         £${investment.currentValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                     </td>
                     <td class="${profitClass}">£${truePerformance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td class="${profitClass}">${truePerformance >= 0 ? '+' : ''}${truePerformancePercent.toFixed(2)}%</td>
+                    <td class="${profitClass}">${totalInvested > 0 ? `${truePerformance >= 0 ? '+' : ''}${truePerformancePercent.toFixed(2)}%` : 'N/A'}</td>
                     <td>
                         <button class="delete-button" onclick="deleteInvestment(${investment.id})">🗑️ Delete</button>
                     </td>
@@ -1691,11 +1691,11 @@
                     if (previousYearRecord) {
                         // Compare with previous year
                         change = record.value - previousYearRecord.value;
-                        changePercent = ((change / previousYearRecord.value) * 100);
+                        changePercent = previousYearRecord.value > 0 ? ((change / previousYearRecord.value) * 100) : 0;
                     } else {
                         // Compare with initial investment (first year for this investment)
                         change = record.value - investmentObj.startInvestment;
-                        changePercent = ((change / investmentObj.startInvestment) * 100);
+                        changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
                     }
 
                     changeClass = change >= 0 ? 'positive' : 'negative';
@@ -1754,11 +1754,11 @@
                             if (previousYearRecord) {
                                 // Compare with previous year
                                 change = record.value - previousYearRecord.value;
-                                changePercent = ((change / previousYearRecord.value) * 100);
+                                changePercent = previousYearRecord.value > 0 ? ((change / previousYearRecord.value) * 100) : 0;
                             } else {
                                 // Compare with initial investment (first year for this investment)
                                 change = record.value - investmentObj.startInvestment;
-                                changePercent = ((change / investmentObj.startInvestment) * 100);
+                                changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
                             }
 
                             totalChange += change;
@@ -2134,7 +2134,7 @@
                         
                         const baseValue = lastYearlyRecord ? lastYearlyRecord.value : investmentObj.startInvestment;
                         change = record.value - baseValue;
-                        changePercent = ((change / baseValue) * 100);
+                        changePercent = baseValue > 0 ? ((change / baseValue) * 100) : 0;
                     } else {
                         // Compare with previous month
                         const prevYearMonth = yearMonths[index - 1];
@@ -2142,11 +2142,11 @@
                         
                         if (prevRecord) {
                             change = record.value - prevRecord.value;
-                            changePercent = ((change / prevRecord.value) * 100);
+                            changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
                         } else {
                             // If no previous month data, compare with initial investment
                             change = record.value - investmentObj.startInvestment;
-                            changePercent = ((change / investmentObj.startInvestment) * 100);
+                            changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
                         }
                     }
 
@@ -2209,7 +2209,7 @@
                                 
                                 const baseValue = lastYearlyRecord ? lastYearlyRecord.value : investmentObj.startInvestment;
                                 change = record.value - baseValue;
-                                changePercent = ((change / baseValue) * 100);
+                                changePercent = baseValue > 0 ? ((change / baseValue) * 100) : 0;
                             } else {
                                 // Compare with previous month
                                 const prevYearMonth = yearMonths[index - 1];
@@ -2217,11 +2217,11 @@
                                 
                                 if (prevRecord) {
                                     change = record.value - prevRecord.value;
-                                    changePercent = ((change / prevRecord.value) * 100);
+                                    changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
                                 } else {
                                     // If no previous month data, compare with initial investment
                                     change = record.value - investmentObj.startInvestment;
-                                    changePercent = ((change / investmentObj.startInvestment) * 100);
+                                    changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
                                 }
                             }
 
