@@ -145,7 +145,9 @@
         .total-invested-cell {
             display: flex;
             align-items: center;
+            justify-content: flex-start;
             gap: 8px;
+            white-space: nowrap;
         }
         
         .edit-button {
@@ -165,6 +167,7 @@
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #ddd;
+            vertical-align: middle;
         }
         .data-table th {
             background-color: #f8f9fa;
@@ -2794,10 +2797,10 @@
                             ${contribution.notes ? `<div class="contribution-notes">${contribution.notes}</div>` : ''}
                         </div>
                         <div class="contribution-actions">
+                            <button class="edit-contribution-button" onclick="editContribution(${contribution.id})">✏️</button>
                             ${contribution.type !== 'initial' ? `
-                                <button class="edit-contribution-button" onclick="editContribution(${contribution.id})">✏️</button>
                                 <button class="delete-contribution-button" onclick="deleteContribution(${contribution.id})">🗑️</button>
-                            ` : '<span class="protected-label">Protected</span>'}
+                            ` : '<span class="protected-delete-label" title="Initial investment cannot be deleted but can be edited">🔒</span>'}
                         </div>
                     `;
                     container.appendChild(item);
@@ -2950,7 +2953,7 @@
                 </div>
                 
                 <div class="contribution-help">
-                    <small>💡 Click ✏️ to edit or 🗑️ to delete additional investments. Initial investments are protected.</small>
+                    <small>💡 Click ✏️ to edit any investment amount. You can delete additional investments with 🗑️ but initial investments cannot be deleted.</small>
                 </div>
             </div>
             <div class="modal-footer">
@@ -3118,10 +3121,10 @@
             background: rgba(220, 53, 69, 0.1);
         }
         
-        .protected-label {
+        .protected-delete-label {
             font-size: 12px;
-            color: #28a745;
-            font-weight: bold;
+            color: #666;
+            cursor: help;
         }
         
         .contribution-help {
