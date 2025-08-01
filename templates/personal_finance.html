@@ -2666,7 +2666,8 @@
                 
                 if (result.success) {
                     // Refresh investment data to show updated totals
-                    await loadFinanceData();
+                    loadInvestmentData();
+                    updateSummary();
                     hideAddMoneyModal();
                     alert('Additional investment added successfully!');
                 } else {
@@ -2860,7 +2861,8 @@
                     // Reload contributions and refresh investment data
                     const investmentId = document.getElementById('contributionInvestmentId').value;
                     await loadContributions(investmentId);
-                    await loadFinanceData();
+                    loadInvestmentData();
+                    updateSummary();
                 } else {
                     alert('Error updating contribution: ' + result.error);
                 }
@@ -2889,7 +2891,8 @@
                     // Reload contributions and refresh investment data
                     const investmentId = document.getElementById('contributionInvestmentId').value;
                     await loadContributions(investmentId);
-                    await loadFinanceData();
+                    loadInvestmentData();
+                    updateSummary();
                 } else {
                     alert('Error deleting contribution: ' + result.error);
                 }
