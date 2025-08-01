@@ -2218,9 +2218,33 @@
                             const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
                             const contributions = contributionsByInvestment[investment] || [];
                             
+                            // Debug contribution filtering for Revolut X
+                            if (investment === 'Revolut X (Bitcoin)' && yearMonth === '2025-07') {
+                                console.log(`🔍 Debug contribution filtering for ${investment} ${yearMonth}:`, {
+                                    monthStart,
+                                    monthEnd,
+                                    allContributions: contributions,
+                                    contributionDates: contributions.map(c => ({ date: c.date, parsed: new Date(c.date), amount: c.amount }))
+                                });
+                            }
+                            
                             const contributionsDuringMonth = contributions.filter(c => {
                                 const contribDate = new Date(c.date);
-                                return contribDate >= monthStart && contribDate <= monthEnd;
+                                const isInRange = contribDate >= monthStart && contribDate <= monthEnd;
+                                
+                                // Debug each contribution check for July
+                                if (investment === 'Revolut X (Bitcoin)' && yearMonth === '2025-07') {
+                                    console.log(`📅 Checking contribution:`, {
+                                        originalDate: c.date,
+                                        parsedDate: contribDate,
+                                        monthStart,
+                                        monthEnd,
+                                        isInRange,
+                                        amount: c.amount
+                                    });
+                                }
+                                
+                                return isInRange;
                             });
                             const contributionsDuringAmount = contributionsDuringMonth.reduce((sum, c) => sum + c.amount, 0);
                             
