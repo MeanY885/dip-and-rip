@@ -2212,8 +2212,34 @@
                         const prevRecord = matrix[prevYearMonth][investment];
                         
                         if (prevRecord) {
-                            change = record.value - prevRecord.value;
+                            // Calculate contributions made during this month
+                            const [currentYear, currentMonth] = yearMonth.split('-');
+                            const monthStart = new Date(parseInt(currentYear), parseInt(currentMonth) - 1, 1);
+                            const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
+                            const contributions = contributionsByInvestment[investment] || [];
+                            
+                            const contributionsDuringMonth = contributions.filter(c => {
+                                const contribDate = new Date(c.date);
+                                return contribDate >= monthStart && contribDate <= monthEnd;
+                            });
+                            const contributionsDuringAmount = contributionsDuringMonth.reduce((sum, c) => sum + c.amount, 0);
+                            
+                            // True performance = current value - previous value - contributions during month
+                            change = record.value - prevRecord.value - contributionsDuringAmount;
                             changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
+                            
+                            // Debug logging for Revolut X month-to-month comparisons
+                            if (investment === 'Revolut X (Bitcoin)') {
+                                console.log(`📈 Monthly calc (month-to-month) for ${investment} ${yearMonth}:`, {
+                                    recordValue: record.value,
+                                    prevRecordValue: prevRecord.value,
+                                    contributionsDuringAmount,
+                                    contributionsDuringMonth: contributionsDuringMonth.length,
+                                    change,
+                                    changePercent,
+                                    calculationMethod: 'month-to-month with contributions'
+                                });
+                            }
                         } else {
                             // Simplified approach: use totalInvested as baseline (like yearly calculation)
                             const totalInvested = investmentObj.totalInvested || investmentObj.startInvestment;
