@@ -2151,6 +2151,16 @@
             `;
 
             const dataRows = investments.map(investment => {
+                // Debug which months are being processed for Revolut X
+                if (investment === 'Revolut X (Bitcoin)') {
+                    console.log(`🗓️ Processing months for ${investment}:`, yearMonths);
+                    console.log(`📊 Matrix data for ${investment}:`, yearMonths.map(ym => ({
+                        month: ym,
+                        hasRecord: !!matrix[ym][investment],
+                        recordValue: matrix[ym][investment]?.value
+                    })));
+                }
+                
                 const cells = yearMonths.map((yearMonth, index) => {
                     const record = matrix[yearMonth][investment];
                     const [year, monthNum] = yearMonth.split('-');
@@ -2217,7 +2227,11 @@
                                     totalInvested,
                                     change,
                                     changePercent,
-                                    investmentObj
+                                    calculationMethod: 'simplified totalInvested',
+                                    investmentObj: {
+                                        totalInvested: investmentObj.totalInvested,
+                                        startInvestment: investmentObj.startInvestment
+                                    }
                                 });
                             }
                         }
