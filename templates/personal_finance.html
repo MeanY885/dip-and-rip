@@ -2265,6 +2265,16 @@
 
                     changeClass = change >= 0 ? 'positive' : 'negative';
 
+                    // Debug: Log the final values being used for display
+                    if (investment === 'Revolut X (Bitcoin)') {
+                        console.log(`🖥️ Display values for ${investment} ${yearMonth}:`, {
+                            change,
+                            changePercent,
+                            viewType,
+                            changeClass
+                        });
+                    }
+
                     let cellContent = '';
                     if (viewType === 'combined') {
                         const poundValue = `${change >= 0 ? '+' : ''}£${change.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
