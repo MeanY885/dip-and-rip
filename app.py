@@ -3872,6 +3872,54 @@ def investment_contributions_timeline(investment_id):
     })
 
 
+@app.route('/api/admin/migrate-contributions', methods=['POST'])
+def migrate_contributions():
+    """API endpoint to migrate investment contributions remotely"""
+    try:
+        # Check if migration is needed
+        existing_contributions = InvestmentContribution.query.count()
+        
+        if existing_contributions > 0:
+            return jsonify({
+                'success': True,
+                'message': f'Migration already completed. Found {existing_contributions} existing contributions.',
+                'contributions_created': 0
+            })
+        
+        # Get all existing investments
+        investments = Investment.query.all()
+        contributions_created = 0
+        
+        for investment in investments:
+            # Create initial contribution for each investment
+            initial_contribution = InvestmentContribution(
+                investment_id=investment.id,
+                amount=investment.start_investment,
+                date=investment.start_date,
+                type='initial',
+                notes='Initial investment migrated from existing data'
+            )
+            
+            db.session.add(initial_contribution)
+            contributions_created += 1
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Migration completed successfully! Created {contributions_created} initial contribution records.',
+            'contributions_created': contributions_created
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': f'Migration failed: {str(e)}'
+        }), 500
+
+
 @app.route('/api/finance/monthly-records', methods=['GET', 'POST'])
 def finance_monthly_records():
     if request.method == 'GET':

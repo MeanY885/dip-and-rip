@@ -2703,6 +2703,22 @@
                 
                 if (result.success) {
                     currentContributions = result.data;
+                    
+                    // Auto-create initial contribution if none exist
+                    if (currentContributions.length === 0) {
+                        const investment = investmentData.find(inv => inv.id == investmentId);
+                        if (investment && investment.startInvestment > 0) {
+                            console.log('No contributions found, creating initial contribution...');
+                            await createInitialContribution(investmentId, investment);
+                            // Reload contributions after creating initial one
+                            const retryResponse = await fetch(`/api/finance/investments/${investmentId}/contributions`);
+                            const retryResult = await retryResponse.json();
+                            if (retryResult.success) {
+                                currentContributions = retryResult.data;
+                            }
+                        }
+                    }
+                    
                     renderContributionList();
                 } else {
                     console.error('Error loading contributions:', result.error);
@@ -2712,35 +2728,104 @@
             }
         }
         
+        async function createInitialContribution(investmentId, investment) {
+            try {
+                const response = await fetch(`/api/finance/investments/${investmentId}/contributions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: investment.startInvestment,
+                        date: investment.startDate,
+                        type: 'initial',
+                        notes: 'Initial investment (auto-created)'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log('Initial contribution created successfully');
+                } else {
+                    console.error('Error creating initial contribution:', result.error);
+                }
+            } catch (error) {
+                console.error('Error creating initial contribution:', error);
+            }
+        }
+        
         function renderContributionList() {
             const container = document.getElementById('contributionList');
             container.innerHTML = '';
             
             let totalAmount = 0;
             
-            currentContributions.forEach(contribution => {
-                totalAmount += contribution.amount;
+            if (currentContributions.length === 0) {
+                // Show fallback UI when no contributions found
+                const investmentId = document.getElementById('contributionInvestmentId').value;
+                const investment = investmentData.find(inv => inv.id == investmentId);
                 
-                const item = document.createElement('div');
-                item.className = 'contribution-item';
-                item.innerHTML = `
-                    <div class="contribution-info">
-                        <div class="contribution-type">${contribution.type === 'initial' ? '🏁 Initial Investment' : '💰 Additional Investment'}</div>
-                        <div class="contribution-amount">£${contribution.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                        <div class="contribution-date">${new Date(contribution.date).toLocaleDateString()}</div>
-                        ${contribution.notes ? `<div class="contribution-notes">${contribution.notes}</div>` : ''}
-                    </div>
-                    <div class="contribution-actions">
-                        ${contribution.type !== 'initial' ? `
-                            <button class="edit-contribution-button" onclick="editContribution(${contribution.id})">✏️</button>
-                            <button class="delete-contribution-button" onclick="deleteContribution(${contribution.id})">🗑️</button>
-                        ` : '<span class="protected-label">Protected</span>'}
+                container.innerHTML = `
+                    <div class="no-contributions-message">
+                        <div class="no-contributions-icon">📊</div>
+                        <h4>No Contribution History Found</h4>
+                        <p>This investment doesn't have contribution tracking set up yet.</p>
+                        ${investment && investment.startInvestment > 0 ? `
+                            <button class="initialize-contributions-button" onclick="manuallyInitializeContributions(${investmentId})">
+                                Initialize Contribution Tracking
+                            </button>
+                            <small>This will create an initial contribution of £${investment.startInvestment.toLocaleString()}</small>
+                        ` : ''}
                     </div>
                 `;
-                container.appendChild(item);
-            });
+                totalAmount = investment ? investment.startInvestment : 0;
+            } else {
+                currentContributions.forEach(contribution => {
+                    totalAmount += contribution.amount;
+                    
+                    const item = document.createElement('div');
+                    item.className = 'contribution-item';
+                    item.innerHTML = `
+                        <div class="contribution-info">
+                            <div class="contribution-type">${contribution.type === 'initial' ? '🏁 Initial Investment' : '💰 Additional Investment'}</div>
+                            <div class="contribution-amount">£${contribution.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            <div class="contribution-date">${new Date(contribution.date).toLocaleDateString()}</div>
+                            ${contribution.notes ? `<div class="contribution-notes">${contribution.notes}</div>` : ''}
+                        </div>
+                        <div class="contribution-actions">
+                            ${contribution.type !== 'initial' ? `
+                                <button class="edit-contribution-button" onclick="editContribution(${contribution.id})">✏️</button>
+                                <button class="delete-contribution-button" onclick="deleteContribution(${contribution.id})">🗑️</button>
+                            ` : '<span class="protected-label">Protected</span>'}
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            }
             
             document.getElementById('contributionTotal').textContent = `Total: £${totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        async function manuallyInitializeContributions(investmentId) {
+            const investment = investmentData.find(inv => inv.id == investmentId);
+            if (!investment) return;
+            
+            if (!confirm(`Initialize contribution tracking for ${investment.name} with initial investment of £${investment.startInvestment.toLocaleString()}?`)) {
+                return;
+            }
+            
+            try {
+                await createInitialContribution(investmentId, investment);
+                
+                // Reload contributions
+                await loadContributions(investmentId);
+                
+                alert('Contribution tracking initialized successfully!');
+            } catch (error) {
+                console.error('Error initializing contributions:', error);
+                alert('Error initializing contribution tracking. Please try again.');
+            }
         }
         
         async function editContribution(contributionId) {
@@ -3042,6 +3127,49 @@
         .contribution-help {
             color: #666;
             font-style: italic;
+        }
+        
+        /* No Contributions Fallback UI */
+        .no-contributions-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .no-contributions-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .no-contributions-message h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .no-contributions-message p {
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .initialize-contributions-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .initialize-contributions-button:hover {
+            background: #0056b3;
+        }
+        
+        .no-contributions-message small {
+            display: block;
+            color: #888;
+            font-size: 12px;
         }
     </style>
 </body>
