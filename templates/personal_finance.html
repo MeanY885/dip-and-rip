@@ -844,6 +844,22 @@
             });
         });
 
+        async function reloadInvestmentData() {
+            try {
+                const invResponse = await fetch('/api/finance/investments');
+                const invData = await invResponse.json();
+                
+                if (invData.success) {
+                    investmentData = invData.data;
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Error reloading investment data:', error);
+                return false;
+            }
+        }
+
         async function loadAllData() {
             try {
                 // Load preferences first
@@ -1123,6 +1139,9 @@
                     
                     loadInvestmentData();
                     updateSummary();
+                    // Refresh monthly and yearly tabs immediately
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
                 } else {
                     alert('Error updating investment: ' + result.error);
                 }
@@ -1695,9 +1714,10 @@
                         change = record.value - previousYearRecord.value;
                         changePercent = previousYearRecord.value > 0 ? ((change / previousYearRecord.value) * 100) : 0;
                     } else {
-                        // Compare with initial investment (first year for this investment)
-                        change = record.value - investmentObj.startInvestment;
-                        changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
+                        // Compare with total invested amount (first year for this investment)
+                        const totalInvested = investmentObj.totalInvested || investmentObj.startInvestment;
+                        change = record.value - totalInvested;
+                        changePercent = totalInvested > 0 ? ((change / totalInvested) * 100) : 0;
                     }
 
                     changeClass = change >= 0 ? 'positive' : 'negative';
@@ -2128,13 +2148,20 @@
                     let changeClass = '';
 
                     if (index === 0) {
-                        // First month - compare with initial investment or last yearly record
-                        const [year] = yearMonth.split('-');
+                        // First month - compare with contributions up to start of month
+                        const [year, month] = yearMonth.split('-');
                         const lastYearlyRecord = yearlyData
                             .filter(r => r.investmentName === investment && r.year < parseInt(year))
                             .sort((a, b) => b.year - a.year)[0];
                         
-                        const baseValue = lastYearlyRecord ? lastYearlyRecord.value : investmentObj.startInvestment;
+                        let baseValue;
+                        if (lastYearlyRecord) {
+                            baseValue = lastYearlyRecord.value;
+                        } else {
+                            // For first tracked month, use total invested amount which includes all contributions
+                            baseValue = investmentObj.totalInvested || investmentObj.startInvestment;
+                        }
+                        
                         change = record.value - baseValue;
                         changePercent = baseValue > 0 ? ((change / baseValue) * 100) : 0;
                     } else {
@@ -2146,9 +2173,11 @@
                             change = record.value - prevRecord.value;
                             changePercent = prevRecord.value > 0 ? ((change / prevRecord.value) * 100) : 0;
                         } else {
-                            // If no previous month data, compare with initial investment
-                            change = record.value - investmentObj.startInvestment;
-                            changePercent = investmentObj.startInvestment > 0 ? ((change / investmentObj.startInvestment) * 100) : 0;
+                            // If no previous month data, need to account for contributions
+                            // Use the total invested amount up to this point
+                            const totalInvested = investmentObj.totalInvested || investmentObj.startInvestment;
+                            change = record.value - totalInvested;
+                            changePercent = totalInvested > 0 ? ((change / totalInvested) * 100) : 0;
                         }
                     }
 
@@ -2506,6 +2535,17 @@
              console.log('Historical Performance is now displayed on homepage dashboard');
          }
          
+         async function getContributionsUpToDate(investmentId, endDate) {
+             try {
+                 const response = await fetch(`/api/finance/investments/${investmentId}/contributions-timeline?end_date=${endDate}`);
+                 const result = await response.json();
+                 return result.success ? result.data.total_invested : 0;
+             } catch (error) {
+                 console.error('Error getting contributions timeline:', error);
+                 return 0;
+             }
+         }
+
          async function calculateYearlyProfits() {
              const profits = {};
              
@@ -2666,8 +2706,12 @@
                 
                 if (result.success) {
                     // Refresh investment data to show updated totals
+                    await reloadInvestmentData();
                     loadInvestmentData();
                     updateSummary();
+                    // Refresh monthly and yearly tabs immediately
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
                     hideAddMoneyModal();
                     alert('Additional investment added successfully!');
                 } else {
@@ -2861,8 +2905,12 @@
                     // Reload contributions and refresh investment data
                     const investmentId = document.getElementById('contributionInvestmentId').value;
                     await loadContributions(investmentId);
+                    await reloadInvestmentData();
                     loadInvestmentData();
                     updateSummary();
+                    // Refresh monthly and yearly tabs immediately
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
                 } else {
                     alert('Error updating contribution: ' + result.error);
                 }
@@ -2891,8 +2939,12 @@
                     // Reload contributions and refresh investment data
                     const investmentId = document.getElementById('contributionInvestmentId').value;
                     await loadContributions(investmentId);
+                    await reloadInvestmentData();
                     loadInvestmentData();
                     updateSummary();
+                    // Refresh monthly and yearly tabs immediately
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
                 } else {
                     alert('Error deleting contribution: ' + result.error);
                 }
