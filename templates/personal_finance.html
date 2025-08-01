@@ -2215,7 +2215,8 @@
                             // Calculate contributions made during this month
                             const [currentYear, currentMonth] = yearMonth.split('-');
                             const monthStart = new Date(parseInt(currentYear), parseInt(currentMonth) - 1, 1);
-                            const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
+                            // Set month end to 23:59:59.999 of the last day to include all times on that day
+                            const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0, 23, 59, 59, 999);
                             const contributions = contributionsByInvestment[investment] || [];
                             
                             // Debug contribution filtering for Revolut X
@@ -2313,7 +2314,8 @@
                     // Check if there were contributions during this month
                     const [currentYear, currentMonth] = yearMonth.split('-');
                     const monthStart = new Date(parseInt(currentYear), parseInt(currentMonth) - 1, 1);
-                    const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0);
+                    // Set month end to 23:59:59.999 of the last day to include all times on that day
+                    const monthEnd = new Date(parseInt(currentYear), parseInt(currentMonth), 0, 23, 59, 59, 999);
                     const contributions = contributionsByInvestment[investment] || [];
                     const hasContributionThisMonth = contributions.some(c => {
                         const contribDate = new Date(c.date);
