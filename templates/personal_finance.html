@@ -123,8 +123,9 @@
             background-color: #28a745;
             font-size: 12px;
             padding: 4px 8px;
-            margin-left: 8px;
             border-radius: 4px;
+            display: inline-block;
+            vertical-align: middle;
         }
         .add-money-button:hover {
             background-color: #218838;
@@ -132,21 +133,19 @@
         
         .total-invested-amount {
             cursor: pointer;
-            text-decoration: underline;
-            color: #007bff;
+            color: inherit;
+            display: inline-block;
+            margin-right: 8px;
         }
         .total-invested-amount:hover {
-            color: #0056b3;
-            background-color: rgba(0, 123, 255, 0.1);
+            background-color: #f8f9fa;
             border-radius: 3px;
             padding: 2px 4px;
+            margin: -2px -4px -2px -4px;
         }
         
         .total-invested-cell {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 8px;
+            position: relative;
             white-space: nowrap;
         }
         

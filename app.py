@@ -3790,10 +3790,6 @@ def manage_contribution(contribution_id):
         try:
             data = request.json
             
-            # Prevent editing initial contributions
-            if contribution.type == 'initial':
-                return jsonify({'success': False, 'error': 'Cannot edit initial investment contribution'}), 400
-            
             if 'amount' in data:
                 contribution.amount = float(data['amount'])
             if 'date' in data:
