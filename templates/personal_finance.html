@@ -131,6 +131,19 @@
             background-color: #218838;
         }
         
+        .withdraw-money-button {
+            background-color: #dc3545;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+        .withdraw-money-button:hover {
+            background-color: #c82333;
+        }
+        
         .total-invested-amount {
             cursor: pointer;
             color: inherit;
@@ -1465,6 +1478,7 @@
                             £${totalInvested.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                         </span>
                         <button class="add-money-button" onclick="showAddMoneyModal(${investment.id})" title="Add additional investment">💰+</button>
+                        <button class="withdraw-money-button" onclick="showWithdrawMoneyModal(${investment.id})" title="Withdraw money">📤-</button>
                     </td>
                     <td class="editable-investment-cell" onclick="editInvestmentField(${investment.id}, 'currentValue', ${investment.currentValue})" 
                         title="Click to edit current value" style="cursor: pointer;">
@@ -2942,8 +2956,16 @@
                     item.className = 'contribution-item';
                     item.innerHTML = `
                         <div class="contribution-info">
-                            <div class="contribution-type">${contribution.type === 'initial' ? '🏁 Initial Investment' : '💰 Additional Investment'}</div>
-                            <div class="contribution-amount">£${contribution.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            <div class="contribution-type">${
+                                contribution.type === 'initial' ? '🏁 Initial Investment' : 
+                                contribution.type === 'withdrawal' ? '📤 Withdrawal' : 
+                                '💰 Additional Investment'
+                            }</div>
+                            <div class="contribution-amount ${contribution.type === 'withdrawal' ? 'withdrawal-amount' : ''}">${
+                                contribution.type === 'withdrawal' ? 
+                                '-£' + Math.abs(contribution.amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 
+                                '£' + contribution.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})
+                            }</div>
                             <div class="contribution-date">${new Date(contribution.date).toLocaleDateString()}</div>
                             ${contribution.notes ? `<div class="contribution-notes">${contribution.notes}</div>` : ''}
                         </div>
@@ -3060,6 +3082,69 @@
                 alert('Error deleting contribution');
             }
         }
+        
+        // Withdraw Money Modal Functions
+        function showWithdrawMoneyModal(investmentId) {
+            const investment = investmentData.find(inv => inv.id === investmentId);
+            if (!investment) return;
+            
+            document.getElementById('withdrawMoneyInvestmentName').textContent = investment.name;
+            document.getElementById('withdrawMoneyInvestmentId').value = investmentId;
+            document.getElementById('withdrawMoneyAmount').value = '';
+            document.getElementById('withdrawMoneyDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('withdrawMoneyNotes').value = '';
+            document.getElementById('withdrawMoneyModal').style.display = 'flex';
+        }
+        
+        function hideWithdrawMoneyModal() {
+            document.getElementById('withdrawMoneyModal').style.display = 'none';
+        }
+        
+        async function submitWithdrawMoney() {
+            const investmentId = document.getElementById('withdrawMoneyInvestmentId').value;
+            const amount = parseFloat(document.getElementById('withdrawMoneyAmount').value);
+            const date = document.getElementById('withdrawMoneyDate').value;
+            const notes = document.getElementById('withdrawMoneyNotes').value;
+            
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/finance/investments/${investmentId}/contributions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: amount,
+                        date: date,
+                        type: 'withdrawal',
+                        notes: notes
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Refresh investment data to show updated totals
+                    await reloadInvestmentData();
+                    loadInvestmentData();
+                    updateSummary();
+                    // Refresh monthly and yearly tabs immediately
+                    loadYearlyTrackingData();
+                    loadMonthlyTrackingData();
+                    hideWithdrawMoneyModal();
+                    alert('Withdrawal recorded successfully!');
+                } else {
+                    alert('Error recording withdrawal: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error recording withdrawal:', error);
+                alert('Error recording withdrawal');
+            }
+        }
 
     </script>
 
@@ -3120,6 +3205,40 @@
             <div class="modal-footer">
                 <button onclick="hideContributionModal()">Close</button>
                 <button onclick="showAddMoneyModal(parseInt(document.getElementById('contributionInvestmentId').value))" class="primary">Add More Money</button>
+                <button onclick="showWithdrawMoneyModal(parseInt(document.getElementById('contributionInvestmentId').value))" class="primary" style="background-color: #dc3545; margin-left: 8px;">Withdraw Money</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Withdraw Money Modal -->
+    <div id="withdrawMoneyModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📤 Withdraw Money</h3>
+                <button class="modal-close" onclick="hideWithdrawMoneyModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Withdrawing money from: <strong id="withdrawMoneyInvestmentName"></strong></p>
+                <input type="hidden" id="withdrawMoneyInvestmentId">
+                
+                <div class="form-group">
+                    <label for="withdrawMoneyAmount">Amount (£):</label>
+                    <input type="number" id="withdrawMoneyAmount" step="0.01" min="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="withdrawMoneyDate">Date:</label>
+                    <input type="date" id="withdrawMoneyDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="withdrawMoneyNotes">Notes (optional):</label>
+                    <textarea id="withdrawMoneyNotes" rows="3" placeholder="e.g., Emergency withdrawal, profit taking..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="hideWithdrawMoneyModal()">Cancel</button>
+                <button onclick="submitWithdrawMoney()" class="primary" style="background-color: #dc3545;">Withdraw Money</button>
             </div>
         </div>
     </div>
@@ -3244,6 +3363,10 @@
             font-size: 16px;
             color: #007bff;
             font-weight: bold;
+        }
+        
+        .withdrawal-amount {
+            color: #dc3545 !important;
         }
         
         .contribution-date {

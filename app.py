@@ -3750,15 +3750,25 @@ def investment_contributions(investment_id):
         })
     
     elif request.method == 'POST':
-        # Add new contribution
+        # Add new contribution or withdrawal
         try:
             data = request.json
             
+            # Validate amount based on type
+            amount = float(data['amount'])
+            contribution_type = data.get('type', 'additional')
+            
+            # For withdrawals, store as negative amount for easier calculation
+            if contribution_type == 'withdrawal':
+                amount = -abs(amount)  # Ensure withdrawal amounts are negative
+            elif contribution_type in ['initial', 'additional']:
+                amount = abs(amount)   # Ensure contribution amounts are positive
+            
             contribution = InvestmentContribution(
                 investment_id=investment_id,
-                amount=float(data['amount']),
+                amount=amount,
                 date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
-                type=data.get('type', 'additional'),
+                type=contribution_type,
                 notes=data.get('notes', '')
             )
             
@@ -3786,12 +3796,17 @@ def manage_contribution(contribution_id):
     contribution = InvestmentContribution.query.get_or_404(contribution_id)
     
     if request.method == 'PUT':
-        # Edit contribution
+        # Edit contribution or withdrawal
         try:
             data = request.json
             
             if 'amount' in data:
-                contribution.amount = float(data['amount'])
+                amount = float(data['amount'])
+                # Adjust amount sign based on type
+                if contribution.type == 'withdrawal':
+                    contribution.amount = -abs(amount)  # Withdrawals are negative
+                elif contribution.type in ['initial', 'additional']:
+                    contribution.amount = abs(amount)   # Contributions are positive
             if 'date' in data:
                 contribution.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
             if 'notes' in data:
