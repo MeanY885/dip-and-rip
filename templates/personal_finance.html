@@ -3579,18 +3579,12 @@
                     }
                 });
 
-                // Strategy average with pound amount
+                // Strategy average
                 const avgPerformance = recordCount > 0 ? (strategyTotal / recordCount) : 0;
                 const totalBgColor = avgPerformance >= 0 ? '#d4edda' : '#f8d7da';
                 const totalTextColor = avgPerformance >= 0 ? '#155724' : '#721c24';
                 const totalSign = avgPerformance > 0 ? '+' : (avgPerformance < 0 ? '' : '');
-                
-                // Calculate estimated pound value (assuming £10,000 base for example)
-                const estimatedAmount = avgPerformance * 100; // Convert percentage to approximate pound value
-                const poundSign = estimatedAmount >= 0 ? '+' : '';
-                const poundValue = `${poundSign}£${Math.abs(estimatedAmount).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-                const percentValue = `${totalSign}${avgPerformance.toFixed(2)}%`;
-                const avgDisplay = recordCount > 0 ? `${poundValue} / ${percentValue}` : '-';
+                const avgDisplay = recordCount > 0 ? `${totalSign}${avgPerformance.toFixed(2)}%` : '-';
                 
                 html += `<td style="background-color: ${totalBgColor}; color: ${totalTextColor}; font-weight: bold;">${avgDisplay}</td>`;
                 
@@ -3623,18 +3617,12 @@
                 }
             });
 
-            // Overall average with pound amount
+            // Overall average
             const overallAvg = grandCount > 0 ? (grandTotal / grandCount) : 0;
             const overallBgColor = overallAvg >= 0 ? '#d4edda' : '#f8d7da';
             const overallTextColor = overallAvg >= 0 ? '#155724' : '#721c24';
             const overallSign = overallAvg > 0 ? '+' : (overallAvg < 0 ? '' : '');
-            
-            // Calculate estimated total pound value
-            const totalEstimatedAmount = overallAvg * 100; // Convert percentage to approximate pound value
-            const totalPoundSign = totalEstimatedAmount >= 0 ? '+' : '';
-            const totalPoundValue = `${totalPoundSign}£${Math.abs(totalEstimatedAmount).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-            const totalPercentValue = `${overallSign}${overallAvg.toFixed(2)}%`;
-            const overallDisplay = grandCount > 0 ? `${totalPoundValue} / ${totalPercentValue}` : '-';
+            const overallDisplay = grandCount > 0 ? `${overallSign}${overallAvg.toFixed(2)}%` : '-';
             
             html += `<td style="background-color: ${overallBgColor}; color: ${overallTextColor}; font-weight: bold;">${overallDisplay}</td>`;
             html += '<td></td>'; // Empty Actions cell for totals row
