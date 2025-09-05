@@ -154,6 +154,33 @@ class InvestmentContribution(db.Model):
     # Relationship
     investment = db.relationship('Investment', backref='contributions', lazy=True)
 
+class SalaryRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    before_tax = db.Column(db.Float, nullable=False)
+    commission = db.Column(db.Float, nullable=False, default=0.0)
+    after_tax = db.Column(db.Float, nullable=False)
+    notes = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('year', 'month', name='unique_salary_year_month'),)
+
+class TradingRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    strategy = db.Column(db.String(50), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    performance_percentage = db.Column(db.Float, nullable=False)
+    trade_count = db.Column(db.Integer, nullable=False, default=0)
+    profitable_trades = db.Column(db.Integer, nullable=False, default=0)
+    notes = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('strategy', 'year', 'month', name='unique_trading_strategy_year_month'),)
+
 class UserPreferences(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     widget_order = db.Column(db.Text)  # JSON string of widget order
@@ -4097,6 +4124,163 @@ def finance_yearly_records():
 @app.route('/api/finance/yearly-records/<int:record_id>', methods=['DELETE'])
 def finance_yearly_record_detail(record_id):
     record = YearlyRecord.query.get_or_404(record_id)
+    
+    try:
+        db.session.delete(record)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/salary-records', methods=['GET', 'POST'])
+def finance_salary_records():
+    if request.method == 'GET':
+        try:
+            records = SalaryRecord.query.order_by(SalaryRecord.year.desc(), SalaryRecord.month.desc()).all()
+            
+            records_data = []
+            for record in records:
+                records_data.append({
+                    'id': record.id,
+                    'year': record.year,
+                    'month': record.month,
+                    'before_tax': record.before_tax,
+                    'commission': record.commission,
+                    'after_tax': record.after_tax,
+                    'notes': record.notes,
+                    'date': record.date.strftime('%Y-%m-%d'),
+                    'created_at': record.created_at.strftime('%Y-%m-%d')
+                })
+            
+            return jsonify({'success': True, 'data': records_data})
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Check if record already exists for this month
+            existing_record = SalaryRecord.query.filter_by(
+                year=data['year'],
+                month=data['month']
+            ).first()
+            
+            if existing_record:
+                # Update existing record
+                existing_record.before_tax = data['before_tax']
+                existing_record.commission = data.get('commission', 0.0)
+                existing_record.after_tax = data['after_tax']
+                existing_record.notes = data.get('notes', '')
+                existing_record.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            else:
+                # Create new record
+                record = SalaryRecord(
+                    year=data['year'],
+                    month=data['month'],
+                    before_tax=data['before_tax'],
+                    commission=data.get('commission', 0.0),
+                    after_tax=data['after_tax'],
+                    notes=data.get('notes', ''),
+                    date=datetime.strptime(data['date'], '%Y-%m-%d').date()
+                )
+                db.session.add(record)
+            
+            db.session.commit()
+            
+            return jsonify({'success': True})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/salary-records/<int:record_id>', methods=['DELETE'])
+def finance_salary_record_detail(record_id):
+    record = SalaryRecord.query.get_or_404(record_id)
+    
+    try:
+        db.session.delete(record)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/trading-records', methods=['GET', 'POST'])
+def finance_trading_records():
+    if request.method == 'GET':
+        try:
+            records = TradingRecord.query.order_by(TradingRecord.strategy, TradingRecord.year.desc(), TradingRecord.month.desc()).all()
+            
+            records_data = []
+            for record in records:
+                records_data.append({
+                    'id': record.id,
+                    'strategy': record.strategy,
+                    'year': record.year,
+                    'month': record.month,
+                    'performance_percentage': record.performance_percentage,
+                    'trade_count': record.trade_count,
+                    'profitable_trades': record.profitable_trades,
+                    'notes': record.notes,
+                    'date': record.date.strftime('%Y-%m-%d'),
+                    'created_at': record.created_at.strftime('%Y-%m-%d')
+                })
+            
+            return jsonify({'success': True, 'data': records_data})
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Check if record already exists for this strategy/month
+            existing_record = TradingRecord.query.filter_by(
+                strategy=data['strategy'],
+                year=data['year'],
+                month=data['month']
+            ).first()
+            
+            if existing_record:
+                # Update existing record
+                existing_record.performance_percentage = data['performance_percentage']
+                existing_record.trade_count = data.get('trade_count', 0)
+                existing_record.profitable_trades = data.get('profitable_trades', 0)
+                existing_record.notes = data.get('notes', '')
+                existing_record.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+            else:
+                # Create new record
+                record = TradingRecord(
+                    strategy=data['strategy'],
+                    year=data['year'],
+                    month=data['month'],
+                    performance_percentage=data['performance_percentage'],
+                    trade_count=data.get('trade_count', 0),
+                    profitable_trades=data.get('profitable_trades', 0),
+                    notes=data.get('notes', ''),
+                    date=datetime.strptime(data['date'], '%Y-%m-%d').date()
+                )
+                db.session.add(record)
+            
+            db.session.commit()
+            
+            return jsonify({'success': True})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/trading-records/<int:record_id>', methods=['DELETE'])
+def finance_trading_record_detail(record_id):
+    record = TradingRecord.query.get_or_404(record_id)
     
     try:
         db.session.delete(record)

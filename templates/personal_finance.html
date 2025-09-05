@@ -537,6 +537,8 @@
             <button class="tab active" data-tab="investment">📈 Investment Tracking</button>
             <button class="tab" data-tab="monthly">📊 Monthly</button>
             <button class="tab" data-tab="yearly">📅 Yearly</button>
+            <button class="tab" data-tab="salary">💰 Salary</button>
+            <button class="tab" data-tab="trading">🤖 Automated Trading</button>
         </div>
 
         <!-- Investment Tracking Tab -->
@@ -712,6 +714,97 @@
                 </div>
             </div>
         </div>
+
+        <!-- Salary Tab -->
+        <div id="salary-tab" class="tab-content">
+            <div class="section">
+                <h2>💰 Salary Tracking</h2>
+                <p>Track your monthly salary, commission, and tax information.</p>
+
+                <form id="salaryForm" method="post">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                        <input type="number" id="salaryYear" min="2020" max="2030" value="2025" required>
+                        <select id="salaryMonth" required>
+                            <option value="">Select Month</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                        <input type="number" id="salaryBeforeTax" step="0.01" placeholder="Before Tax" required>
+                        <input type="number" id="salaryCommission" step="0.01" placeholder="Commission">
+                        <input type="number" id="salaryAfterTax" step="0.01" placeholder="After Tax" required>
+                        <input type="date" id="salaryDate" required>
+                    </div>
+                    <textarea id="salaryNotes" rows="2" placeholder="Notes (optional)" style="width: 100%; margin-bottom: 10px;"></textarea>
+                    <button type="submit">➕ Add Salary Record</button>
+                </form>
+
+                <!-- Tax Year Sub-tabs -->
+                <div class="yearly-tabs" style="margin-top: 20px;">
+                    <button class="yearly-tab active" data-taxyear="2025-26" onclick="switchTaxYear('2025-26')">2025-26</button>
+                    <button class="yearly-tab" data-taxyear="2024-25" onclick="switchTaxYear('2024-25')">2024-25</button>
+                    <button class="yearly-tab" data-taxyear="2023-24" onclick="switchTaxYear('2023-24')">2023-24</button>
+                </div>
+
+                <div id="salaryTrackingContainer">
+                    <div id="salaryTrackingTable"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Automated Trading Tab -->
+        <div id="trading-tab" class="tab-content">
+            <div class="section">
+                <h2>🤖 Automated Trading Tracker</h2>
+                <p>Track your automated trading strategies performance and statistics.</p>
+
+                <form id="tradingForm" method="post">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                        <input type="text" id="tradingStrategy" placeholder="Strategy" required>
+                        <input type="number" id="tradingYear" min="2020" max="2030" value="2025" required>
+                        <select id="tradingMonth" required>
+                            <option value="">Select Month</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                        <input type="number" id="tradingPerformance" step="0.01" placeholder="Performance %" required>
+                        <input type="number" id="tradingTradeCount" placeholder="Trade Count">
+                        <input type="number" id="tradingProfitableTrades" placeholder="Profitable Trades">
+                        <input type="date" id="tradingDate" required>
+                    </div>
+                    <textarea id="tradingNotes" rows="2" placeholder="Notes (optional)" style="width: 100%; margin-bottom: 10px;"></textarea>
+                    <button type="submit">➕ Add Trading Record</button>
+                </form>
+
+                <!-- Trading Year Tabs -->
+                <div class="yearly-tabs" style="margin-top: 20px;">
+                    <button class="yearly-tab active" data-tradingyear="2025" onclick="switchTradingYear(2025)">2025</button>
+                </div>
+
+                <div id="tradingTrackingContainer">
+                    <div id="tradingTrackingTable"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -719,7 +812,11 @@
         let investmentData = [];
         let yearlyData = [];
         let monthlyData = [];
-        let widgetOrder = ["investment", "yearly", "monthly"];
+        let salaryData = [];
+        let tradingData = [];
+        let currentTaxYear = '2025-26';
+        let currentTradingYear = 2025;
+        let widgetOrder = ["investment", "yearly", "monthly", "salary", "trading"];
         let investmentOrder = [];
 
         // Tab functionality
@@ -847,6 +944,18 @@
                 addMonthlyRecord();
             });
 
+            // Salary tracking form submission
+            document.getElementById('salaryForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addSalaryRecord();
+            });
+
+            // Trading tracking form submission
+            document.getElementById('tradingForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addTradingRecord();
+            });
+
             // Auto-suggest next periods when investments are selected
             document.getElementById('yearlyInvestment').addEventListener('change', function(e) {
                 suggestNextYear(parseInt(e.target.value));
@@ -916,6 +1025,8 @@
                 updateMonthlyDropdowns();
                 loadYearlyTrackingData();
                 loadMonthlyTrackingData();
+                loadSalaryData();
+                loadTradingData();
                 // Initialize the calculation display
                 updateYearlyGraph();
 
@@ -1146,10 +1257,8 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Update local data
-                    const index = investmentData.findIndex(inv => inv.id === id);
-                    investmentData[index] = result.data;
-                    
+                    // Refresh investment data to show updated totals
+                    await reloadInvestmentData();
                     loadInvestmentData();
                     updateSummary();
                     // Refresh monthly and yearly tabs immediately
@@ -3143,6 +3252,597 @@
             } catch (error) {
                 console.error('Error recording withdrawal:', error);
                 alert('Error recording withdrawal');
+            }
+        }
+
+        // Salary Functions
+        async function loadSalaryData() {
+            try {
+                const response = await fetch('/api/finance/salary-records');
+                const result = await response.json();
+                
+                if (result.success) {
+                    salaryData = result.data;
+                    renderSalaryTable();
+                } else {
+                    console.error('Error loading salary data:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading salary data:', error);
+            }
+        }
+
+        function renderSalaryTable() {
+            const container = document.getElementById('salaryTrackingTable');
+            
+            // Filter data for current tax year
+            const taxYearStart = parseInt(currentTaxYear.split('-')[0]);
+            const taxYearData = {};
+            
+            // Filter salary data for the current tax year
+            salaryData.forEach(record => {
+                const recordTaxYearStart = record.month >= 4 ? record.year : record.year - 1;
+                const recordTaxYearLabel = `${recordTaxYearStart}-${(recordTaxYearStart + 1).toString().slice(-2)}`;
+                
+                if (recordTaxYearLabel === currentTaxYear) {
+                    taxYearData[record.month] = record;
+                }
+            });
+
+            const months = ['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'];
+            const monthNumbers = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
+            const bonusMonths = [1, 4, 7, 10]; // January, April, July, October
+
+            let html = `<table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Before Tax</th>
+                        <th>Commission</th>
+                        <th>After Tax</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            // Add rows for each month in tax year order (April to March)
+            for (let i = 0; i < 12; i++) {
+                const monthName = months[i];
+                const monthNum = monthNumbers[i];
+                const isBonusMonth = bonusMonths.includes(monthNum);
+                const monthStyle = isBonusMonth ? 'style="background-color: #fff3cd; font-weight: bold; color: #856404;"' : '';
+                const bonusIndicator = isBonusMonth ? ' 💰' : '';
+                
+                html += `<tr><td ${monthStyle}><strong>${monthName}${bonusIndicator}</strong></td>`;
+                
+                // Determine the actual calendar year for this month
+                const actualYear = monthNum >= 4 ? taxYearStart : taxYearStart + 1;
+                const record = taxYearData[monthNum];
+                const cellBonusStyle = isBonusMonth ? 'background-color: #fff3cd; border-left: 3px solid #ffc107;' : '';
+                
+                if (record) {
+                    const beforeTax = record.before_tax ? `£${record.before_tax.toLocaleString()}` : '£0';
+                    const commission = record.commission ? `£${record.commission.toLocaleString()}` : '£0';
+                    const afterTax = record.after_tax ? `£${record.after_tax.toLocaleString()}` : '£0';
+                    html += `<td class="editable-cell" onclick="editSalaryRecord(${record.id})" style="${cellBonusStyle}">${beforeTax}<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteSalaryRecord(${record.id})" title="Delete">×</button></td>`;
+                    html += `<td class="editable-cell" style="${cellBonusStyle}">${commission}</td>`;
+                    html += `<td class="editable-cell" style="${cellBonusStyle}">${afterTax}</td>`;
+                } else {
+                    const emptyStyle = isBonusMonth ? 'background-color: #fff3cd; color: #856404; border-left: 3px solid #ffc107; cursor: pointer;' : 'background-color: #f8f9fa; color: #999; cursor: pointer;';
+                    html += `<td class="editable-cell" onclick="addSalaryCellValue(${actualYear}, ${monthNum})" style="${emptyStyle}" title="Click to add salary data for ${monthName} ${actualYear}">+</td>`;
+                    html += `<td class="editable-cell" style="${emptyStyle.replace('cursor: pointer;', '')}">-</td>`;
+                    html += `<td class="editable-cell" style="${emptyStyle.replace('cursor: pointer;', '')}">-</td>`;
+                }
+                html += '</tr>';
+            }
+
+            // Add totals row
+            let totalBeforeTax = 0, totalCommission = 0, totalAfterTax = 0;
+            for (let month = 1; month <= 12; month++) {
+                const record = taxYearData[month];
+                if (record) {
+                    totalBeforeTax += record.before_tax || 0;
+                    totalCommission += record.commission || 0;
+                    totalAfterTax += record.after_tax || 0;
+                }
+            }
+            
+            html += `<tr class="totals-row">
+                <td><strong>Total ${currentTaxYear}</strong></td>
+                <td><strong>£${totalBeforeTax.toLocaleString()}</strong></td>
+                <td><strong>£${totalCommission.toLocaleString()}</strong></td>
+                <td><strong>£${totalAfterTax.toLocaleString()}</strong></td>
+            </tr>`;
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function addSalaryRecord() {
+            const year = parseInt(document.getElementById('salaryYear').value);
+            const month = parseInt(document.getElementById('salaryMonth').value);
+            const beforeTax = parseFloat(document.getElementById('salaryBeforeTax').value);
+            const commission = parseFloat(document.getElementById('salaryCommission').value) || 0;
+            const afterTax = parseFloat(document.getElementById('salaryAfterTax').value);
+            const date = document.getElementById('salaryDate').value;
+            const notes = document.getElementById('salaryNotes').value;
+
+            try {
+                const response = await fetch('/api/finance/salary-records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ year, month, before_tax: beforeTax, commission, after_tax: afterTax, date, notes })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadSalaryData();
+                    // Clear form
+                    document.getElementById('salaryBeforeTax').value = '';
+                    document.getElementById('salaryCommission').value = '';
+                    document.getElementById('salaryAfterTax').value = '';
+                    document.getElementById('salaryNotes').value = '';
+                } else {
+                    alert('Error adding salary record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding salary record:', error);
+                alert('Error adding salary record');
+            }
+        }
+
+        async function deleteSalaryRecord(recordId) {
+            if (!confirm('Are you sure you want to delete this salary record?')) return;
+
+            try {
+                const response = await fetch(`/api/finance/salary-records/${recordId}`, { method: 'DELETE' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    salaryData = salaryData.filter(record => record.id !== recordId);
+                    renderSalaryTable();
+                } else {
+                    alert('Error deleting salary record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting salary record:', error);
+                alert('Error deleting salary record');
+            }
+        }
+
+        async function addSalaryCellValue(year, month) {
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[month];
+            
+            const beforeTax = prompt(`Enter Before Tax amount for ${monthName} ${year}:`);
+            if (beforeTax === null) return; // User cancelled
+            
+            const commission = prompt(`Enter Commission amount for ${monthName} ${year} (optional):`) || '0';
+            const afterTax = prompt(`Enter After Tax amount for ${monthName} ${year}:`);
+            if (afterTax === null) return; // User cancelled
+
+            // Set date to last day of the month
+            const lastDay = new Date(year, month, 0).getDate();
+            const date = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+
+            try {
+                const response = await fetch('/api/finance/salary-records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        year: parseInt(year),
+                        month: parseInt(month),
+                        before_tax: parseFloat(beforeTax),
+                        commission: parseFloat(commission),
+                        after_tax: parseFloat(afterTax),
+                        date: date,
+                        notes: `Added via cell click for ${monthName} ${year}`
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadSalaryData();
+                } else {
+                    alert('Error adding salary record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding salary record:', error);
+                alert('Error adding salary record');
+            }
+        }
+
+        async function editSalaryRecord(recordId) {
+            const record = salaryData.find(r => r.id === recordId);
+            if (!record) {
+                alert('Record not found');
+                return;
+            }
+
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[record.month];
+
+            const beforeTax = prompt(`Edit Before Tax amount for ${monthName} ${record.year}:`, record.before_tax);
+            if (beforeTax === null) return; // User cancelled
+            
+            const commission = prompt(`Edit Commission amount for ${monthName} ${record.year}:`, record.commission || '0');
+            const afterTax = prompt(`Edit After Tax amount for ${monthName} ${record.year}:`, record.after_tax);
+            if (afterTax === null) return; // User cancelled
+
+            try {
+                const response = await fetch(`/api/finance/salary-records`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        year: record.year,
+                        month: record.month,
+                        before_tax: parseFloat(beforeTax),
+                        commission: parseFloat(commission),
+                        after_tax: parseFloat(afterTax),
+                        date: record.date,
+                        notes: record.notes || `Updated via cell edit for ${monthName} ${record.year}`
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadSalaryData();
+                } else {
+                    alert('Error updating salary record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error updating salary record:', error);
+                alert('Error updating salary record');
+            }
+        }
+
+        function switchTaxYear(taxYear) {
+            currentTaxYear = taxYear;
+            
+            // Update tab appearance
+            document.querySelectorAll('.yearly-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-taxyear="${taxYear}"]`).classList.add('active');
+            
+            // Re-render the table
+            renderSalaryTable();
+        }
+
+        // Trading Functions
+        async function loadTradingData() {
+            try {
+                const response = await fetch('/api/finance/trading-records');
+                const result = await response.json();
+                
+                if (result.success) {
+                    tradingData = result.data;
+                    renderTradingTable();
+                } else {
+                    console.error('Error loading trading data:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading trading data:', error);
+            }
+        }
+
+        function renderTradingTable() {
+            const container = document.getElementById('tradingTrackingTable');
+            
+            // Filter trading data for current year
+            const yearData = tradingData.filter(r => r.year === currentTradingYear);
+            const strategies = [...new Set(yearData.map(r => r.strategy))];
+            
+            // If no strategies exist, add common ones as empty
+            if (strategies.length === 0 && tradingData.length > 0) {
+                const allStrategies = [...new Set(tradingData.map(r => r.strategy))];
+                strategies.push(...allStrategies);
+            }
+            
+            // Default strategies if no data exists at all
+            if (strategies.length === 0) {
+                strategies.push('Gold 1:1', 'EURUSD', 'GBPCHF');
+            }
+
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            let html = `<table class="matrix-table">
+                <thead>
+                    <tr>
+                        <th>Strategy</th>`;
+            
+            // Month headers
+            months.forEach(month => {
+                html += `<th>${month}</th>`;
+            });
+            html += '<th>Total</th><th>Actions</th></tr></thead><tbody>';
+
+            // Strategy rows
+            strategies.forEach(strategy => {
+                html += `<tr><td><strong>${strategy}</strong></td>`;
+                let strategyTotal = 0;
+                let recordCount = 0;
+
+                months.forEach((month, index) => {
+                    const monthNum = index + 1;
+                    const record = yearData.find(r => r.strategy === strategy && r.month === monthNum);
+                    
+                    if (record) {
+                        const percentage = record.performance_percentage;
+                        const bgColor = percentage >= 0 ? '#d4edda' : '#f8d7da';
+                        const textColor = percentage >= 0 ? '#155724' : '#721c24';
+                        const sign = percentage >= 0 ? '+' : '';
+                        html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};">${sign}${percentage.toFixed(2)}%<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
+                        strategyTotal += percentage;
+                        recordCount++;
+                    } else {
+                        html += `<td class="editable-cell" onclick="addTradingCellValue('${strategy}', ${currentTradingYear}, ${monthNum})" style="background-color: #f8f9fa; color: #999; cursor: pointer;" title="Click to add ${strategy} data for ${month} ${currentTradingYear}">+</td>`;
+                    }
+                });
+
+                // Strategy average with pound amount
+                const avgPerformance = recordCount > 0 ? (strategyTotal / recordCount) : 0;
+                const totalBgColor = avgPerformance >= 0 ? '#d4edda' : '#f8d7da';
+                const totalTextColor = avgPerformance >= 0 ? '#155724' : '#721c24';
+                const totalSign = avgPerformance > 0 ? '+' : (avgPerformance < 0 ? '' : '');
+                
+                // Calculate estimated pound value (assuming £10,000 base for example)
+                const estimatedAmount = avgPerformance * 100; // Convert percentage to approximate pound value
+                const poundSign = estimatedAmount >= 0 ? '+' : '';
+                const poundValue = `${poundSign}£${Math.abs(estimatedAmount).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+                const percentValue = `${totalSign}${avgPerformance.toFixed(2)}%`;
+                const avgDisplay = recordCount > 0 ? `${poundValue} / ${percentValue}` : '-';
+                
+                html += `<td style="background-color: ${totalBgColor}; color: ${totalTextColor}; font-weight: bold;">${avgDisplay}</td>`;
+                
+                // Delete strategy button
+                html += `<td style="text-align: center; padding: 5px;">
+                    <button onclick="deleteTradingStrategy('${strategy}', ${currentTradingYear})" title="Delete entire ${strategy} strategy for ${currentTradingYear}" style="background-color: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 14px;">🗑️</button>
+                </td>`;
+                html += '</tr>';
+            });
+
+            // Total row
+            html += '<tr class="totals-row"><td><strong>Total</strong></td>';
+            let grandTotal = 0;
+            let grandCount = 0;
+
+            months.forEach((month, index) => {
+                const monthNum = index + 1;
+                const monthRecords = yearData.filter(r => r.month === monthNum);
+                if (monthRecords.length > 0) {
+                    const monthTotal = monthRecords.reduce((sum, r) => sum + r.performance_percentage, 0);
+                    const monthAvg = monthTotal / monthRecords.length;
+                    const bgColor = monthAvg >= 0 ? '#d4edda' : '#f8d7da';
+                    const textColor = monthAvg >= 0 ? '#155724' : '#721c24';
+                    const sign = monthAvg > 0 ? '+' : (monthAvg < 0 ? '' : '');
+                    html += `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">${sign}${monthAvg.toFixed(2)}%</td>`;
+                    grandTotal += monthTotal;
+                    grandCount += monthRecords.length;
+                } else {
+                    html += '<td style="background-color: #f8f9fa; color: #999; font-weight: bold;">-</td>';
+                }
+            });
+
+            // Overall average with pound amount
+            const overallAvg = grandCount > 0 ? (grandTotal / grandCount) : 0;
+            const overallBgColor = overallAvg >= 0 ? '#d4edda' : '#f8d7da';
+            const overallTextColor = overallAvg >= 0 ? '#155724' : '#721c24';
+            const overallSign = overallAvg > 0 ? '+' : (overallAvg < 0 ? '' : '');
+            
+            // Calculate estimated total pound value
+            const totalEstimatedAmount = overallAvg * 100; // Convert percentage to approximate pound value
+            const totalPoundSign = totalEstimatedAmount >= 0 ? '+' : '';
+            const totalPoundValue = `${totalPoundSign}£${Math.abs(totalEstimatedAmount).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+            const totalPercentValue = `${overallSign}${overallAvg.toFixed(2)}%`;
+            const overallDisplay = grandCount > 0 ? `${totalPoundValue} / ${totalPercentValue}` : '-';
+            
+            html += `<td style="background-color: ${overallBgColor}; color: ${overallTextColor}; font-weight: bold;">${overallDisplay}</td>`;
+            html += '<td></td>'; // Empty Actions cell for totals row
+            html += '</tr>';
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function addTradingRecord() {
+            const strategy = document.getElementById('tradingStrategy').value;
+            const year = parseInt(document.getElementById('tradingYear').value);
+            const month = parseInt(document.getElementById('tradingMonth').value);
+            const performancePercentage = parseFloat(document.getElementById('tradingPerformance').value);
+            const tradeCount = parseInt(document.getElementById('tradingTradeCount').value) || 0;
+            const profitableTrades = parseInt(document.getElementById('tradingProfitableTrades').value) || 0;
+            const date = document.getElementById('tradingDate').value;
+            const notes = document.getElementById('tradingNotes').value;
+
+            try {
+                const response = await fetch('/api/finance/trading-records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        strategy, 
+                        year, 
+                        month, 
+                        performance_percentage: performancePercentage,
+                        trade_count: tradeCount,
+                        profitable_trades: profitableTrades,
+                        date, 
+                        notes 
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadTradingData();
+                    // Clear form
+                    document.getElementById('tradingStrategy').value = '';
+                    document.getElementById('tradingPerformance').value = '';
+                    document.getElementById('tradingTradeCount').value = '';
+                    document.getElementById('tradingProfitableTrades').value = '';
+                    document.getElementById('tradingNotes').value = '';
+                } else {
+                    alert('Error adding trading record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding trading record:', error);
+                alert('Error adding trading record');
+            }
+        }
+
+        async function deleteTradingRecord(recordId) {
+            if (!confirm('Are you sure you want to delete this trading record?')) return;
+
+            try {
+                const response = await fetch(`/api/finance/trading-records/${recordId}`, { method: 'DELETE' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    tradingData = tradingData.filter(record => record.id !== recordId);
+                    renderTradingTable();
+                } else {
+                    alert('Error deleting trading record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting trading record:', error);
+                alert('Error deleting trading record');
+            }
+        }
+
+        function switchTradingYear(year) {
+            currentTradingYear = year;
+            
+            // Update tab appearance
+            document.querySelectorAll('[data-tradingyear]').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-tradingyear="${year}"]`).classList.add('active');
+            
+            // Re-render the table
+            renderTradingTable();
+        }
+
+        async function addTradingCellValue(strategy, year, month) {
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[month];
+            
+            const performance = prompt(`Enter performance percentage for ${strategy} in ${monthName} ${year}:`);
+            if (performance === null) return; // User cancelled
+            
+            const tradeCount = prompt(`Enter trade count for ${strategy} in ${monthName} ${year} (optional):`) || '0';
+            const profitableTrades = prompt(`Enter profitable trades for ${strategy} in ${monthName} ${year} (optional):`) || '0';
+
+            // Set date to last day of the month
+            const lastDay = new Date(year, month, 0).getDate();
+            const date = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
+
+            try {
+                const response = await fetch('/api/finance/trading-records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        strategy: strategy,
+                        year: parseInt(year),
+                        month: parseInt(month),
+                        performance_percentage: parseFloat(performance),
+                        trade_count: parseInt(tradeCount),
+                        profitable_trades: parseInt(profitableTrades),
+                        date: date,
+                        notes: `Added via cell click for ${strategy} ${monthName} ${year}`
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadTradingData();
+                } else {
+                    alert('Error adding trading record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding trading record:', error);
+                alert('Error adding trading record');
+            }
+        }
+
+        async function editTradingRecord(recordId) {
+            const record = tradingData.find(r => r.id === recordId);
+            if (!record) {
+                alert('Record not found');
+                return;
+            }
+
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[record.month];
+
+            const performance = prompt(`Edit performance percentage for ${record.strategy} in ${monthName} ${record.year}:`, record.performance_percentage);
+            if (performance === null) return; // User cancelled
+            
+            const tradeCount = prompt(`Edit trade count for ${record.strategy} in ${monthName} ${record.year}:`, record.trade_count || '0');
+            const profitableTrades = prompt(`Edit profitable trades for ${record.strategy} in ${monthName} ${record.year}:`, record.profitable_trades || '0');
+
+            try {
+                const response = await fetch(`/api/finance/trading-records`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        strategy: record.strategy,
+                        year: record.year,
+                        month: record.month,
+                        performance_percentage: parseFloat(performance),
+                        trade_count: parseInt(tradeCount),
+                        profitable_trades: parseInt(profitableTrades),
+                        date: record.date,
+                        notes: record.notes || `Updated via cell edit for ${record.strategy} ${monthName} ${record.year}`
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadTradingData();
+                } else {
+                    alert('Error updating trading record: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error updating trading record:', error);
+                alert('Error updating trading record');
+            }
+        }
+
+        async function deleteTradingStrategy(strategy, year) {
+            if (!confirm(`Are you sure you want to delete ALL ${strategy} records for ${year}? This will delete all months for this strategy.`)) return;
+
+            try {
+                // Get all records for this strategy and year
+                const recordsToDelete = tradingData.filter(r => r.strategy === strategy && r.year === year);
+                
+                if (recordsToDelete.length === 0) {
+                    alert('No records found for this strategy and year.');
+                    return;
+                }
+
+                // Delete each record
+                let deletedCount = 0;
+                for (const record of recordsToDelete) {
+                    const response = await fetch(`/api/finance/trading-records/${record.id}`, { method: 'DELETE' });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        deletedCount++;
+                    } else {
+                        console.error(`Failed to delete record ${record.id}:`, result.error);
+                    }
+                }
+
+                if (deletedCount > 0) {
+                    // Remove from local data
+                    tradingData = tradingData.filter(r => !(r.strategy === strategy && r.year === year));
+                    renderTradingTable();
+                    alert(`Successfully deleted ${deletedCount} records for ${strategy} in ${year}.`);
+                } else {
+                    alert('Failed to delete strategy records.');
+                }
+
+            } catch (error) {
+                console.error('Error deleting strategy:', error);
+                alert('Error deleting strategy records');
             }
         }
 
