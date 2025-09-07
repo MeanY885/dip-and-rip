@@ -3657,9 +3657,15 @@ def finance_investments():
         investment_data = []
         for inv in investments:
             # Get total contributions for this investment
-            total_contributions = db.session.query(db.func.sum(InvestmentContribution.amount))\
+            contributions_sum = db.session.query(db.func.sum(InvestmentContribution.amount))\
                                           .filter_by(investment_id=inv.id)\
-                                          .scalar() or inv.start_investment
+                                          .scalar()
+            
+            # Handle the case where no contributions exist yet
+            if contributions_sum is None:
+                total_contributions = inv.start_investment
+            else:
+                total_contributions = float(contributions_sum)
             
             investment_data.append({
                 'id': inv.id,
