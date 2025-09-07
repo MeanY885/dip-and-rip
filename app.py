@@ -3661,11 +3661,22 @@ def finance_investments():
                                           .filter_by(investment_id=inv.id)\
                                           .scalar()
             
-            # Handle the case where no contributions exist yet
+            # Handle the case where no contributions exist yet or ensure initial investment is included
             if contributions_sum is None:
+                # No contributions at all - use start investment
                 total_contributions = inv.start_investment
             else:
-                total_contributions = float(contributions_sum)
+                # Check if we have an initial contribution record
+                has_initial = db.session.query(InvestmentContribution)\
+                                      .filter_by(investment_id=inv.id, type='initial')\
+                                      .first() is not None
+                
+                if has_initial:
+                    # We have contributions including initial - use the sum
+                    total_contributions = float(contributions_sum)
+                else:
+                    # We have additional contributions but no initial record - add start investment
+                    total_contributions = float(contributions_sum) + inv.start_investment
             
             investment_data.append({
                 'id': inv.id,
