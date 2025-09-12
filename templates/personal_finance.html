@@ -828,6 +828,7 @@
         let salaryData = [];
         let tradingData = [];
         let individualTradesData = [];
+        let allIndividualTradesData = [];
         let currentTaxYear = '2025-26';
         let currentTradingYear = 2025;
         let widgetOrder = ["investment", "yearly", "monthly", "salary", "trading"];
@@ -1041,6 +1042,7 @@
                 loadMonthlyTrackingData();
                 loadSalaryData();
                 loadTradingData();
+                loadAllIndividualTradesData();
                 // Initialize individual trades (this will show current month)
                 switchIndividualYear(2025);
                 // Initialize the calculation display
@@ -3550,7 +3552,7 @@
             // Get strategies from both manual records and individual trades
             const manualStrategies = [...new Set(yearData.map(r => r.strategy))];
             const individualTradeStrategies = [...new Set(
-                individualTradesData.map(trade => trade.strategy)
+                allIndividualTradesData.map(trade => trade.strategy)
             )];
             
             const strategies = [...new Set([...manualStrategies, ...individualTradeStrategies])];
@@ -3590,7 +3592,7 @@
                     const record = yearData.find(r => r.strategy === strategy && r.month === monthNum);
                     
                     // Calculate values from individual trades for this strategy/month
-                    const monthTrades = individualTradesData.filter(trade => 
+                    const monthTrades = allIndividualTradesData.filter(trade => 
                         trade.strategy === strategy &&
                         new Date(trade.trade_date).getMonth() + 1 === monthNum
                     );
@@ -3922,6 +3924,20 @@
             }
         }
 
+        async function loadAllIndividualTradesData() {
+            try {
+                const response = await fetch('/api/finance/individual-trades');
+                const result = await response.json();
+                
+                if (result.success) {
+                    allIndividualTradesData = result.data;
+                } else {
+                    console.error('Error loading all individual trades data:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading all individual trades data:', error);
+            }
+        }
 
         async function addQuickTrade(strategy) {
             const dateInput = document.getElementById(`quickDate_${strategy}`);
@@ -3956,6 +3972,7 @@
                     
                     // Reload data
                     loadIndividualTradesData();
+                    loadAllIndividualTradesData();
                     loadTradingData();
                 } else {
                     alert('Error adding trade: ' + result.error);
@@ -3993,6 +4010,7 @@
                     document.getElementById('individualTradeProfitLoss').value = '';
                     
                     // Reload trading data to update summary
+                    loadAllIndividualTradesData();
                     loadTradingData();
                 } else {
                     alert('Error adding individual trade: ' + result.error);
@@ -4094,6 +4112,7 @@
                 if (result.success) {
                     loadIndividualTradesData();
                     // Reload trading data to update summary
+                    loadAllIndividualTradesData();
                     loadTradingData();
                 } else {
                     alert('Error deleting trade: ' + result.error);
@@ -4148,6 +4167,7 @@
                         }
                         // Re-render the table and reload summary data
                         renderIndividualTradesTable();
+                        loadAllIndividualTradesData();
                         loadTradingData();
                     } else {
                         element.innerHTML = originalHTML;
