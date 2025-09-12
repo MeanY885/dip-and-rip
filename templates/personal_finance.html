@@ -3627,10 +3627,10 @@
                         
                         if (isCalculated) {
                             // Show calculated value as currency
-                            html += `<td class="editable-cell" style="background-color: ${bgColor}; color: ${textColor};" title="Calculated from ${tradeCount} individual trades">${sign}£${Math.abs(displayValue).toFixed(2)}</td>`;
+                            html += `<td class="editable-cell" style="background-color: ${bgColor}; color: ${textColor};" title="Calculated from ${tradeCount} individual trades">${sign}£${displayValue.toFixed(2).replace('-', '')}</td>`;
                         } else {
                             // Show manual entry as currency (convert from percentage)
-                            html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};" title="Manual entry">${sign}£${Math.abs(percentage).toFixed(2)}<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
+                            html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};" title="Manual entry">${sign}£${percentage.toFixed(2).replace('-', '')}<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
                         }
                         strategyTotal += percentage;
                         recordCount++;
@@ -3690,7 +3690,7 @@
                     const bgColor = monthTotal >= 0 ? '#d4edda' : '#f8d7da';
                     const textColor = monthTotal >= 0 ? '#155724' : '#721c24';
                     const sign = monthTotal > 0 ? '+' : (monthTotal < 0 ? '' : '');
-                    html += `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">${sign}£${Math.abs(monthTotal).toFixed(2)}</td>`;
+                    html += `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">${sign}£${monthTotal.toFixed(2).replace('-', '')}</td>`;
                     grandTotal += monthTotal;
                     grandCount += 1;
                 } else {
@@ -3702,7 +3702,7 @@
             const overallBgColor = grandTotal >= 0 ? '#d4edda' : '#f8d7da';
             const overallTextColor = grandTotal >= 0 ? '#155724' : '#721c24';
             const overallSign = grandTotal > 0 ? '+' : (grandTotal < 0 ? '' : '');
-            const overallDisplay = grandCount > 0 ? `${overallSign}£${Math.abs(grandTotal).toFixed(2)}` : '-';
+            const overallDisplay = grandCount > 0 ? `${overallSign}£${grandTotal.toFixed(2).replace('-', '')}` : '-';
             
             html += `<td style="background-color: ${overallBgColor}; color: ${overallTextColor}; font-weight: bold;">${overallDisplay}</td>`;
             html += '<td></td>'; // Empty Actions cell for totals row
