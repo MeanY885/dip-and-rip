@@ -795,8 +795,8 @@
                         <button class="monthly-tab" data-individualmonth="5" onclick="switchIndividualMonth(5)">May</button>
                         <button class="monthly-tab" data-individualmonth="6" onclick="switchIndividualMonth(6)">Jun</button>
                         <button class="monthly-tab" data-individualmonth="7" onclick="switchIndividualMonth(7)">Jul</button>
-                        <button class="monthly-tab active" data-individualmonth="8" onclick="switchIndividualMonth(8)">Aug</button>
-                        <button class="monthly-tab" data-individualmonth="9" onclick="switchIndividualMonth(9)">Sep</button>
+                        <button class="monthly-tab" data-individualmonth="8" onclick="switchIndividualMonth(8)">Aug</button>
+                        <button class="monthly-tab active" data-individualmonth="9" onclick="switchIndividualMonth(9)">Sep</button>
                         <button class="monthly-tab" data-individualmonth="10" onclick="switchIndividualMonth(10)">Oct</button>
                         <button class="monthly-tab" data-individualmonth="11" onclick="switchIndividualMonth(11)">Nov</button>
                         <button class="monthly-tab" data-individualmonth="12" onclick="switchIndividualMonth(12)">Dec</button>
@@ -3873,7 +3873,7 @@
 
         // Individual Trades Functions
         let currentIndividualYear = 2025;
-        let currentIndividualMonth = 8;  // Default to August
+        let currentIndividualMonth = new Date().getMonth() + 1;  // Default to current month
 
         function switchIndividualYear(year) {
             currentIndividualYear = year;
