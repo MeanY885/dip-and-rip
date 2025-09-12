@@ -181,6 +181,18 @@ class TradingRecord(db.Model):
     
     __table_args__ = (db.UniqueConstraint('strategy', 'year', 'month', name='unique_trading_strategy_year_month'),)
 
+class IndividualTrade(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    strategy = db.Column(db.String(50), nullable=False)
+    trade_date = db.Column(db.Date, nullable=False)
+    profit_loss_amount = db.Column(db.Float, nullable=False)  # Actual P&L in currency units
+    profit_loss_percentage = db.Column(db.Float, nullable=True)  # Optional percentage
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (db.Index('idx_strategy_date', 'strategy', 'trade_date'),)
+
 class UserPreferences(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     widget_order = db.Column(db.Text)  # JSON string of widget order
@@ -4308,6 +4320,139 @@ def finance_trading_record_detail(record_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/individual-trades', methods=['GET', 'POST'])
+def finance_individual_trades():
+    if request.method == 'GET':
+        try:
+            # Get optional filtering parameters
+            strategy = request.args.get('strategy')
+            year = request.args.get('year', type=int)
+            month = request.args.get('month', type=int)
+            
+            # Build query
+            query = IndividualTrade.query
+            
+            if strategy:
+                query = query.filter(IndividualTrade.strategy == strategy)
+            if year:
+                query = query.filter(db.extract('year', IndividualTrade.trade_date) == year)
+            if month:
+                query = query.filter(db.extract('month', IndividualTrade.trade_date) == month)
+            
+            trades = query.order_by(IndividualTrade.trade_date.desc()).all()
+            
+            trades_data = []
+            for trade in trades:
+                trades_data.append({
+                    'id': trade.id,
+                    'strategy': trade.strategy,
+                    'trade_date': format_date_safe(trade.trade_date),
+                    'profit_loss_amount': trade.profit_loss_amount,
+                    'profit_loss_percentage': trade.profit_loss_percentage,
+                    'notes': trade.notes,
+                    'created_at': trade.created_at.isoformat() if trade.created_at else None
+                })
+            
+            return jsonify({'success': True, 'data': trades_data})
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.json
+            
+            # Create new individual trade
+            trade = IndividualTrade(
+                strategy=data['strategy'],
+                trade_date=datetime.strptime(data['trade_date'], '%Y-%m-%d').date(),
+                profit_loss_amount=float(data['profit_loss_amount']),
+                profit_loss_percentage=float(data.get('profit_loss_percentage')) if data.get('profit_loss_percentage') else None,
+                notes=data.get('notes', '')
+            )
+            
+            db.session.add(trade)
+            db.session.commit()
+            
+            return jsonify({'success': True, 'message': 'Individual trade added successfully'})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/individual-trades/<int:trade_id>', methods=['PUT', 'DELETE'])
+def finance_individual_trade_detail(trade_id):
+    trade = IndividualTrade.query.get_or_404(trade_id)
+    
+    if request.method == 'DELETE':
+        try:
+            db.session.delete(trade)
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+    
+    elif request.method == 'PUT':
+        try:
+            data = request.json
+            
+            trade.strategy = data.get('strategy', trade.strategy)
+            if data.get('trade_date'):
+                trade.trade_date = datetime.strptime(data['trade_date'], '%Y-%m-%d').date()
+            trade.profit_loss_amount = float(data.get('profit_loss_amount', trade.profit_loss_amount))
+            if data.get('profit_loss_percentage') is not None:
+                trade.profit_loss_percentage = float(data['profit_loss_percentage']) if data['profit_loss_percentage'] != '' else None
+            trade.notes = data.get('notes', trade.notes)
+            trade.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            return jsonify({'success': True, 'message': 'Individual trade updated successfully'})
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/finance/trading-summary/<strategy>/<int:year>/<int:month>')
+def trading_summary(strategy, year, month):
+    """Calculate trading summary for a strategy in a specific month from individual trades"""
+    try:
+        # Get all individual trades for the strategy and month
+        trades = IndividualTrade.query.filter(
+            IndividualTrade.strategy == strategy,
+            db.extract('year', IndividualTrade.trade_date) == year,
+            db.extract('month', IndividualTrade.trade_date) == month
+        ).all()
+        
+        if not trades:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'total_profit_loss': 0,
+                    'trade_count': 0,
+                    'profitable_trades': 0,
+                    'average_per_trade': 0
+                }
+            })
+        
+        total_profit_loss = sum(trade.profit_loss_amount for trade in trades)
+        trade_count = len(trades)
+        profitable_trades = len([t for t in trades if t.profit_loss_amount > 0])
+        average_per_trade = total_profit_loss / trade_count if trade_count > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_profit_loss': total_profit_loss,
+                'trade_count': trade_count,
+                'profitable_trades': profitable_trades,
+                'average_per_trade': average_per_trade
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance/trigger-monthly-snapshot', methods=['POST'])
 def trigger_monthly_snapshot():

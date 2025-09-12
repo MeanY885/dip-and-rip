@@ -765,35 +765,48 @@
         <div id="trading-tab" class="tab-content">
             <div class="section">
                 <h2>🤖 Automated Trading Tracker</h2>
-                <p>Track your automated trading strategies performance and statistics.</p>
 
-                <form id="tradingForm" method="post">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px;">
-                        <input type="text" id="tradingStrategy" placeholder="Strategy" required>
-                        <input type="number" id="tradingYear" min="2020" max="2030" value="2025" required>
-                        <select id="tradingMonth" required>
-                            <option value="">Select Month</option>
-                            <option value="1">January</option>
-                            <option value="2">February</option>
-                            <option value="3">March</option>
-                            <option value="4">April</option>
-                            <option value="5">May</option>
-                            <option value="6">June</option>
-                            <option value="7">July</option>
-                            <option value="8">August</option>
-                            <option value="9">September</option>
-                            <option value="10">October</option>
-                            <option value="11">November</option>
-                            <option value="12">December</option>
-                        </select>
-                        <input type="number" id="tradingPerformance" step="0.01" placeholder="Performance %" required>
-                        <input type="number" id="tradingTradeCount" placeholder="Trade Count">
-                        <input type="number" id="tradingProfitableTrades" placeholder="Profitable Trades">
-                        <input type="date" id="tradingDate" required>
+                <!-- Individual Trades Section -->
+                <div class="section" style="margin-top: 20px;">
+                    <h3>📊 Individual Trades</h3>
+                    <p>Track individual trades and auto-calculate monthly summaries.</p>
+                    
+                    <!-- Individual Trade Form -->
+                    <form id="individualTradeForm" method="post" style="margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                            <input type="text" id="individualTradeStrategy" placeholder="Strategy" required>
+                            <input type="date" id="individualTradeDate" required>
+                            <input type="number" id="individualTradeProfitLoss" step="0.01" placeholder="P&L Amount" required>
+                        </div>
+                        <button type="submit">➕ Add Individual Trade</button>
+                    </form>
+                    
+                    <!-- Individual Trades Year Tabs -->
+                    <div class="yearly-tabs" style="margin-bottom: 15px;">
+                        <button class="yearly-tab active" data-individualyear="2025" onclick="switchIndividualYear(2025)">2025</button>
                     </div>
-                    <textarea id="tradingNotes" rows="2" placeholder="Notes (optional)" style="width: 100%; margin-bottom: 10px;"></textarea>
-                    <button type="submit">➕ Add Trading Record</button>
-                </form>
+                    
+                    <!-- Individual Trades Month Tabs -->
+                    <div class="monthly-tabs" style="margin-bottom: 15px; display: none;" id="individualMonthlyTabs">
+                        <button class="monthly-tab" data-individualmonth="1" onclick="switchIndividualMonth(1)">Jan</button>
+                        <button class="monthly-tab" data-individualmonth="2" onclick="switchIndividualMonth(2)">Feb</button>
+                        <button class="monthly-tab" data-individualmonth="3" onclick="switchIndividualMonth(3)">Mar</button>
+                        <button class="monthly-tab" data-individualmonth="4" onclick="switchIndividualMonth(4)">Apr</button>
+                        <button class="monthly-tab" data-individualmonth="5" onclick="switchIndividualMonth(5)">May</button>
+                        <button class="monthly-tab" data-individualmonth="6" onclick="switchIndividualMonth(6)">Jun</button>
+                        <button class="monthly-tab" data-individualmonth="7" onclick="switchIndividualMonth(7)">Jul</button>
+                        <button class="monthly-tab" data-individualmonth="8" onclick="switchIndividualMonth(8)">Aug</button>
+                        <button class="monthly-tab" data-individualmonth="9" onclick="switchIndividualMonth(9)">Sep</button>
+                        <button class="monthly-tab" data-individualmonth="10" onclick="switchIndividualMonth(10)">Oct</button>
+                        <button class="monthly-tab" data-individualmonth="11" onclick="switchIndividualMonth(11)">Nov</button>
+                        <button class="monthly-tab" data-individualmonth="12" onclick="switchIndividualMonth(12)">Dec</button>
+                    </div>
+                    
+                    <!-- Individual Trades Table -->
+                    <div id="individualTradesContainer">
+                        <div id="individualTradesTable"></div>
+                    </div>
+                </div>
 
                 <!-- Trading Year Tabs -->
                 <div class="yearly-tabs" style="margin-top: 20px;">
@@ -814,6 +827,7 @@
         let monthlyData = [];
         let salaryData = [];
         let tradingData = [];
+        let individualTradesData = [];
         let currentTaxYear = '2025-26';
         let currentTradingYear = 2025;
         let widgetOrder = ["investment", "yearly", "monthly", "salary", "trading"];
@@ -950,10 +964,10 @@
                 addSalaryRecord();
             });
 
-            // Trading tracking form submission
-            document.getElementById('tradingForm').addEventListener('submit', function(e) {
+            // Individual trades form submission
+            document.getElementById('individualTradeForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                addTradingRecord();
+                addIndividualTrade();
             });
 
             // Auto-suggest next periods when investments are selected
@@ -1027,6 +1041,8 @@
                 loadMonthlyTrackingData();
                 loadSalaryData();
                 loadTradingData();
+                // Initialize individual trades (this will show current month)
+                switchIndividualYear(2025);
                 // Initialize the calculation display
                 updateYearlyGraph();
 
@@ -3530,7 +3546,16 @@
             
             // Filter trading data for current year
             const yearData = tradingData.filter(r => r.year === currentTradingYear);
-            const strategies = [...new Set(yearData.map(r => r.strategy))];
+            
+            // Get strategies from both manual records and individual trades
+            const manualStrategies = [...new Set(yearData.map(r => r.strategy))];
+            const individualTradeStrategies = [...new Set(
+                individualTradesData
+                    .filter(trade => new Date(trade.trade_date).getFullYear() === currentTradingYear)
+                    .map(trade => trade.strategy)
+            )];
+            
+            const strategies = [...new Set([...manualStrategies, ...individualTradeStrategies])];
             
             // If no strategies exist, add common ones as empty
             if (strategies.length === 0 && tradingData.length > 0) {
@@ -3566,12 +3591,47 @@
                     const monthNum = index + 1;
                     const record = yearData.find(r => r.strategy === strategy && r.month === monthNum);
                     
-                    if (record) {
-                        const percentage = record.performance_percentage;
+                    // Calculate values from individual trades for this strategy/month
+                    const monthTrades = individualTradesData.filter(trade => 
+                        trade.strategy === strategy &&
+                        new Date(trade.trade_date).getFullYear() === currentTradingYear &&
+                        new Date(trade.trade_date).getMonth() + 1 === monthNum
+                    );
+                    
+                    const calculatedTotal = monthTrades.reduce((sum, trade) => sum + trade.profit_loss_amount, 0);
+                    const tradeCount = monthTrades.length;
+                    const calculatedAvg = tradeCount > 0 ? calculatedTotal / tradeCount : 0;
+                    
+                    // Determine which value to show: manual entry or calculated
+                    let displayValue, percentage, isCalculated = false;
+                    
+                    if (record && record.performance_percentage !== null) {
+                        // Manual entry exists - show it
+                        percentage = record.performance_percentage;
+                        displayValue = percentage;
+                    } else if (tradeCount > 0) {
+                        // No manual entry, but we have individual trades - show calculated
+                        percentage = calculatedAvg; // Using amount as percentage for now
+                        displayValue = calculatedTotal;
+                        isCalculated = true;
+                    } else {
+                        // No data available
+                        percentage = 0;
+                        displayValue = null;
+                    }
+                    
+                    if (displayValue !== null) {
                         const bgColor = percentage >= 0 ? '#d4edda' : '#f8d7da';
                         const textColor = percentage >= 0 ? '#155724' : '#721c24';
                         const sign = percentage >= 0 ? '+' : '';
-                        html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};">${sign}${percentage.toFixed(2)}%<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
+                        
+                        if (isCalculated) {
+                            // Show calculated value as currency
+                            html += `<td class="editable-cell" style="background-color: ${bgColor}; color: ${textColor};" title="Calculated from ${tradeCount} individual trades">${sign}£${Math.abs(displayValue).toFixed(2)}</td>`;
+                        } else {
+                            // Show manual entry as currency (convert from percentage)
+                            html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};" title="Manual entry">${sign}£${Math.abs(percentage).toFixed(2)}<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
+                        }
                         strategyTotal += percentage;
                         recordCount++;
                     } else {
@@ -3584,7 +3644,7 @@
                 const totalBgColor = avgPerformance >= 0 ? '#d4edda' : '#f8d7da';
                 const totalTextColor = avgPerformance >= 0 ? '#155724' : '#721c24';
                 const totalSign = avgPerformance > 0 ? '+' : (avgPerformance < 0 ? '' : '');
-                const avgDisplay = recordCount > 0 ? `${totalSign}${avgPerformance.toFixed(2)}%` : '-';
+                const avgDisplay = recordCount > 0 ? `${totalSign}£${Math.abs(avgPerformance).toFixed(2)}` : '-';
                 
                 html += `<td style="background-color: ${totalBgColor}; color: ${totalTextColor}; font-weight: bold;">${avgDisplay}</td>`;
                 
@@ -3603,26 +3663,46 @@
             months.forEach((month, index) => {
                 const monthNum = index + 1;
                 const monthRecords = yearData.filter(r => r.month === monthNum);
+                
+                // Also calculate totals from individual trades for this month
+                const monthTrades = individualTradesData.filter(trade => 
+                    new Date(trade.trade_date).getFullYear() === currentTradingYear &&
+                    new Date(trade.trade_date).getMonth() + 1 === monthNum
+                );
+                const calculatedTotal = monthTrades.reduce((sum, trade) => sum + trade.profit_loss_amount, 0);
+                
+                let monthTotal = 0;
+                let hasData = false;
+                
+                // Add manual entries
                 if (monthRecords.length > 0) {
-                    const monthTotal = monthRecords.reduce((sum, r) => sum + r.performance_percentage, 0);
-                    const monthAvg = monthTotal / monthRecords.length;
-                    const bgColor = monthAvg >= 0 ? '#d4edda' : '#f8d7da';
-                    const textColor = monthAvg >= 0 ? '#155724' : '#721c24';
-                    const sign = monthAvg > 0 ? '+' : (monthAvg < 0 ? '' : '');
-                    html += `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">${sign}${monthAvg.toFixed(2)}%</td>`;
+                    monthTotal += monthRecords.reduce((sum, r) => sum + r.performance_percentage, 0);
+                    hasData = true;
+                }
+                
+                // Add calculated totals
+                if (monthTrades.length > 0) {
+                    monthTotal += calculatedTotal;
+                    hasData = true;
+                }
+                
+                if (hasData) {
+                    const bgColor = monthTotal >= 0 ? '#d4edda' : '#f8d7da';
+                    const textColor = monthTotal >= 0 ? '#155724' : '#721c24';
+                    const sign = monthTotal > 0 ? '+' : (monthTotal < 0 ? '' : '');
+                    html += `<td style="background-color: ${bgColor}; color: ${textColor}; font-weight: bold;">${sign}£${Math.abs(monthTotal).toFixed(2)}</td>`;
                     grandTotal += monthTotal;
-                    grandCount += monthRecords.length;
+                    grandCount += 1;
                 } else {
                     html += '<td style="background-color: #f8f9fa; color: #999; font-weight: bold;">-</td>';
                 }
             });
 
-            // Overall average
-            const overallAvg = grandCount > 0 ? (grandTotal / grandCount) : 0;
-            const overallBgColor = overallAvg >= 0 ? '#d4edda' : '#f8d7da';
-            const overallTextColor = overallAvg >= 0 ? '#155724' : '#721c24';
-            const overallSign = overallAvg > 0 ? '+' : (overallAvg < 0 ? '' : '');
-            const overallDisplay = grandCount > 0 ? `${overallSign}${overallAvg.toFixed(2)}%` : '-';
+            // Overall total
+            const overallBgColor = grandTotal >= 0 ? '#d4edda' : '#f8d7da';
+            const overallTextColor = grandTotal >= 0 ? '#155724' : '#721c24';
+            const overallSign = grandTotal > 0 ? '+' : (grandTotal < 0 ? '' : '');
+            const overallDisplay = grandCount > 0 ? `${overallSign}£${Math.abs(grandTotal).toFixed(2)}` : '-';
             
             html += `<td style="background-color: ${overallBgColor}; color: ${overallTextColor}; font-weight: bold;">${overallDisplay}</td>`;
             html += '<td></td>'; // Empty Actions cell for totals row
@@ -3632,49 +3712,6 @@
             container.innerHTML = html;
         }
 
-        async function addTradingRecord() {
-            const strategy = document.getElementById('tradingStrategy').value;
-            const year = parseInt(document.getElementById('tradingYear').value);
-            const month = parseInt(document.getElementById('tradingMonth').value);
-            const performancePercentage = parseFloat(document.getElementById('tradingPerformance').value);
-            const tradeCount = parseInt(document.getElementById('tradingTradeCount').value) || 0;
-            const profitableTrades = parseInt(document.getElementById('tradingProfitableTrades').value) || 0;
-            const date = document.getElementById('tradingDate').value;
-            const notes = document.getElementById('tradingNotes').value;
-
-            try {
-                const response = await fetch('/api/finance/trading-records', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        strategy, 
-                        year, 
-                        month, 
-                        performance_percentage: performancePercentage,
-                        trade_count: tradeCount,
-                        profitable_trades: profitableTrades,
-                        date, 
-                        notes 
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    loadTradingData();
-                    // Clear form
-                    document.getElementById('tradingStrategy').value = '';
-                    document.getElementById('tradingPerformance').value = '';
-                    document.getElementById('tradingTradeCount').value = '';
-                    document.getElementById('tradingProfitableTrades').value = '';
-                    document.getElementById('tradingNotes').value = '';
-                } else {
-                    alert('Error adding trading record: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error adding trading record:', error);
-                alert('Error adding trading record');
-            }
-        }
 
         async function deleteTradingRecord(recordId) {
             if (!confirm('Are you sure you want to delete this trading record?')) return;
@@ -3832,6 +3869,314 @@
                 console.error('Error deleting strategy:', error);
                 alert('Error deleting strategy records');
             }
+        }
+
+        // Individual Trades Functions
+        let currentIndividualYear = 2025;
+        let currentIndividualMonth = new Date().getMonth() + 1;
+
+        function switchIndividualYear(year) {
+            currentIndividualYear = year;
+            
+            // Update active year tab
+            document.querySelectorAll('[data-individualyear]').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-individualyear="${year}"]`).classList.add('active');
+            
+            // Show monthly tabs and set current month as active
+            const monthlyTabs = document.getElementById('individualMonthlyTabs');
+            monthlyTabs.style.display = 'block';
+            
+            // Set current month as active
+            document.querySelectorAll('[data-individualmonth]').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-individualmonth="${currentIndividualMonth}"]`).classList.add('active');
+            
+            loadIndividualTradesData();
+        }
+
+        function switchIndividualMonth(month) {
+            currentIndividualMonth = month;
+            
+            // Update active month tab
+            document.querySelectorAll('[data-individualmonth]').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`[data-individualmonth="${month}"]`).classList.add('active');
+            
+            loadIndividualTradesData();
+        }
+
+        async function loadIndividualTradesData() {
+            try {
+                const response = await fetch(`/api/finance/individual-trades?year=${currentIndividualYear}&month=${currentIndividualMonth}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    individualTradesData = result.data;
+                    renderIndividualTradesTable();
+                } else {
+                    console.error('Error loading individual trades data:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading individual trades data:', error);
+            }
+        }
+
+
+        async function addQuickTrade(strategy) {
+            const dateInput = document.getElementById(`quickDate_${strategy}`);
+            const amountInput = document.getElementById(`quickAmount_${strategy}`);
+            
+            const tradeDate = dateInput.value;
+            const profitLossAmount = parseFloat(amountInput.value);
+            
+            if (!tradeDate || isNaN(profitLossAmount)) {
+                alert('Please enter both date and amount');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/finance/individual-trades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        strategy: strategy,
+                        trade_date: tradeDate,
+                        profit_loss_amount: profitLossAmount,
+                        profit_loss_percentage: null,
+                        notes: ''
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // Clear quick form
+                    dateInput.value = '';
+                    amountInput.value = '';
+                    
+                    // Reload data
+                    loadIndividualTradesData();
+                    loadTradingData();
+                } else {
+                    alert('Error adding trade: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding trade:', error);
+                alert('Error adding trade');
+            }
+        }
+
+        async function addIndividualTrade() {
+            const strategy = document.getElementById('individualTradeStrategy').value;
+            const tradeDate = document.getElementById('individualTradeDate').value;
+            const profitLossAmount = parseFloat(document.getElementById('individualTradeProfitLoss').value);
+
+            try {
+                const response = await fetch('/api/finance/individual-trades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        strategy: strategy,
+                        trade_date: tradeDate,
+                        profit_loss_amount: profitLossAmount,
+                        profit_loss_percentage: null,
+                        notes: ''
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadIndividualTradesData();
+                    // Clear form
+                    document.getElementById('individualTradeStrategy').value = '';
+                    document.getElementById('individualTradeDate').value = '';
+                    document.getElementById('individualTradeProfitLoss').value = '';
+                    
+                    // Reload trading data to update summary
+                    loadTradingData();
+                } else {
+                    alert('Error adding individual trade: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding individual trade:', error);
+                alert('Error adding individual trade');
+            }
+        }
+
+        function renderIndividualTradesTable() {
+            const container = document.getElementById('individualTradesTable');
+            
+            if (individualTradesData.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999; padding: 10px;">No individual trades found. Add some trades to get started!</p>';
+                return;
+            }
+
+            // Group trades by strategy
+            const tradesByStrategy = {};
+            individualTradesData.forEach(trade => {
+                if (!tradesByStrategy[trade.strategy]) {
+                    tradesByStrategy[trade.strategy] = [];
+                }
+                tradesByStrategy[trade.strategy].push(trade);
+            });
+
+            // Sort trades within each strategy by date (most recent first)
+            Object.keys(tradesByStrategy).forEach(strategy => {
+                tradesByStrategy[strategy].sort((a, b) => new Date(b.trade_date) - new Date(a.trade_date));
+            });
+
+            let html = '';
+
+            // Render each strategy section
+            Object.keys(tradesByStrategy).sort().forEach(strategy => {
+                html += `<div style="margin-bottom: 15px;">
+                    <h5 style="color: #333; margin: 8px 0 5px 0; font-size: 14px; font-weight: 600;">${strategy}</h5>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 15px; font-size: 13px;">`;
+
+                tradesByStrategy[strategy].forEach(trade => {
+                    const profitLossColor = trade.profit_loss_amount >= 0 ? '#155724' : '#721c24';
+                    const profitLossBg = trade.profit_loss_amount >= 0 ? '#d4edda' : '#f8d7da';
+                    const sign = trade.profit_loss_amount >= 0 ? '+' : '';
+
+                    html += `
+                        <div style="padding: 4px 0; color: #666;">${new Date(trade.trade_date).toLocaleDateString()}</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="editable-amount" 
+                                 data-trade-id="${trade.id}" 
+                                 data-current-amount="${trade.profit_loss_amount}"
+                                 onclick="editAmount(this, ${trade.id}, ${trade.profit_loss_amount})"
+                                 style="color: ${profitLossColor}; background-color: ${profitLossBg}; font-weight: bold; padding: 4px 8px; border-radius: 3px; cursor: pointer; user-select: none; flex-grow: 1;">
+                                ${sign}${trade.profit_loss_amount.toFixed(2)}
+                            </div>
+                            <button class="cell-delete-btn" onclick="deleteIndividualTrade(${trade.id})" title="Delete" style="position: static; top: auto; right: auto; display: inline-block;">×</button>
+                        </div>`;
+                });
+
+                // Calculate statistics
+                const totalTrades = tradesByStrategy[strategy].length;
+                const tradesWon = tradesByStrategy[strategy].filter(t => t.profit_loss_amount >= 0).length;
+                const tradesLost = totalTrades - tradesWon;
+                const winRate = totalTrades > 0 ? ((tradesWon / totalTrades) * 100).toFixed(1) : 0;
+
+                // Add summary section and quick add form
+                html += `</div>
+                    <div style="margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; margin-bottom: 10px;">
+                            <div><strong>${totalTrades}</strong><br>Total</div>
+                            <div style="color: #155724;"><strong>${tradesWon}</strong><br>Won</div>
+                            <div style="color: #721c24;"><strong>${tradesLost}</strong><br>Lost</div>
+                            <div style="color: #0066cc;"><strong>${winRate}%</strong><br>Win Rate</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="date" id="quickDate_${strategy}" style="flex: 1; font-size: 12px; padding: 4px;">
+                            <input type="number" step="0.01" placeholder="P&L Amount" id="quickAmount_${strategy}" style="flex: 1; font-size: 12px; padding: 4px;">
+                            <button onclick="addQuickTrade('${strategy}')" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 12px; cursor: pointer;">+ Add</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+
+        async function deleteIndividualTrade(tradeId) {
+            if (!confirm('Are you sure you want to delete this trade?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/finance/individual-trades/${tradeId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    loadIndividualTradesData();
+                    // Reload trading data to update summary
+                    loadTradingData();
+                } else {
+                    alert('Error deleting trade: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting trade:', error);
+                alert('Error deleting trade');
+            }
+        }
+
+        function editAmount(element, tradeId, currentAmount) {
+            // Prevent multiple edits
+            if (element.querySelector('input')) return;
+            
+            const originalHTML = element.innerHTML;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.value = currentAmount;
+            input.style.width = '80px';
+            input.style.padding = '2px 4px';
+            input.style.border = '1px solid #007bff';
+            input.style.borderRadius = '3px';
+            input.style.fontSize = '13px';
+            input.style.fontWeight = 'bold';
+            
+            element.innerHTML = '';
+            element.appendChild(input);
+            input.focus();
+            input.select();
+            
+            const saveEdit = async () => {
+                const newAmount = parseFloat(input.value);
+                if (isNaN(newAmount)) {
+                    element.innerHTML = originalHTML;
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/api/finance/individual-trades/${tradeId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ profit_loss_amount: newAmount })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        // Update the data in memory
+                        const trade = individualTradesData.find(t => t.id === tradeId);
+                        if (trade) {
+                            trade.profit_loss_amount = newAmount;
+                        }
+                        // Re-render the table and reload summary data
+                        renderIndividualTradesTable();
+                        loadTradingData();
+                    } else {
+                        element.innerHTML = originalHTML;
+                        alert('Error updating amount: ' + result.error);
+                    }
+                } catch (error) {
+                    element.innerHTML = originalHTML;
+                    console.error('Error updating trade:', error);
+                    alert('Error updating amount');
+                }
+            };
+            
+            const cancelEdit = () => {
+                element.innerHTML = originalHTML;
+            };
+            
+            input.addEventListener('blur', saveEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                }
+            });
         }
 
     </script>
