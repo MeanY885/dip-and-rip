@@ -795,7 +795,7 @@
                         <button class="monthly-tab" data-individualmonth="5" onclick="switchIndividualMonth(5)">May</button>
                         <button class="monthly-tab" data-individualmonth="6" onclick="switchIndividualMonth(6)">Jun</button>
                         <button class="monthly-tab" data-individualmonth="7" onclick="switchIndividualMonth(7)">Jul</button>
-                        <button class="monthly-tab" data-individualmonth="8" onclick="switchIndividualMonth(8)">Aug</button>
+                        <button class="monthly-tab active" data-individualmonth="8" onclick="switchIndividualMonth(8)">Aug</button>
                         <button class="monthly-tab" data-individualmonth="9" onclick="switchIndividualMonth(9)">Sep</button>
                         <button class="monthly-tab" data-individualmonth="10" onclick="switchIndividualMonth(10)">Oct</button>
                         <button class="monthly-tab" data-individualmonth="11" onclick="switchIndividualMonth(11)">Nov</button>
@@ -3544,8 +3544,8 @@
         function renderTradingTable() {
             const container = document.getElementById('tradingTrackingTable');
             
-            // Filter trading data for current year
-            const yearData = tradingData.filter(r => r.year === currentTradingYear);
+            // Show ALL trading data (don't filter by year)
+            const yearData = tradingData;
             
             // Get strategies from both manual records and individual trades
             const manualStrategies = [...new Set(yearData.map(r => r.strategy))];
@@ -3873,7 +3873,7 @@
 
         // Individual Trades Functions
         let currentIndividualYear = 2025;
-        let currentIndividualMonth = new Date().getMonth() + 1;
+        let currentIndividualMonth = 8;  // Default to August
 
         function switchIndividualYear(year) {
             currentIndividualYear = year;
