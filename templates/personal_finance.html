@@ -3736,14 +3736,16 @@
                 totalWinningTrades += monthWinningTrades;
                 
                 if (monthTradeCount > 0) {
-                    html += `<td style="font-size: 11px; color: #6c757d; text-align: center;">${monthTradeCount}T<br>${monthWinRate.toFixed(0)}%</td>`;
+                    const monthLosingTrades = monthTradeCount - monthWinningTrades;
+                    html += `<td style="font-size: 10px; color: #6c757d; text-align: center; line-height: 1.1;">${monthTradeCount} Trades<br>${monthWinningTrades} Wins<br>${monthLosingTrades} Loss</td>`;
                 } else {
                     html += '<td style="color: #dee2e6;">-</td>';
                 }
             });
             
             const overallWinRate = totalTrades > 0 ? ((totalWinningTrades / totalTrades) * 100) : 0;
-            html += `<td style="font-weight: bold; color: #495057; font-size: 12px;">Total: ${totalTrades}T | ${overallWinRate.toFixed(1)}%</td>`;
+            const overallLosingTrades = totalTrades - totalWinningTrades;
+            html += `<td style="font-weight: bold; color: #495057; font-size: 11px; line-height: 1.1;">${totalTrades} Trades<br>${totalWinningTrades} Wins<br>${overallLosingTrades} Loss</td>`;
             html += '<td></td>'; // Empty Actions cell
             html += '</tr>';
 
