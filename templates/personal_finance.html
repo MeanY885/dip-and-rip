@@ -3550,9 +3550,7 @@
             // Get strategies from both manual records and individual trades
             const manualStrategies = [...new Set(yearData.map(r => r.strategy))];
             const individualTradeStrategies = [...new Set(
-                individualTradesData
-                    .filter(trade => new Date(trade.trade_date).getFullYear() === currentTradingYear)
-                    .map(trade => trade.strategy)
+                individualTradesData.map(trade => trade.strategy)
             )];
             
             const strategies = [...new Set([...manualStrategies, ...individualTradeStrategies])];
@@ -3594,7 +3592,6 @@
                     // Calculate values from individual trades for this strategy/month
                     const monthTrades = individualTradesData.filter(trade => 
                         trade.strategy === strategy &&
-                        new Date(trade.trade_date).getFullYear() === currentTradingYear &&
                         new Date(trade.trade_date).getMonth() + 1 === monthNum
                     );
                     
