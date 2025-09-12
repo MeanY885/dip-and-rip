@@ -1042,7 +1042,6 @@
                 loadMonthlyTrackingData();
                 loadSalaryData();
                 loadTradingData();
-                loadAllIndividualTradesData();
                 // Initialize individual trades (this will show current month)
                 switchIndividualYear(2025);
                 // Initialize the calculation display
@@ -3529,11 +3528,18 @@
         // Trading Functions
         async function loadTradingData() {
             try {
+                console.log('loadTradingData: Starting to load trading data...');
                 const response = await fetch('/api/finance/trading-records');
                 const result = await response.json();
                 
                 if (result.success) {
                     tradingData = result.data;
+                    console.log('loadTradingData: Loaded trading data, now loading individual trades...');
+                    
+                    // Load all individual trades data first before rendering
+                    await loadAllIndividualTradesData();
+                    console.log('loadTradingData: Individual trades loaded, rendering table...');
+                    
                     renderTradingTable();
                 } else {
                     console.error('Error loading trading data:', result.error);
@@ -3544,6 +3550,7 @@
         }
 
         function renderTradingTable() {
+            console.log('renderTradingTable: Starting to render with', allIndividualTradesData.length, 'individual trades');
             const container = document.getElementById('tradingTrackingTable');
             
             // Show ALL trading data (don't filter by year)
@@ -3554,6 +3561,7 @@
             const individualTradeStrategies = [...new Set(
                 allIndividualTradesData.map(trade => trade.strategy)
             )];
+            console.log('renderTradingTable: individualTradeStrategies found:', individualTradeStrategies);
             
             const strategies = [...new Set([...manualStrategies, ...individualTradeStrategies])];
             
@@ -3926,11 +3934,14 @@
 
         async function loadAllIndividualTradesData() {
             try {
+                console.log('loadAllIndividualTradesData: Starting to load all individual trades...');
                 const response = await fetch('/api/finance/individual-trades');
                 const result = await response.json();
                 
                 if (result.success) {
                     allIndividualTradesData = result.data;
+                    console.log('loadAllIndividualTradesData: Loaded', result.data.length, 'individual trades');
+                    console.log('loadAllIndividualTradesData: Sample data:', result.data.slice(0, 2));
                 } else {
                     console.error('Error loading all individual trades data:', result.error);
                 }
