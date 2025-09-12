@@ -3647,14 +3647,13 @@
                     }
                 });
 
-                // Strategy average
-                const avgPerformance = recordCount > 0 ? (strategyTotal / recordCount) : 0;
-                const totalBgColor = avgPerformance >= 0 ? '#d4edda' : '#f8d7da';
-                const totalTextColor = avgPerformance >= 0 ? '#155724' : '#721c24';
-                const totalSign = avgPerformance > 0 ? '+' : (avgPerformance < 0 ? '' : '');
-                const avgDisplay = recordCount > 0 ? `${totalSign}£${Math.abs(avgPerformance).toFixed(2)}` : '-';
+                // Strategy total (sum of all months)
+                const totalBgColor = strategyTotal >= 0 ? '#d4edda' : '#f8d7da';
+                const totalTextColor = strategyTotal >= 0 ? '#155724' : '#721c24';
+                const totalSign = strategyTotal > 0 ? '+' : (strategyTotal < 0 ? '-' : '');
+                const totalDisplay = recordCount > 0 ? `${totalSign}£${Math.abs(strategyTotal).toFixed(2)}` : '-';
                 
-                html += `<td style="background-color: ${totalBgColor}; color: ${totalTextColor}; font-weight: bold;">${avgDisplay}</td>`;
+                html += `<td style="background-color: ${totalBgColor}; color: ${totalTextColor}; font-weight: bold;">${totalDisplay}</td>`;
                 
                 // Delete strategy button
                 html += `<td style="text-align: center; padding: 5px;">
@@ -3713,6 +3712,29 @@
             
             html += `<td style="background-color: ${overallBgColor}; color: ${overallTextColor}; font-weight: bold;">${overallDisplay}</td>`;
             html += '<td></td>'; // Empty Actions cell for totals row
+            html += '</tr>';
+
+            // Summary statistics row
+            let totalTrades = 0;
+            let winningTrades = 0;
+            
+            allIndividualTradesData.forEach(trade => {
+                totalTrades++;
+                if (trade.profit_loss_amount > 0) {
+                    winningTrades++;
+                }
+            });
+            
+            const winRate = totalTrades > 0 ? ((winningTrades / totalTrades) * 100) : 0;
+            
+            html += '<tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6;">';
+            html += '<td style="font-weight: bold; color: #495057;">Summary</td>';
+            // Empty cells for all months
+            for (let i = 0; i < 12; i++) {
+                html += '<td></td>';
+            }
+            html += `<td style="font-weight: bold; color: #495057;">Trades: ${totalTrades} | Win Rate: ${winRate.toFixed(1)}%</td>`;
+            html += '<td></td>'; // Empty Actions cell
             html += '</tr>';
 
             html += '</tbody></table>';
