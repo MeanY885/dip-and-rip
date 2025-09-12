@@ -3634,8 +3634,8 @@
                         const absValue = Math.abs(displayValue);
                         
                         if (isCalculated) {
-                            // Show calculated value as currency
-                            html += `<td class="editable-cell" style="background-color: ${bgColor}; color: ${textColor};" title="Calculated from ${tradeCount} individual trades">${sign}£${absValue.toFixed(2)}</td>`;
+                            // Show calculated value as currency (non-clickable)
+                            html += `<td style="background-color: ${bgColor}; color: ${textColor}; cursor: default;" title="Calculated from ${tradeCount} individual trades - cannot be edited">${sign}£${absValue.toFixed(2)}</td>`;
                         } else {
                             // Show manual entry as currency (convert from percentage)
                             html += `<td class="editable-cell" onclick="editTradingRecord(${record.id})" style="background-color: ${bgColor}; color: ${textColor};" title="Manual entry">${sign}£${Math.abs(percentage).toFixed(2)}<button class="cell-delete-btn" onclick="event.stopPropagation(); deleteTradingRecord(${record.id})" title="Delete">×</button></td>`;
@@ -3715,25 +3715,35 @@
             html += '</tr>';
 
             // Summary statistics row
-            let totalTrades = 0;
-            let winningTrades = 0;
+            html += '<tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6;">';
+            html += '<td style="font-weight: bold; color: #495057;">Summary</td>';
             
-            allIndividualTradesData.forEach(trade => {
-                totalTrades++;
-                if (trade.profit_loss_amount > 0) {
-                    winningTrades++;
+            let totalTrades = 0;
+            let totalWinningTrades = 0;
+            
+            // Monthly summary stats
+            months.forEach((month, index) => {
+                const monthNum = index + 1;
+                const monthTrades = allIndividualTradesData.filter(trade => 
+                    new Date(trade.trade_date).getMonth() + 1 === monthNum
+                );
+                
+                const monthTradeCount = monthTrades.length;
+                const monthWinningTrades = monthTrades.filter(trade => trade.profit_loss_amount > 0).length;
+                const monthWinRate = monthTradeCount > 0 ? ((monthWinningTrades / monthTradeCount) * 100) : 0;
+                
+                totalTrades += monthTradeCount;
+                totalWinningTrades += monthWinningTrades;
+                
+                if (monthTradeCount > 0) {
+                    html += `<td style="font-size: 11px; color: #6c757d; text-align: center;">${monthTradeCount}T<br>${monthWinRate.toFixed(0)}%</td>`;
+                } else {
+                    html += '<td style="color: #dee2e6;">-</td>';
                 }
             });
             
-            const winRate = totalTrades > 0 ? ((winningTrades / totalTrades) * 100) : 0;
-            
-            html += '<tr style="background-color: #f8f9fa; border-top: 2px solid #dee2e6;">';
-            html += '<td style="font-weight: bold; color: #495057;">Summary</td>';
-            // Empty cells for all months
-            for (let i = 0; i < 12; i++) {
-                html += '<td></td>';
-            }
-            html += `<td style="font-weight: bold; color: #495057;">Trades: ${totalTrades} | Win Rate: ${winRate.toFixed(1)}%</td>`;
+            const overallWinRate = totalTrades > 0 ? ((totalWinningTrades / totalTrades) * 100) : 0;
+            html += `<td style="font-weight: bold; color: #495057; font-size: 12px;">Total: ${totalTrades}T | ${overallWinRate.toFixed(1)}%</td>`;
             html += '<td></td>'; // Empty Actions cell
             html += '</tr>';
 
@@ -4080,9 +4090,9 @@
 
             // Render each strategy section
             Object.keys(tradesByStrategy).sort().forEach(strategy => {
-                html += `<div style="margin-bottom: 15px;">
-                    <h5 style="color: #333; margin: 8px 0 5px 0; font-size: 14px; font-weight: 600;">${strategy}</h5>
-                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 8px 15px; font-size: 13px;">`;
+                html += `<div style="margin-bottom: 10px;">
+                    <h5 style="color: #333; margin: 4px 0 3px 0; font-size: 13px; font-weight: 600;">${strategy}</h5>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px;">`;
 
                 tradesByStrategy[strategy].forEach(trade => {
                     const profitLossColor = trade.profit_loss_amount >= 0 ? '#155724' : '#721c24';
@@ -4090,16 +4100,16 @@
                     const sign = trade.profit_loss_amount >= 0 ? '+' : '';
 
                     html += `
-                        <div style="padding: 4px 0; color: #666;">${new Date(trade.trade_date).toLocaleDateString()}</div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="padding: 2px 0; color: #666; font-size: 11px;">${new Date(trade.trade_date).toLocaleDateString()}</div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
                             <div class="editable-amount" 
                                  data-trade-id="${trade.id}" 
                                  data-current-amount="${trade.profit_loss_amount}"
                                  onclick="editAmount(this, ${trade.id}, ${trade.profit_loss_amount})"
-                                 style="color: ${profitLossColor}; background-color: ${profitLossBg}; font-weight: bold; padding: 4px 8px; border-radius: 3px; cursor: pointer; user-select: none; flex-grow: 1;">
+                                 style="color: ${profitLossColor}; background-color: ${profitLossBg}; font-weight: bold; padding: 3px 6px; border-radius: 3px; cursor: pointer; user-select: none; flex-grow: 1; font-size: 11px;">
                                 ${sign}${trade.profit_loss_amount.toFixed(2)}
                             </div>
-                            <button class="cell-delete-btn" onclick="deleteIndividualTrade(${trade.id})" title="Delete" style="position: static; top: auto; right: auto; display: inline-block;">×</button>
+                            <button class="cell-delete-btn" onclick="deleteIndividualTrade(${trade.id})" title="Delete" style="position: static; top: auto; right: auto; display: inline-block; padding: 2px 6px; font-size: 12px;">×</button>
                         </div>`;
                 });
 
@@ -4111,17 +4121,17 @@
 
                 // Add summary section and quick add form
                 html += `</div>
-                    <div style="margin-top: 8px; padding: 8px; background-color: #f8f9fa; border-radius: 4px; font-size: 12px; color: #666;">
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; margin-bottom: 10px;">
-                            <div><strong>${totalTrades}</strong><br>Total</div>
-                            <div style="color: #155724;"><strong>${tradesWon}</strong><br>Won</div>
-                            <div style="color: #721c24;"><strong>${tradesLost}</strong><br>Lost</div>
-                            <div style="color: #0066cc;"><strong>${winRate}%</strong><br>Win Rate</div>
+                    <div style="margin-top: 5px; padding: 6px; background-color: #f8f9fa; border-radius: 3px; font-size: 11px; color: #666;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-bottom: 6px;">
+                            <div><strong style="font-size: 12px;">${totalTrades}</strong><br><span style="font-size: 10px;">Total</span></div>
+                            <div style="color: #155724;"><strong style="font-size: 12px;">${tradesWon}</strong><br><span style="font-size: 10px;">Won</span></div>
+                            <div style="color: #721c24;"><strong style="font-size: 12px;">${tradesLost}</strong><br><span style="font-size: 10px;">Lost</span></div>
+                            <div style="color: #0066cc;"><strong style="font-size: 12px;">${winRate}%</strong><br><span style="font-size: 10px;">Win Rate</span></div>
                         </div>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="date" id="quickDate_${strategy}" style="flex: 1; font-size: 12px; padding: 4px;">
-                            <input type="number" step="0.01" placeholder="P&L Amount" id="quickAmount_${strategy}" style="flex: 1; font-size: 12px; padding: 4px;">
-                            <button onclick="addQuickTrade('${strategy}')" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 12px; cursor: pointer;">+ Add</button>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <input type="date" id="quickDate_${strategy}" style="flex: 1; font-size: 11px; padding: 3px;">
+                            <input type="number" step="0.01" placeholder="P&L" id="quickAmount_${strategy}" style="flex: 1; font-size: 11px; padding: 3px;">
+                            <button onclick="addQuickTrade('${strategy}')" style="background: #007bff; color: white; border: none; padding: 3px 6px; border-radius: 3px; font-size: 11px; cursor: pointer;">+ Add</button>
                         </div>
                     </div>
                 </div>`;
